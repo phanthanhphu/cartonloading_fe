@@ -1,0 +1,12 @@
+@import 'simplebar-react/dist/simplebar.min.css';
+@import './assets/fonts/inter/inter.css';
+
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import "tailwindcss";
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}

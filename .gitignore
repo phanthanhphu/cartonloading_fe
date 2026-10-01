@@ -1,0 +1,127 @@
+# =========================
+# Dependencies
+# =========================
+
+# Node dependencies - không push lên git
+node_modules/
+node_modules/.bin/
+node_modules/.vite/
+
+# Yarn / npm generated files
+.pnpm-store/
+.yarn/
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.yarn-integrity
+
+
+# =========================
+# Local runtime / tool files
+# =========================
+
+# Nginx local runtime - không push lên git
+nginx-*/
+nginx.exe
+
+# Java / Spring Boot / Gradle
+.gradle/
+build/
+out/
+target/
+*.class
+
+# Maven wrapper generated temp
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local upload/runtime files
+uploads/
+upload/
+uploaded/
+files/
+storage/
+temp/
+tmp/
+
+# Generated image/file cache
+cache/
+image-cache/
+generated/
+generated-files/
+export/
+exports/
+download/
+downloads/
+
+# Excel/temp/backup files
+~$*.xlsx
+~$*.xls
+*.tmp
+*.bak
+*.backup
+
+# Archive files generated locally
+*.zip
+*.rar
+*.7z
+
+# Local executable/installers
+*.exe
+*.msi
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.production.local
+.env.test
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Cache / coverage
+coverage/
+*.lcov
+.nyc_output/
+.cache/
+.eslintcache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# React / Vite build output
+dist/
+.vite/
+
+# Misc
+*.tgz
+.tern-port

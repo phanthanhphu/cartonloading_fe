@@ -1,0 +1,13 @@
+import { apiClient } from 'routes/globalApi';
+const cfg = (p) => ({ params: Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== '' && v !== undefined && v !== null)) });
+export const getCartonDashboard = () => apiClient.get('/api/carton-dashboard/summary');
+export const listManagedOrders = (buyer, q = {}) => apiClient.get('/api/order-management/orders', cfg({ buyer, ...q }));
+export const getManagedOrder = (buyer, id) => apiClient.get(`/api/order-management/orders/${id}`, cfg({ buyer }));
+export const createManagedOrder = (buyer, body) => apiClient.post('/api/order-management/orders', body, cfg({ buyer }));
+export const updateManagedOrder = (buyer, id, body) => apiClient.put(`/api/order-management/orders/${id}`, body, cfg({ buyer }));
+export const deleteManagedOrder = (buyer, id) => apiClient.delete(`/api/order-management/orders/${id}`, cfg({ buyer }));
+export const listManagedPos = (buyer, orderId, q = {}) => apiClient.get(`/api/order-management/orders/${orderId}/pos`, cfg({ buyer, ...q }));
+export const getManagedPo = (buyer, orderId, poKey) => apiClient.get(`/api/order-management/orders/${orderId}/pos/${encodeURIComponent(poKey)}`, cfg({ buyer }));
+export const listManagedCartons = (buyer, orderId, poKey, q = {}) => apiClient.get(`/api/order-management/orders/${orderId}/pos/${encodeURIComponent(poKey)}/cartons`, cfg({ buyer, ...q }));
+export const getManagedCarton = (buyer, orderId, cartonId) => apiClient.get(`/api/order-management/orders/${orderId}/cartons/${cartonId}`, cfg({ buyer }));
+export const listManagedItems = (buyer, orderId, cartonId, q = {}) => apiClient.get(`/api/order-management/orders/${orderId}/cartons/${cartonId}/items`, cfg({ buyer, ...q }));
