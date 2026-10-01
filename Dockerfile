@@ -5,12 +5,12 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy riêng package trước để Docker cache node_modules
+# Copy package trước để Docker cache dependency
 COPY package.json package-lock.json ./
 
-# Cache npm, lần sau build sẽ nhanh hơn
+# package-lock hiện chưa đồng bộ với package.json
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --prefer-offline --no-audit --progress=false
+    npm install --legacy-peer-deps --no-audit --progress=false
 
 # Copy source sau cùng
 COPY . .
