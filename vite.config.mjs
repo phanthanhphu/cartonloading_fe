@@ -34,7 +34,7 @@ export default defineConfig(({ command, mode }) => {
 
   const isDev = command === 'serve' || mode === 'development';
 
-  const DEV_PORT = Number(env.VITE_DEV_PORT || 3002);
+  const DEV_PORT = Number(env.VITE_DEV_PORT || 3003);
   const DEV_HOST = env.VITE_DEV_HOST || '0.0.0.0';
 
   const APP_PROTOCOL = getProtocolFromEnv(env);
@@ -43,11 +43,11 @@ export default defineConfig(({ command, mode }) => {
   /**
    * Không hardcode IP ở đây.
    * IP chỉ khai báo duy nhất trong file .env:
-   * VITE_APP_HOST=10.23.186.165
+   * VITE_APP_HOST=10.232.100.69
    */
   const APP_HOST = env.VITE_APP_HOST || 'localhost';
   const APP_DOMAIN = env.VITE_APP_DOMAIN || '';
-  const API_PORT = env.VITE_API_PORT || '8082';
+  const API_PORT = env.VITE_API_PORT || '8083';
 
   const BACKEND_TARGET = `${APP_PROTOCOL}://${APP_HOST}:${API_PORT}`;
 

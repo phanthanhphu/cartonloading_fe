@@ -1,0 +1,20 @@
+CARTON LOADING FE
+
+Bước 1 - Vào thư mục FE
+cd /home/bsl-adminit/Projects/cartonloading/cartonloading_fe
+
+Bước 2 - Build image FE
+docker build -t cartonloading_fe:latest --build-arg VITE_APP_VERSION="v1.0.0" --build-arg VITE_APP_BASE_NAME="/" --build-arg VITE_APP_PROTOCOL="http" --build-arg VITE_APP_HOST="10.232.100.69" --build-arg VITE_API_PORT="8083" --build-arg VITE_API_BASE_URL="http://10.232.100.69:8083" --build-arg NGINX_CONF="nginx.http.conf" --build-arg APP_PORT="80" .
+
+Bước 3 - Xóa container FE cũ
+docker rm -f cartonloading_fe 2>/dev/null || true
+
+Bước 4 - Chạy FE mới
+docker run -d --name cartonloading_fe --restart unless-stopped -p 3003:80 cartonloading_fe:latest
+
+Truy cập:
+http://10.232.100.69:3003
+
+Kiểm tra:
+docker logs -f --tail 200 cartonloading_fe
+sudo ss -lntp | grep 3003

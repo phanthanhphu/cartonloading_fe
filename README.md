@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Default development URL: `http://localhost:3002`  
-Default backend URL: `http://localhost:8082`
+Default development URL: `http://localhost:3003`  
+Default backend URL: `http://localhost:8083`
 
 Update `.env` when the backend runs on another IP address.
