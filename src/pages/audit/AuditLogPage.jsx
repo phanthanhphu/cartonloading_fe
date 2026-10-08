@@ -6,7 +6,7 @@ import TableFilterBar from 'components/TableFilterBar';
 import { listAuditLogs } from 'services/adminService';
 
 export default function AuditLogPage() {
-  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: 25, loading: false });
+  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: DEFAULT_TABLE_PAGE_SIZE, loading: false });
   const [filters, setFilters] = useState({ username: '', action: '', resourceType: '', resourceId: '', ipAddress: '' });
   const [viewing, setViewing] = useState(null);
   const [error, setError] = useState('');
@@ -45,7 +45,7 @@ export default function AuditLogPage() {
       <Stack spacing={1}>
         <Typography variant="h5" fontWeight={850}>Audit Trail</Typography>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
-        <Alert severity="info">Audit logs are read-only and cannot be edited or deleted.</Alert>
+        <Alert severity="info">{APP_MESSAGES.AUDIT_LOGS_READ_ONLY}</Alert>
         <TableFilterBar
           fields={[
             { key: 'username', label: 'User' },
@@ -65,6 +65,9 @@ export default function AuditLogPage() {
     </Box>
   );
 }
+
+import { APP_MESSAGES } from '../../constants/appMessages';
+import { DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
 
 function AuditDetailDialog({ row, onClose }) {
   const fields = [

@@ -18,6 +18,7 @@ import { CompactPageHeader } from 'components/CompactPageHeader';
 import { getCartonDashboard } from 'services/managementService';
 import { readStoredUser } from 'utils/accessControl';
 import { getAccessibleBuyers, saveSelectedBuyer } from 'utils/buyerAccess';
+import { DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
 
 const metricLabels = [
   ['totalOrders', 'Orders'], ['totalPos', 'PO'], ['totalCartons', 'Cartons'], ['totalItems', 'Items'],
@@ -30,7 +31,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [size, setSize] = useState(10);
+  const [size, setSize] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
   const accessibleBuyers = useMemo(() => getAccessibleBuyers(readStoredUser()), []);
 
   useEffect(() => {

@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { ROLE, STORAGE_KEY } from '../../constants/appConstants';
+import { APP_MESSAGES } from '../../constants/appMessages';
 
 import {
   canAssignBarcode,
@@ -20,20 +22,20 @@ import {
 import { buyerCapability, getBuyerAccessLandingPath, getBuyerModule } from './buyerModules';
 
 const readStoredUser = () => {
-  try { return JSON.parse(localStorage.getItem('user') || '{}') || {}; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY.USER) || '{}') || {}; }
   catch { return {}; }
 };
 
 const getStoredRole = () => {
   try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return String(user?.role || localStorage.getItem('role') || '').trim().toUpperCase();
+    const user = JSON.parse(localStorage.getItem(STORAGE_KEY.USER) || '{}');
+    return String(user?.role || localStorage.getItem(STORAGE_KEY.ROLE) || '').trim().toUpperCase();
   } catch {
-    return String(localStorage.getItem('role') || '').trim().toUpperCase();
+    return String(localStorage.getItem(STORAGE_KEY.ROLE) || '').trim().toUpperCase();
   }
 };
 
-const isAdminRole = (role) => role === 'ADMIN' || role === 'ROLE_ADMIN';
+const isAdminRole = (role) => role === ROLE.ADMIN || role === ROLE.ROLE_ADMIN;
 
 export function BuyerHomeRedirect() {
   const user = readStoredUser();
@@ -52,7 +54,7 @@ export function ActiveBuyerCapabilityRoute({ capability, children }) {
   const allowed = Boolean(buyer && buyerCapability(buyer, capability));
 
   useEffect(() => {
-    if (!allowed) toast.error('This function is not part of the selected Buyer workflow.');
+    if (!allowed) toast.error(APP_MESSAGES.BUYER_WORKFLOW_FUNCTION_UNAVAILABLE);
   }, [allowed]);
 
   return allowed ? children : <BuyerHomeRedirect />;
@@ -66,7 +68,7 @@ export function BuyerModuleRoute({ moduleKey, children }) {
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
-    if (!allowed) toast.error(`This page does not belong to the selected Buyer workflow.`);
+    if (!allowed) toast.error(APP_MESSAGES.BUYER_WORKFLOW_PAGE_MISMATCH);
   }, [allowed, buyer]);
 
   return allowed ? children : <BuyerHomeRedirect />;
@@ -80,7 +82,7 @@ export function BuyerWorkspaceRoute({ children }) {
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
-    if (!allowed) toast.error('You do not have access to the Buyer workspace.');
+    if (!allowed) toast.error(APP_MESSAGES.BUYER_WORKSPACE_ACCESS_DENIED);
   }, [allowed, buyer]);
 
   return allowed ? children : <BuyerHomeRedirect />;
@@ -88,7 +90,7 @@ export function BuyerWorkspaceRoute({ children }) {
 
 export function WorkspaceRoute({ children }) {
   const allowed = canUseBuyerWorkspace();
-  useEffect(() => { if (!allowed) toast.error('Access denied. This account is limited to Factory Operations.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.FACTORY_OPERATIONS_ONLY); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
@@ -98,7 +100,7 @@ export function SalesRoute({ children }) {
 
 export function AssignRoute({ children }) {
   const allowed = canAssignBarcode();
-  useEffect(() => { if (!allowed) toast.error('Access denied. Assign Barcode permission is required.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.ASSIGN_BARCODE_REQUIRED); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
@@ -108,26 +110,26 @@ export function BarcodeRoute({ children }) {
 
 export function WeightRoute({ children }) {
   const allowed = canWeightCheck();
-  useEffect(() => { if (!allowed) toast.error('Access denied. Weight Check permission is required.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.WEIGHT_CHECK_REQUIRED); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
-export function LululemonPackingAccessRoute({ children }) {
+export function PackingAccessRoute({ children }) {
   const allowed = canAssignBarcode() || canManageSales();
-  useEffect(() => { if (!allowed) toast.error('Access denied. LULULEMON Packing permission is required.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.PACKING_PERMISSION_REQUIRED); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
 
-export function LululemonWeightAccessRoute({ children }) {
+export function WeightAccessRoute({ children }) {
   const allowed = canWeightCheck() || canManageSales() || canAssignBarcode();
-  useEffect(() => { if (!allowed) toast.error('Access denied. LULULEMON Weighing permission is required.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.WEIGHING_PERMISSION_REQUIRED); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
-export function LululemonPrintAccessRoute({ children }) {
+export function PrintAccessRoute({ children }) {
   const allowed = canPrintRoom() || canAssignBarcode() || canManageSales();
-  useEffect(() => { if (!allowed) toast.error('Access denied. Print Room or Packing permission is required.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.PRINT_ROOM_PERMISSION_REQUIRED); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
@@ -139,7 +141,7 @@ export function AssignBuyerRoute({ children }) {
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
-    if (!allowed) toast.error('Access denied. Assign Barcode permission is required for this Buyer.');
+    if (!allowed) toast.error(APP_MESSAGES.ASSIGN_BARCODE_BUYER_REQUIRED);
   }, [allowed, buyer]);
 
   return allowed ? children : <BuyerHomeRedirect />;
@@ -153,7 +155,7 @@ export function WeightBuyerRoute({ children }) {
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
-    if (!allowed) toast.error('Access denied. Weight Check permission is required for this Buyer.');
+    if (!allowed) toast.error(APP_MESSAGES.WEIGHT_CHECK_BUYER_REQUIRED);
   }, [allowed, buyer]);
 
   return allowed ? children : <BuyerHomeRedirect />;
@@ -161,6 +163,6 @@ export function WeightBuyerRoute({ children }) {
 
 export function AdminRoute({ children }) {
   const allowed = isAdminRole(getStoredRole());
-  useEffect(() => { if (!allowed) toast.error('Access denied. Administrator only.'); }, [allowed]);
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.ADMIN_ONLY); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }

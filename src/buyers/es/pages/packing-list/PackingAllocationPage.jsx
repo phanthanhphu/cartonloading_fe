@@ -1,3 +1,4 @@
+import { BARCODE_CARTON_STATUS, FACTORY_BARCODE_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, LARGE_TABLE_PAGE_SIZE, OPERATION_ROUTE } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -43,6 +44,7 @@ import BuildCircleOutlinedIcon from '@mui/icons-material/BuildCircleOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { APP_MESSAGES, createBarcodeAssignedMessage, createBarcodeUnassignedMessage, createCartonMasterGeneratedMessage, createFactoryBarcodeAvailableForCartonMessage, createOrderItemsImportSummary, createPackingListGenerationSummary, createPackingListImportCompletedMessage, createUnassignFactoryBarcodeConfirmMessage, createWeightResetMessage } from '../../../../constants/appMessages';
 
 import { canAssignBarcode as canAssignBarcodeAccess, canManageSales, isAdmin } from 'utils/accessControl';
 import { getBuyerBySlug } from 'utils/buyerAccess';
@@ -97,7 +99,7 @@ export default function PackingAllocationPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const buyer = getBuyerBySlug(buyerSlug);
-  const assignmentWorkspace = location.pathname.startsWith('/assign-barcode/');
+  const assignmentWorkspace = location.pathname.startsWith(`${OPERATION_ROUTE.ASSIGN_BARCODE}/`);
   const canWrite = canManageSales();
   const canAssignOperation = canAssignBarcodeAccess();
   const adminUser = isAdmin();
@@ -165,7 +167,7 @@ export default function PackingAllocationPage() {
       setOrder(loadedOrder);
       return loadedOrder;
     } catch (error) {
-      notify(getApiError(error, 'Unable to load the Order.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_SELECTED_ORDER_FAILED), 'error');
     }
   }, [buyer?.code, orderId]);
 
@@ -173,12 +175,12 @@ export default function PackingAllocationPage() {
     if (!buyer?.code || !orderId) return;
     setMasterLoading(true);
     try {
-      const data = await listPackingAllocationLines(buyer.code, orderId, { ...masterApplied, page: masterPage, size: 50 });
+      const data = await listPackingAllocationLines(buyer.code, orderId, { ...masterApplied, page: masterPage, size: LARGE_TABLE_PAGE_SIZE });
       setMasterRows(Array.isArray(data?.content) ? data.content : []);
       setMasterPages(Math.max(1, data?.totalPages || 1));
       setMasterTotal(data?.totalElements || 0);
     } catch (error) {
-      notify(getApiError(error, 'Unable to load Order Items.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_ORDER_ITEMS_FAILED), 'error');
     } finally {
       setMasterLoading(false);
     }
@@ -188,12 +190,12 @@ export default function PackingAllocationPage() {
     if (!buyer?.code || !orderId) return;
     setPackingLoading(true);
     try {
-      const data = await listPackingListLines(buyer.code, orderId, { ...packingApplied, page: packingPage, size: 50 });
+      const data = await listPackingListLines(buyer.code, orderId, { ...packingApplied, page: packingPage, size: LARGE_TABLE_PAGE_SIZE });
       setPackingRows(Array.isArray(data?.content) ? data.content : []);
       setPackingPages(Math.max(1, data?.totalPages || 1));
       setPackingTotal(data?.totalElements || 0);
     } catch (error) {
-      notify(getApiError(error, 'Unable to load Packing List rows.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_PACKING_LIST_ROWS_FAILED), 'error');
     } finally {
       setPackingLoading(false);
     }
@@ -226,10 +228,10 @@ export default function PackingAllocationPage() {
   const cartonItemGeneratedCount = cartonItemChildren.length;
   const cartonItemCountMatches = cartonItemExpectedCount > 0 && cartonItemGeneratedCount === cartonItemExpectedCount;
   const cartonItemAssignmentStatus = cartonItemGeneratedCount === 0
-    ? 'NOT STARTED'
+    ? PROGRESS_STATUS.NOT_STARTED
     : cartonItemCountMatches && cartonItemAssignedCount >= cartonItemExpectedCount
-      ? 'COMPLETED'
-      : cartonItemAssignedCount > 0 ? 'IN PROGRESS' : 'NOT STARTED';
+      ? PROGRESS_STATUS.COMPLETED
+      : cartonItemAssignedCount > 0 ? PROGRESS_STATUS.IN_PROGRESS : PROGRESS_STATUS.NOT_STARTED;
 
   const saveMaster = async (payload) => {
     if (!canWrite || !buyer?.code) return;
@@ -239,10 +241,10 @@ export default function PackingAllocationPage() {
       else await createPackingAllocationLine(buyer.code, orderId, payload);
       setMasterFormOpen(false);
       setMasterFormRecord(null);
-      notify('Order Item saved. Packing List / Physical Cartons were synchronized automatically when quantity changed.');
+      notify(APP_MESSAGES.ORDER_ITEM_SAVED);
       await Promise.all([loadMaster(), loadOrder()]);
     } catch (error) {
-      notify(getApiError(error, 'Unable to save the Order Item.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.SAVE_ORDER_ITEM_FAILED), 'error');
     } finally {
       setMasterSaving(false);
     }
@@ -253,11 +255,11 @@ export default function PackingAllocationPage() {
     try {
       await deletePackingAllocationLine(buyer.code, orderId, masterDeleteTarget.id);
       setMasterDeleteTarget(null);
-      notify('Order Item deleted.');
+      notify(APP_MESSAGES.ORDER_ITEM_DELETED);
       if (masterRows.length === 1 && masterPage > 0) setMasterPage((value) => value - 1);
       else await Promise.all([loadMaster(), loadOrder()]);
     } catch (error) {
-      notify(getApiError(error, 'Unable to delete the Order Item.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.DELETE_ORDER_ITEM_FAILED), 'error');
     }
   };
 
@@ -268,14 +270,14 @@ export default function PackingAllocationPage() {
     try {
       const result = await importPackingAllocationLines(buyer.code, orderId, file, mode);
       setMasterImportResult(result);
-      const message = `Order Items import: ${result.created || 0} created, ${result.updated || 0} updated, ${result.deleted || 0} deleted. Review the Master Total ctns and Qty Per Ctn before generating Carton Master data.`;
+      const message = createOrderItemsImportSummary(result.created, result.updated, result.deleted);
       notify(message, 'success');
       setMasterPage(0);
       await Promise.all([loadMaster(), loadOrder()]);
     } catch (error) {
       const result = error?.response?.data;
       setMasterImportResult(result && typeof result === 'object' ? result : { applied: false, errors: [{ message: getApiError(error) }] });
-      notify(getApiError(error, 'Order Items import failed.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.ORDER_ITEMS_IMPORT_FAILED), 'error');
     } finally {
       setMasterImporting(false);
     }
@@ -286,7 +288,7 @@ export default function PackingAllocationPage() {
       const response = await downloadOrderMaster(buyer.code, orderId);
       saveBlob(response, `${order?.orderName || 'ORDER'}_ORDER_ITEMS.xlsx`);
     } catch (error) {
-      notify(getApiError(error, 'Unable to download the Order Items.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.DOWNLOAD_ORDER_ITEMS_FAILED), 'error');
     }
   };
 
@@ -298,10 +300,10 @@ export default function PackingAllocationPage() {
       else await createPackingListLine(buyer.code, orderId, payload);
       setPackingFormOpen(false);
       setPackingFormRecord(null);
-      notify('Packing List row saved. Physical Cartons were refreshed using Master Total ctns when carton-related data changed.');
+      notify(APP_MESSAGES.PACKING_LIST_ROW_SAVED);
       await Promise.all([loadPacking(), loadOrder()]);
     } catch (error) {
-      notify(getApiError(error, 'Unable to save the Packing List row.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.SAVE_PACKING_LIST_ROW_FAILED), 'error');
     } finally {
       setPackingSaving(false);
     }
@@ -312,11 +314,11 @@ export default function PackingAllocationPage() {
     try {
       await deletePackingListLine(buyer.code, orderId, packingDeleteTarget.id);
       setPackingDeleteTarget(null);
-      notify('Packing List row deleted.');
+      notify(APP_MESSAGES.PACKING_LIST_ROW_DELETED);
       if (packingRows.length === 1 && packingPage > 0) setPackingPage((value) => value - 1);
       else await Promise.all([loadPacking(), loadOrder()]);
     } catch (error) {
-      notify(getApiError(error, 'Unable to delete the Packing List row.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.DELETE_PACKING_LIST_ROW_FAILED), 'error');
     }
   };
 
@@ -327,13 +329,13 @@ export default function PackingAllocationPage() {
     try {
       const result = await importPackingListLines(buyer.code, orderId, file, mode);
       setPackingImportResult(result);
-      notify(`Packing List import completed: ${result.created || 0} created and ${result.updated || 0} updated.`);
+      notify(createPackingListImportCompletedMessage(result.created, result.updated));
       setPackingPage(0);
       await Promise.all([loadPacking(), loadOrder()]);
     } catch (error) {
       const result = error?.response?.data;
       setPackingImportResult(result && typeof result === 'object' ? result : { applied: false, errors: [{ message: getApiError(error) }] });
-      notify(getApiError(error, 'Packing List import failed.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.PACKING_LIST_IMPORT_FAILED), 'error');
     } finally {
       setPackingImporting(false);
     }
@@ -344,7 +346,7 @@ export default function PackingAllocationPage() {
       const response = await downloadPackingList(buyer.code, orderId);
       saveBlob(response, `${order?.orderName || 'ORDER'}_PACKING_LIST.xlsx`);
     } catch (error) {
-      notify(getApiError(error, 'Unable to download the Packing List.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.DOWNLOAD_PACKING_LIST_FAILED), 'error');
     }
   };
 
@@ -356,7 +358,7 @@ export default function PackingAllocationPage() {
       setCartonItemChildren(Array.isArray(rows) ? rows : []);
     } catch (error) {
       setCartonItemChildren([]);
-      notify(getApiError(error, 'Unable to load physical cartons for this Master row.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_PHYSICAL_CARTONS_FOR_MASTER_FAILED), 'error');
     } finally {
       setCartonItemLoading(false);
     }
@@ -378,7 +380,7 @@ export default function PackingAllocationPage() {
       setCartonItemChildren(Array.isArray(rows) ? rows : []);
     } catch (error) {
       setCartonItemChildren([]);
-      notify(getApiError(error, 'Unable to load physical cartons for this Master row.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_PHYSICAL_CARTONS_FOR_MASTER_FAILED), 'error');
     } finally {
       setCartonItemLoading(false);
     }
@@ -394,7 +396,7 @@ export default function PackingAllocationPage() {
   };
 
   const startCartonAssignment = (carton) => {
-    if (!carton?.id || carton.factoryBarcode || carton.status !== 'PLANNED') return;
+    if (!carton?.id || carton.factoryBarcode || carton.status !== BARCODE_CARTON_STATUS.PLANNED) return;
     setCartonAssignTarget(carton);
     setAssignedQuantity(String(carton.cartonPcs ?? carton.qtyPerCarton ?? ''));
     setProductionLine('');
@@ -416,9 +418,9 @@ export default function PackingAllocationPage() {
       const result = await checkFactoryBarcodeForAssignment(buyer.code, orderId, code);
       setCartonCheckedBarcode(result);
       setCartonBarcode(result?.barcode || code);
-      setCartonAssignNotice(`Factory Barcode ${result?.barcode || code} is available for this physical carton.`);
+      setCartonAssignNotice(createFactoryBarcodeAvailableForCartonMessage(result?.barcode || code));
     } catch (error) {
-      setCartonAssignError(getApiError(error, 'Factory Barcode cannot be used for assignment.'));
+      setCartonAssignError(getApiError(error, APP_MESSAGES.BARCODE_ASSIGNMENT_UNAVAILABLE));
       window.setTimeout(() => cartonBarcodeInputRef.current?.focus(), 80);
     } finally {
       setCartonBarcodeChecking(false);
@@ -428,7 +430,7 @@ export default function PackingAllocationPage() {
   const assignBarcodeToSelectedCarton = async () => {
     if (!buyer?.code || !cartonAssignTarget?.id || !cartonCheckedBarcode?.barcode || cartonAssigningId) return;
     if (!Number.isFinite(Number(assignedQuantity)) || Number(assignedQuantity) <= 0) {
-      setCartonAssignError('Enter a positive quantity matching the carton plan.');
+      setCartonAssignError(APP_MESSAGES.POSITIVE_CARTON_QTY_MATCH_REQUIRED);
       return;
     }
     setCartonAssigningId(cartonAssignTarget.id);
@@ -447,27 +449,27 @@ export default function PackingAllocationPage() {
       setCartonAssignError('');
       setCartonAssignNotice('');
       const [, refreshedOrder] = await Promise.all([loadCartonChildren(cartonItemRow), loadOrder()]);
-      const completedMessage = refreshedOrder?.assignmentStatus === 'COMPLETED'
-        ? ' Order Barcode Assignment is now COMPLETED and ready for Sales Shipment Planning.'
+      const completedMessage = refreshedOrder?.assignmentStatus === PROGRESS_STATUS.COMPLETED
+        ? APP_MESSAGES.ORDER_BARCODE_ASSIGNMENT_COMPLETED_SUFFIX
         : '';
-      notify(`Assigned ${assignedCode} to ${assigned?.cartonCode || `Carton #${assigned?.cartonSequence || cartonAssignTarget.cartonSequence}`}.${completedMessage}`);
+      notify(createBarcodeAssignedMessage(assignedCode, assigned?.cartonCode || `Carton #${assigned?.cartonSequence || cartonAssignTarget.cartonSequence}`, completedMessage));
     } catch (error) {
-      setCartonAssignError(getApiError(error, 'Unable to assign Factory Barcode to this physical carton.'));
+      setCartonAssignError(getApiError(error, APP_MESSAGES.ASSIGN_FACTORY_BARCODE_FAILED));
     } finally {
       setCartonAssigningId('');
     }
   };
 
   const unassignCartonBarcode = async (carton) => {
-    if (!buyer?.code || !carton?.id || !carton.factoryBarcode || carton.status !== 'PLANNED' || cartonAssigningId) return;
-    if (!window.confirm(`Unassign Factory Barcode ${carton.factoryBarcode} from Carton #${carton.cartonSequence || '—'}?`)) return;
+    if (!buyer?.code || !carton?.id || !carton.factoryBarcode || carton.status !== BARCODE_CARTON_STATUS.PLANNED || cartonAssigningId) return;
+    if (!window.confirm(createUnassignFactoryBarcodeConfirmMessage(carton.factoryBarcode, `Carton #${carton.cartonSequence || '—'}`))) return;
     setCartonAssigningId(carton.id);
     try {
       await unassignFactoryBarcodeFromCarton(buyer.code, orderId, carton.id);
       await Promise.all([loadCartonChildren(cartonItemRow), loadOrder()]);
-      notify(`Factory Barcode ${carton.factoryBarcode} was unassigned. Order assignment returned to IN PROGRESS.`);
+      notify(createBarcodeUnassignedMessage(carton.factoryBarcode));
     } catch (error) {
-      notify(getApiError(error, 'Unable to unassign Factory Barcode.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.UNASSIGN_FACTORY_BARCODE_FAILED), 'error');
     } finally {
       setCartonAssigningId('');
     }
@@ -481,9 +483,9 @@ export default function PackingAllocationPage() {
       await Promise.all([loadCartonChildren(cartonItemRow), loadOrder()]);
       setCartonCorrectionTarget(null);
       setCartonCorrectionReason('');
-      notify(`Weight Check was reset for ${corrected?.cartonCode || 'the selected carton'}. Its Factory Barcode remains assigned; unassign it only when the barcode mapping must be corrected.`);
+      notify(createWeightResetMessage(corrected?.cartonCode));
     } catch (error) {
-      notify(getApiError(error, 'Unable to reset Weight Check for this carton.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.RESET_WEIGHT_CHECK_FAILED), 'error');
     } finally {
       setCartonCorrectionSaving(false);
     }
@@ -495,14 +497,14 @@ export default function PackingAllocationPage() {
     try {
       const result = await generateCartonPlanFromWsp(buyer.code, orderId, true);
       if (!result?.applied) {
-        notify(result?.message || 'Unable to generate Carton Master from Master Total ctns.', 'warning');
+        notify(result?.message || APP_MESSAGES.CARTON_MASTER_GENERATION_FAILED, 'warning');
         return;
       }
       setCartonGenerateOpen(false);
       await Promise.all([loadMaster(), loadOrder()]);
-      notify(`${result.message} Generated ${Number(result.createdCartons || 0).toLocaleString('en-US')} physical cartons. Use View Physical Cartons on a Master row to scan and assign barcodes.`);
+      notify(createCartonMasterGeneratedMessage(result.message, result.createdCartons));
     } catch (error) {
-      notify(getApiError(error, 'Unable to generate Carton Master from Master Total ctns.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.CARTON_MASTER_GENERATION_FAILED), 'error');
     } finally {
       setCartonGenerating(false);
     }
@@ -514,23 +516,23 @@ export default function PackingAllocationPage() {
     try {
       const result = await generatePackingList(buyer.code, orderId, true);
       if (!result?.applied) {
-        notify(result?.message || 'The Packing List could not be generated.', 'warning');
+        notify(result?.message || APP_MESSAGES.PACKING_LIST_GENERATION_FAILED, 'warning');
       } else {
-        notify(`${result.message || 'Packing List generated.'} Created: ${result.created || 0}; skipped: ${result.skipped || 0}.`);
+        notify(createPackingListGenerationSummary(result.message, result.created, result.skipped));
         setGenerateOpen(false);
         setPackingPage(0);
         setTab(1);
         await Promise.all([loadPacking(), loadOrder()]);
       }
     } catch (error) {
-      notify(getApiError(error, 'Unable to generate the Packing List.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.GENERATE_PACKING_LIST_FAILED), 'error');
     } finally {
       setGenerating(false);
     }
   };
 
   if (!buyer?.code) {
-    return <Box sx={{ p: 2 }}><Alert severity="error">Buyer not found or access is not allowed.</Alert></Box>;
+    return <Box sx={{ p: 2 }}><Alert severity="error">{APP_MESSAGES.BUYER_ACCESS_NOT_ALLOWED}</Alert></Box>;
   }
 
   return (
@@ -539,7 +541,7 @@ export default function PackingAllocationPage() {
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.2} sx={{ mb: 1.4 }}>
         <Box>
           <Stack direction="row" spacing={1} alignItems="center">
-            <Button component={RouterLink} to={assignmentWorkspace ? '/assign-barcode' : `/buyers/${buyer.slug}/orders`} size="small" startIcon={<ArrowBackOutlinedIcon />} sx={{ textTransform: 'none' }}>
+            <Button component={RouterLink} to={assignmentWorkspace ? OPERATION_ROUTE.ASSIGN_BARCODE : `/buyers/${buyer.slug}/orders`} size="small" startIcon={<ArrowBackOutlinedIcon />} sx={{ textTransform: 'none' }}>
               {assignmentWorkspace ? 'Back to Assign Barcode' : 'Back to Orders'}
             </Button>
             <Chip label={buyer.label} color="primary" size="small" />
@@ -551,18 +553,18 @@ export default function PackingAllocationPage() {
         <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap alignItems="flex-start">
           <Chip
             size="small"
-            label={`Assign: ${String(order?.assignmentStatus || 'NOT_STARTED').replaceAll('_', ' ')} · ${Number(order?.assignedCartonCount || 0).toLocaleString('en-US')}/${Number(order?.plannedCartonCount || 0).toLocaleString('en-US')}`}
-            color={order?.assignmentStatus === 'COMPLETED' ? 'success' : order?.assignmentStatus === 'IN_PROGRESS' ? 'warning' : 'default'}
-            variant={order?.assignmentStatus === 'COMPLETED' ? 'filled' : 'outlined'}
+            label={`Assign: ${String(order?.assignmentStatus || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ')} · ${Number(order?.assignedCartonCount || 0).toLocaleString('en-US')}/${Number(order?.plannedCartonCount || 0).toLocaleString('en-US')}`}
+            color={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'success' : order?.assignmentStatus === PROGRESS_STATUS.IN_PROGRESS ? 'warning' : 'default'}
+            variant={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'filled' : 'outlined'}
             sx={{ fontWeight: 750 }}
           />
           {canWrite && (
-            <Tooltip title={order?.assignmentStatus === 'COMPLETED' ? 'Create a Sales Shipment Plan from assigned cartons' : 'Assign a Factory Barcode to every physical carton before Sales can create a Shipment Plan'}>
+            <Tooltip title={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'Create a Sales Shipment Plan from assigned cartons' : 'Assign a Factory Barcode to every physical carton before Sales can create a Shipment Plan'}>
               <span>
                 <Button
                   variant="contained"
                   startIcon={<LocalShippingOutlinedIcon />}
-                  disabled={order?.assignmentStatus !== 'COMPLETED'}
+                  disabled={order?.assignmentStatus !== PROGRESS_STATUS.COMPLETED}
                   onClick={() => navigate(`/sales/shipment-planning?orderId=${encodeURIComponent(orderId)}`)}
                   sx={{ textTransform: 'none', bgcolor: '#103B5C' }}
                 >
@@ -774,8 +776,8 @@ export default function PackingAllocationPage() {
               />
               <Chip
                 size="small"
-                color={cartonItemAssignmentStatus === 'COMPLETED' ? 'success' : cartonItemAssignmentStatus === 'IN PROGRESS' ? 'warning' : 'default'}
-                variant={cartonItemAssignmentStatus === 'COMPLETED' ? 'filled' : 'outlined'}
+                color={cartonItemAssignmentStatus === PROGRESS_STATUS.COMPLETED ? 'success' : cartonItemAssignmentStatus === PROGRESS_STATUS.IN_PROGRESS ? 'warning' : 'default'}
+                variant={cartonItemAssignmentStatus === PROGRESS_STATUS.COMPLETED ? 'filled' : 'outlined'}
                 label={`Assigned ${cartonItemAssignedCount.toLocaleString('en-US')}/${Math.max(cartonItemExpectedCount, cartonItemGeneratedCount).toLocaleString('en-US')} · ${cartonItemAssignmentStatus}`}
                 sx={{ fontWeight: 750 }}
               />
@@ -806,10 +808,10 @@ export default function PackingAllocationPage() {
                     </TableHead>
                     <TableBody>
                       {cartonItemChildren.map((carton, index) => {
-                        const completed = ['COMPLETED', 'WEIGHT_WARNING'].includes(carton.status);
-                        const weightStarted = carton.status === 'WAITING_WEIGHT' || completed || carton.weightKg != null || carton.scannedAt || carton.weighedAt;
-                        const canAssign = assignmentWorkspace && canAssignOperation && cartonItemCountMatches && !carton.factoryBarcode && carton.status === 'PLANNED';
-                        const canUnassign = assignmentWorkspace && canAssignOperation && Boolean(carton.factoryBarcode) && carton.status === 'PLANNED';
+                        const completed = [BARCODE_CARTON_STATUS.COMPLETED, BARCODE_CARTON_STATUS.WEIGHT_WARNING].includes(carton.status);
+                        const weightStarted = carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT || completed || carton.weightKg != null || carton.scannedAt || carton.weighedAt;
+                        const canAssign = assignmentWorkspace && canAssignOperation && cartonItemCountMatches && !carton.factoryBarcode && carton.status === BARCODE_CARTON_STATUS.PLANNED;
+                        const canUnassign = assignmentWorkspace && canAssignOperation && Boolean(carton.factoryBarcode) && carton.status === BARCODE_CARTON_STATUS.PLANNED;
                         const canCorrectWeight = assignmentWorkspace && adminUser && weightStarted;
                         return (
                           <TableRow key={carton.id} hover>
@@ -827,7 +829,7 @@ export default function PackingAllocationPage() {
                             <TableCell>
                               <Chip
                                 size="small"
-                                label={carton.factoryBarcode ? 'ASSIGNED' : 'NOT ASSIGNED'}
+                                label={carton.factoryBarcode ? FACTORY_BARCODE_STATUS.ASSIGNED : 'NOT ASSIGNED'}
                                 color={carton.factoryBarcode ? 'success' : 'default'}
                                 variant={carton.factoryBarcode ? 'filled' : 'outlined'}
                                 sx={{ fontWeight: 700 }}
@@ -844,15 +846,15 @@ export default function PackingAllocationPage() {
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>
                               <Chip
                                 size="small"
-                                label={carton.status === 'WAITING_WEIGHT'
-                                  ? 'WAITING'
-                                  : ['UNDER', 'OVER'].includes(carton.weightStatus)
-                                    ? 'FAIL'
-                                    : carton.weightStatus === 'OK'
-                                      ? 'PASS'
-                                      : completed ? 'COMPLETED' : 'NOT WEIGHED'}
-                                color={carton.weightStatus === 'OK' ? 'success' : ['UNDER', 'OVER'].includes(carton.weightStatus) ? 'error' : carton.status === 'WAITING_WEIGHT' ? 'warning' : 'default'}
-                                variant={carton.weightStatus === 'OK' || ['UNDER', 'OVER'].includes(carton.weightStatus) ? 'filled' : 'outlined'}
+                                label={carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT
+                                  ? PROGRESS_STATUS.WAITING
+                                  : [SCALE_WEIGHT_STATUS.UNDER, SCALE_WEIGHT_STATUS.OVER].includes(carton.weightStatus)
+                                    ? INSPECTION_RESULT.FAIL
+                                    : carton.weightStatus === SCALE_WEIGHT_STATUS.OK
+                                      ? INSPECTION_RESULT.PASS
+                                      : completed ? PROGRESS_STATUS.COMPLETED : SCALE_WEIGHT_STATUS.NOT_WEIGHED}
+                                color={carton.weightStatus === SCALE_WEIGHT_STATUS.OK ? 'success' : [SCALE_WEIGHT_STATUS.UNDER, SCALE_WEIGHT_STATUS.OVER].includes(carton.weightStatus) ? 'error' : carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT ? 'warning' : 'default'}
+                                variant={carton.weightStatus === SCALE_WEIGHT_STATUS.OK || [SCALE_WEIGHT_STATUS.UNDER, SCALE_WEIGHT_STATUS.OVER].includes(carton.weightStatus) ? 'filled' : 'outlined'}
                                 sx={{ fontWeight: 700 }}
                               />
                             </TableCell>
@@ -943,7 +945,7 @@ export default function PackingAllocationPage() {
             {cartonAssignNotice && <Alert severity="success">{cartonAssignNotice}</Alert>}
 
             <TextField label="Production line (optional)" value={productionLine} onChange={(event) => setProductionLine(event.target.value)} disabled={Boolean(cartonAssigningId)} fullWidth />
-            <TextField label="Actual quantity in carton" type="number" value={assignedQuantity} onChange={(event) => setAssignedQuantity(event.target.value)} disabled={Boolean(cartonAssigningId)} inputProps={{ min: 1, step: 1 }} helperText="Confirm the quantity. If it differs from the plan, ask Sales to correct the plan first." fullWidth required />
+            <TextField label="Actual quantity in carton" type="number" value={assignedQuantity} onChange={(event) => setAssignedQuantity(event.target.value)} disabled={Boolean(cartonAssigningId)} inputProps={{ min: 1, step: 1 }} helperText={APP_MESSAGES.CARTON_QUANTITY_CORRECTION_HELPER} fullWidth required />
 
             <TextField
               inputRef={cartonBarcodeInputRef}
@@ -964,7 +966,7 @@ export default function PackingAllocationPage() {
                 }
               }}
               disabled={cartonBarcodeChecking || Boolean(cartonAssigningId)}
-              helperText="Scan with the barcode scanner or type the code, then press Enter to verify availability."
+              helperText={APP_MESSAGES.BARCODE_VERIFY_HELPER}
               InputProps={{
                 endAdornment: cartonBarcodeChecking ? <CircularProgress size={18} /> : null
               }}
@@ -1039,7 +1041,7 @@ export default function PackingAllocationPage() {
       <Dialog open={generateOpen} onClose={generating ? undefined : () => setGenerateOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontWeight: 700 }}>Generate Packing List from Order Items?</DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mb: 1.4 }}>The current Packing List rows will be replaced.</Alert>
+          <Alert severity="warning" sx={{ mb: 1.4 }}>{APP_MESSAGES.PACKING_LIST_REPLACE_WARNING}</Alert>
           <Typography>
             The Packing List will use Master Total ctns and Total pcs. Carton measurement and weight fields can be edited after generation.
           </Typography>
@@ -1053,7 +1055,7 @@ export default function PackingAllocationPage() {
       <Dialog open={cartonGenerateOpen} onClose={cartonGenerating ? undefined : () => setCartonGenerateOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontWeight: 700 }}>Generate physical cartons from Master Total ctns?</DialogTitle>
         <DialogContent>
-          <Alert severity="info" sx={{ mb: 1.4 }}>Each generated row represents one physical carton. Master Total ctns controls the number of rows; Qty Per Ctn controls only the planned pieces inside each carton.</Alert>
+          <Alert severity="info" sx={{ mb: 1.4 }}>{APP_MESSAGES.CARTON_MASTER_PHYSICAL_ROW_INFO}</Alert>
           <Typography>
             The existing Carton Master will be regenerated only when barcode assignment, scanning, or weighing has not started. After generation, use View Physical Cartons on the correct Master row. Barcode assignment is performed only inside that row's physical-carton list.
           </Typography>

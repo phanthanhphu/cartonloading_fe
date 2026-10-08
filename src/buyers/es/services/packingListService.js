@@ -1,7 +1,8 @@
+import { STORAGE_KEY, IMPORT_MODE } from '../../../constants/appConstants';
 import { apiRawClient } from 'routes/globalApi';
 
 const authHeaders = () => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const token = localStorage.getItem(STORAGE_KEY.ACCESS_TOKEN) || localStorage.getItem(STORAGE_KEY.TOKEN);
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
@@ -51,7 +52,7 @@ export const deletePackingAllocationLine = (buyerCode, orderId, lineId) => unwra
   apiRawClient.delete(`${masterBase(buyerCode, orderId)}/${encodeURIComponent(lineId)}`, withAuth())
 );
 
-export const importPackingAllocationLines = (buyerCode, orderId, file, mode = 'CREATE_ONLY') => {
+export const importPackingAllocationLines = (buyerCode, orderId, file, mode = IMPORT_MODE.CREATE_ONLY) => {
   const formData = new FormData();
   formData.append('file', file);
   return unwrap(apiRawClient.post(
@@ -88,7 +89,7 @@ export const generatePackingList = (buyerCode, orderId, replace = true) => unwra
   apiRawClient.post(`${packingBase(buyerCode, orderId)}/generate`, null, withAuth({ params: { replace } }))
 );
 
-export const importPackingListLines = (buyerCode, orderId, file, mode = 'CREATE_ONLY') => {
+export const importPackingListLines = (buyerCode, orderId, file, mode = IMPORT_MODE.CREATE_ONLY) => {
   const formData = new FormData();
   formData.append('file', file);
   return unwrap(apiRawClient.post(

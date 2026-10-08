@@ -1,3 +1,4 @@
+import { BARCODE_CARTON_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -30,6 +31,7 @@ import {
   ScaleOutlined,
   WarningAmberOutlined
 } from '@mui/icons-material';
+import { APP_MESSAGES } from '../../../../constants/appMessages';
 
 import {
   getCartonProgress,
@@ -69,11 +71,11 @@ export default function OrderScanPage() {
   const [passPage, setPassPage] = useState({ content: [], totalElements: 0 });
   const [failPage, setFailPage] = useState({ content: [], totalElements: 0 });
   const [passTablePage, setPassTablePage] = useState(0);
-  const [passRowsPerPage, setPassRowsPerPage] = useState(25);
+  const [passRowsPerPage, setPassRowsPerPage] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [failTablePage, setFailTablePage] = useState(0);
-  const [failRowsPerPage, setFailRowsPerPage] = useState(25);
+  const [failRowsPerPage, setFailRowsPerPage] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [stationCode, setStationCode] = useState(() => buyer?.code ? readStorage(stationStorageKey(buyer.code)) : '');
-  const [palletCode, setPalletCode] = useState(() => buyer?.code ? readStorage(palletStorageKey(buyer.code), 'P01') : 'P01');
+  const [palletCode, setPalletCode] = useState(() => buyer?.code ? readStorage(palletStorageKey(buyer.code), DEFAULT_PALLET_CODE) : DEFAULT_PALLET_CODE);
   const [factoryBarcode, setFactoryBarcode] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -92,8 +94,8 @@ export default function OrderScanPage() {
         getPackingOrder(buyer.code, orderId),
         listScaleStations(true),
         getCartonProgress(buyer.code, orderId),
-        listCartonPlan(buyer.code, orderId, { status: 'COMPLETED', page: passTablePage, size: passRowsPerPage }),
-        listCartonPlan(buyer.code, orderId, { status: 'WEIGHT_WARNING', page: failTablePage, size: failRowsPerPage })
+        listCartonPlan(buyer.code, orderId, { status: BARCODE_CARTON_STATUS.COMPLETED, page: passTablePage, size: passRowsPerPage }),
+        listCartonPlan(buyer.code, orderId, { status: BARCODE_CARTON_STATUS.WEIGHT_WARNING, page: failTablePage, size: failRowsPerPage })
       ]);
       const activeStations = Array.isArray(stationData) ? stationData : [];
       setOrder(orderData);
@@ -106,7 +108,7 @@ export default function OrderScanPage() {
         return activeStations[0]?.stationCode || '';
       });
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to load the selected Order scan setup.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.LOAD_SCAN_SETUP_FAILED));
     } finally {
       setLoading(false);
       focusScanner();
@@ -121,13 +123,13 @@ export default function OrderScanPage() {
   const scanBarcode = async () => {
     const code = factoryBarcode.trim();
     if (!buyer?.code || !orderId || submitting) return;
-    const weightStarted = String(order?.weightStatus || 'NOT_STARTED') !== 'NOT_STARTED';
-    if (order?.assignmentStatus !== 'COMPLETED' && !weightStarted) {
-      setError('Weight Check can start only after Barcode Assignment reaches 100%.');
+    const weightStarted = String(order?.weightStatus || PROGRESS_STATUS.NOT_STARTED) !== PROGRESS_STATUS.NOT_STARTED;
+    if (order?.assignmentStatus !== PROGRESS_STATUS.COMPLETED && !weightStarted) {
+      setError(APP_MESSAGES.WEIGHT_CHECK_REQUIRES_FULL_BARCODE_ASSIGNMENT);
       return;
     }
     if (!code) {
-      setError('Scan or enter a Factory Barcode.');
+      setError(APP_MESSAGES.SCAN_FACTORY_BARCODE_REQUIRED);
       focusScanner();
       return;
     }
@@ -152,22 +154,22 @@ export default function OrderScanPage() {
         }
       });
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to identify the carton from this Factory Barcode.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.IDENTIFY_CARTON_FAILED));
       focusScanner();
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!buyer) return <Alert severity="warning">Buyer could not be identified.</Alert>;
+  if (!buyer) return <Alert severity="warning">{APP_MESSAGES.BUYER_NOT_IDENTIFIED}</Alert>;
 
   const planned = Number(progress?.plannedCartons ?? order?.plannedCartonCount ?? 0);
   const weighed = Number(progress?.completedCartons || 0) + Number(progress?.warningCartons || 0);
   const remaining = Number(progress?.remainingCartons ?? order?.notWeighedCartonCount ?? 0);
   const pass = Number(order?.passWeightCartonCount || 0);
   const fail = Number(order?.failWeightCartonCount || 0);
-  const assignmentReady = order?.assignmentStatus === 'COMPLETED' && planned > 0;
-  const weightStarted = String(order?.weightStatus || 'NOT_STARTED') !== 'NOT_STARTED' || weighed > 0;
+  const assignmentReady = order?.assignmentStatus === PROGRESS_STATUS.COMPLETED && planned > 0;
+  const weightStarted = String(order?.weightStatus || PROGRESS_STATUS.NOT_STARTED) !== PROGRESS_STATUS.NOT_STARTED || weighed > 0;
   const weightStageReady = planned > 0 && (assignmentReady || weightStarted);
   const passRows = Array.isArray(passPage?.content) ? passPage.content : [];
   const failRows = Array.isArray(failPage?.content) ? failPage.content : [];
@@ -182,7 +184,7 @@ export default function OrderScanPage() {
   };
 
   const ResultTable = ({ type, rows, total, page, rowsPerPage, onPageChange, onRowsPerPageChange }) => {
-    const isPass = type === 'PASS';
+    const isPass = type === INSPECTION_RESULT.PASS;
     const tone = isPass ? '#15803D' : '#DC2626';
     const soft = isPass ? '#F0FDF4' : '#FEF2F2';
     const Icon = isPass ? CheckCircleOutlineOutlined : WarningAmberOutlined;
@@ -246,8 +248,8 @@ export default function OrderScanPage() {
         <Stack direction="row" spacing={0.45} flexWrap="wrap" useFlexGap>
           <Chip
             size="small"
-            label={`Assign ${String(order?.assignmentStatus || 'NOT_STARTED').replaceAll('_', ' ')} · ${Number(order?.assignedCartonCount || 0).toLocaleString()}/${planned.toLocaleString()}`}
-            color={assignmentReady ? 'success' : order?.assignmentStatus === 'IN_PROGRESS' ? 'warning' : 'default'}
+            label={`Assign ${String(order?.assignmentStatus || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ')} · ${Number(order?.assignedCartonCount || 0).toLocaleString()}/${planned.toLocaleString()}`}
+            color={assignmentReady ? 'success' : order?.assignmentStatus === PROGRESS_STATUS.IN_PROGRESS ? 'warning' : 'default'}
             variant="outlined"
             sx={{ height: 28, fontWeight: 750 }}
           />
@@ -335,7 +337,7 @@ export default function OrderScanPage() {
                 label="Pallet / Location"
                 value={palletCode}
                 onChange={(event) => setPalletCode(event.target.value)}
-                placeholder="P01"
+                placeholder={DEFAULT_PALLET_CODE}
                 sx={{ '& .MuiInputBase-root': { minHeight: 46, fontWeight: 700 } }}
               />
 
@@ -399,8 +401,8 @@ export default function OrderScanPage() {
           </Paper>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr' }, gap: 0.85 }}>
-            <ResultTable type="PASS" rows={passRows} total={passPage?.totalElements ?? pass} page={passTablePage} rowsPerPage={passRowsPerPage} onPageChange={setPassTablePage} onRowsPerPageChange={(v) => { setPassRowsPerPage(v); setPassTablePage(0); }} />
-            <ResultTable type="FAIL" rows={failRows} total={failPage?.totalElements ?? fail} page={failTablePage} rowsPerPage={failRowsPerPage} onPageChange={setFailTablePage} onRowsPerPageChange={(v) => { setFailRowsPerPage(v); setFailTablePage(0); }} />
+            <ResultTable type={INSPECTION_RESULT.PASS} rows={passRows} total={passPage?.totalElements ?? pass} page={passTablePage} rowsPerPage={passRowsPerPage} onPageChange={setPassTablePage} onRowsPerPageChange={(v) => { setPassRowsPerPage(v); setPassTablePage(0); }} />
+            <ResultTable type={INSPECTION_RESULT.FAIL} rows={failRows} total={failPage?.totalElements ?? fail} page={failTablePage} rowsPerPage={failRowsPerPage} onPageChange={setFailTablePage} onRowsPerPageChange={(v) => { setFailRowsPerPage(v); setFailTablePage(0); }} />
           </Box>
         </Stack>
       )}

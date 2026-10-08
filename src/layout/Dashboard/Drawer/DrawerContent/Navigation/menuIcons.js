@@ -9,6 +9,7 @@ import {
   Inventory2Outlined,
   ManageAccountsOutlined,
   QrCode2Outlined,
+  ScaleOutlined,
   StorefrontOutlined
 } from '@mui/icons-material';
 
@@ -25,6 +26,7 @@ export const getNavigationIcon = (item = {}) => {
   if (value.includes('handoff')) return ForwardToInboxOutlined;
   if (value.includes('packing')) return Inventory2Outlined;
   if (value.includes('label') || value.includes('sscc')) return QrCode2Outlined;
+  if (value.includes('weight-management')) return ScaleOutlined;
   if (value.includes('shipping') || value.includes('ex-factory')) return EventAvailableOutlined;
   if (value.includes('order')) return AssignmentOutlined;
   if (value.includes('dashboard')) return DashboardOutlined;

@@ -1,3 +1,4 @@
+import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Breadcrumbs, Chip, Link, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
@@ -7,8 +8,9 @@ import TableFilterBar from 'components/TableFilterBar';
 import { CompactPageHeader, CompactStat } from 'components/CompactPageHeader';
 import { getBuyerBySlug } from 'utils/buyerAccess';
 import { getManagedOrder, getManagedPo, listManagedCartons } from 'services/managementService';
+import { APP_MESSAGES } from '../../constants/appMessages';
 
-const initial = { page: 0, size: 10, count: 0, rows: [], loading: false };
+const initial = { page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false };
 const v = (x) => (x === null || x === undefined || x === '' ? '—' : x);
 
 export default function BuyerPoCartonsPage() {
@@ -20,7 +22,7 @@ export default function BuyerPoCartonsPage() {
   const [state, setState] = useState(initial);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
-  const paginationRef = useRef({ page: 0, size: 10 });
+  const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
   const [filters, setFilters] = useState({ cartonNo: '', sscc: '', status: '' });
 
   const load = useCallback(async (page = paginationRef.current.page, size = paginationRef.current.size) => {
@@ -42,20 +44,20 @@ export default function BuyerPoCartonsPage() {
       setState({ page: nextPage, size: nextSize, count: Number(cartons?.totalElements || 0), rows: cartons?.content || [], loading: false });
     } catch (e) {
       if (requestId !== requestRef.current) return;
-      setError(e?.response?.data?.message || e?.message || 'Unable to load Cartons.');
+      setError(e?.response?.data?.message || e?.message || APP_MESSAGES.LOAD_CARTONS_FAILED);
       setState((current) => ({ ...current, loading: false }));
     }
   }, [buyer?.code, orderId, poKey, order?.id, po?.key, filters]);
 
   useEffect(() => { load(0, paginationRef.current.size); }, [load]);
-  if (!buyer) return <Alert severity="error">Buyer not found.</Alert>;
+  if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
   const columns = [
     { key: 'cartonNo', label: 'Carton No.', minWidth: 100, render: (r) => <Typography fontWeight={900} color="primary.main">{v(r.cartonNo)}</Typography> },
     { key: 'plannedQty', label: 'Target Qty', minWidth: 90 },
     { key: 'scannedQty', label: 'Scanned Qty', minWidth: 95 },
     { key: 'cartonIdentity', label: 'SSCC-18', minWidth: 170 },
-    { key: 'status', label: 'Status', minWidth: 130, render: (r) => <StatusChip status={r.status || 'READY_TO_PACK'} /> }
+    { key: 'status', label: 'Status', minWidth: 130, render: (r) => <StatusChip status={r.status || CARTON_STATUS.READY_TO_PACK} /> }
   ];
 
   return (

@@ -1,13 +1,13 @@
-import { canUseBuyerWorkspace } from 'utils/accessControl';
 import { buyerPath, normalizeBuyerCode } from 'utils/buyerAccess';
-import esModule from 'buyers/es/config/esModule';
-import lululemonModule from 'buyers/lululemon/config/lululemonModule';
+import { BUYER_CODE } from '../../constants/appConstants';
+import barcodePackingModule from 'buyers/es/config/module';
+import ssccPackingModule from 'buyers/lululemon/config/module';
 
 
 export const getBuyerModule = (buyer) => {
   const code = normalizeBuyerCode(typeof buyer === 'string' ? buyer : buyer?.code);
-  if (code === 'LULULEMON') return lululemonModule;
-  if (code === 'ENGELBERT_STRAUSS') return esModule;
+  if (code === BUYER_CODE.LULULEMON) return ssccPackingModule;
+  if (code === BUYER_CODE.ENGELBERT_STRAUSS) return barcodePackingModule;
   return null;
 };
 
@@ -27,8 +27,3 @@ export const getBuyerAccessLandingPath = (buyer) => {
 export const getBuyerMenuEntries = (buyer) => getBuyerModule(buyer)?.menu(buyer).filter((entry) => entry.access?.() !== false) || [];
 export const getBuyerWorkflowEntries = (buyer) => getBuyerModule(buyer)?.workflow(buyer) || [];
 export const buyerCapability = (buyer, capability) => Boolean(getBuyerModule(buyer)?.capabilities?.[capability]);
-
-export const BUYER_MODULES = Object.freeze({
-  ENGELBERT_STRAUSS: esModule,
-  LULULEMON: lululemonModule
-});

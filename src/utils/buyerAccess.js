@@ -1,11 +1,7 @@
-const CATALOG_KEY = 'buyerCatalog';
+import { BUYER_CODE, BUYER_CODE_ALIAS, DEFAULT_BUYERS, ROLE, ROUTE_PATH, STORAGE_KEY } from '../constants/appConstants';
 
-export const DEFAULT_BUYERS = Object.freeze([
-  { code: 'LULULEMON', slug: 'lululemon', label: 'LULULEMON', active: true, sequence: 10 },
-  { code: 'ENGELBERT_STRAUSS', slug: 'engelbert-strauss', label: 'ENGELBERT STRAUSS', active: true, sequence: 20 }
-]);
+export { DEFAULT_BUYERS };
 
-const SUPPORTED_BUYER_CODES = new Set(DEFAULT_BUYERS.map((buyer) => buyer.code));
 
 export const normalizeBuyerCode = (value) => {
   const normalized = String(value || '')
@@ -16,7 +12,8 @@ export const normalizeBuyerCode = (value) => {
     .replace(/^_+|_+$/g, '')
     .slice(0, 60);
 
-  if (normalized === 'ES' || normalized === 'ENGELBERTSTRAUSS') return 'ENGELBERT_STRAUSS';
+  if (normalized === BUYER_CODE_ALIAS.ENGELBERT_STRAUSS_SHORT
+    || normalized === BUYER_CODE_ALIAS.ENGELBERT_STRAUSS_COMPACT) return BUYER_CODE.ENGELBERT_STRAUSS;
   return normalized;
 };
 
@@ -29,7 +26,7 @@ const slugify = (value) => String(value || '')
 
 const normalizeBuyer = (buyer = {}) => {
   const code = normalizeBuyerCode(buyer.code || buyer.buyerKey || buyer.key);
-  if (!code || !SUPPORTED_BUYER_CODES.has(code)) return null;
+  if (!code) return null;
   return {
     id: buyer.id || buyer._id || code,
     code,
@@ -50,13 +47,13 @@ export const setBuyerCatalog = (values = []) => {
     .map((buyer) => [buyer.code, buyer])).values()]
     .sort((a, b) => (a.sequence - b.sequence) || a.label.localeCompare(b.label));
   const catalog = normalized.length ? normalized : [...DEFAULT_BUYERS];
-  try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch { /* ignore */ }
+  try { localStorage.setItem(STORAGE_KEY.BUYER_CATALOG, JSON.stringify(catalog)); } catch { /* ignore */ }
   return catalog;
 };
 
 export const getBuyerCatalog = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem(CATALOG_KEY) || '[]');
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY.BUYER_CATALOG) || '[]');
     if (Array.isArray(stored) && stored.length) return setBuyerCatalog(stored);
   } catch { /* use fallback */ }
   return [...DEFAULT_BUYERS];
@@ -92,9 +89,9 @@ export const normalizeBuyerPermissions = (value, isAdmin = false) => {
 };
 
 export const getAccessibleBuyers = (user = {}) => {
-  const role = String(user?.role || localStorage.getItem('role') || '').trim().toUpperCase();
-  const admin = role === 'ADMIN' || role === 'ROLE_ADMIN';
-  const source = user?.buyerPermissions ?? localStorage.getItem('buyerPermissions');
+  const role = String(user?.role || localStorage.getItem(STORAGE_KEY.ROLE) || '').trim().toUpperCase();
+  const admin = role === ROLE.ADMIN || role === ROLE.ROLE_ADMIN;
+  const source = user?.buyerPermissions ?? localStorage.getItem(STORAGE_KEY.BUYER_PERMISSIONS);
   const codes = normalizeBuyerPermissions(source, admin);
   return getBuyerCatalog().filter((buyer) => buyer.active && codes.includes(buyer.code));
 };
@@ -106,16 +103,16 @@ export const canAccessBuyer = (value, user = {}) => {
 
 export const buyerPath = (buyer, child = 'orders') => {
   const resolved = typeof buyer === 'string' ? (getBuyerByCode(buyer) || getBuyerBySlug(buyer)) : normalizeBuyer(buyer);
-  return resolved ? `/buyers/${resolved.slug}/${child}` : '/login';
+  return resolved ? `/buyers/${resolved.slug}/${child}` : ROUTE_PATH.LOGIN;
 };
 
-export const readSelectedBuyer = () => getBuyerByCode(localStorage.getItem('selectedBuyer'));
+export const readSelectedBuyer = () => getBuyerByCode(localStorage.getItem(STORAGE_KEY.SELECTED_BUYER));
 
 export const saveSelectedBuyer = (buyer) => {
   const resolved = typeof buyer === 'string' ? (getBuyerByCode(buyer) || getBuyerBySlug(buyer)) : normalizeBuyer(buyer);
   if (!resolved) return null;
-  localStorage.setItem('selectedBuyer', resolved.code);
-  localStorage.setItem('selectedBuyerLabel', resolved.label);
+  localStorage.setItem(STORAGE_KEY.SELECTED_BUYER, resolved.code);
+  localStorage.setItem(STORAGE_KEY.SELECTED_BUYER_LABEL, resolved.label);
   return resolved;
 };
 

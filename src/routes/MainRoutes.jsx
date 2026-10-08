@@ -7,8 +7,10 @@ import DashboardLayout from 'layout/Dashboard';
 import LoginPage from './LoginPage';
 import { BuyerHomeRedirect, BuyerWorkspaceRoute } from 'buyers/core/BuyerRouteGuards';
 import { isAdmin } from 'utils/accessControl';
-import esRoutes from 'buyers/es/routes/esRoutes';
-import lululemonRoutes from 'buyers/lululemon/routes/lululemonRoutes';
+import barcodePackingRoutes from 'buyers/es/routes/routes';
+import { AUTH_STORAGE_KEYS, BUYER_CODE, ROUTE_PATH, STORAGE_KEY } from '../constants/appConstants';
+import { APP_MESSAGES } from '../constants/appMessages';
+import ssccPackingRoutes from 'buyers/lululemon/routes/routes';
 
 const WorkflowHomePage = Loadable(lazy(() => import('pages/workflow/WorkflowHomePage')));
 const DashboardPage = Loadable(lazy(() => import('pages/dashboard/DashboardPage')));
@@ -21,19 +23,17 @@ const DepartmentManagementPage = Loadable(lazy(() => import('pages/department/De
 const BuyerManagementPage = Loadable(lazy(() => import('pages/buyers/BuyerManagementPage')));
 const AuditLogPage = Loadable(lazy(() => import('pages/audit/AuditLogPage')));
 
-const LOGIN_PATH = '/login';
-
 function RouteErrorPage() {
   const error = useRouteError();
-  const message = error?.message || error?.statusText || 'An unexpected error occurred.';
+  const message = error?.message || error?.statusText || APP_MESSAGES.UNEXPECTED_ERROR;
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#F4F7FB' }}>
       <div style={{ width: 'min(560px, 100%)', padding: 24, borderRadius: 16, border: '1px solid #E5E7EB', background: '#FFFFFF', boxShadow: '0 12px 34px rgba(15, 23, 42, 0.08)' }}>
-        <h2 style={{ margin: 0, color: '#103B5C' }}>Unable to open this page</h2>
+        <h2 style={{ margin: 0, color: '#103B5C' }}>{APP_MESSAGES.PAGE_OPEN_FAILED}</h2>
         <p style={{ color: '#64748B', lineHeight: 1.6 }}>{message}</p>
         <button type="button" onClick={() => window.location.reload()} style={{ border: 0, borderRadius: 8, padding: '10px 16px', background: '#103B5C', color: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}>
-          Reload Page
+          {APP_MESSAGES.RELOAD_PAGE}
         </button>
       </div>
     </div>
@@ -54,26 +54,26 @@ const decodeJwtPayload = (token) => {
 };
 
 const isTokenExpired = (token) => Boolean(decodeJwtPayload(token)?.exp && decodeJwtPayload(token).exp * 1000 <= Date.now());
-const clearAuthSession = () => ['token','accessToken','user','userId','isAuthenticated','role','accessPermissions','buyerPermissions','factoryPermissions','selectedBuyer','selectedBuyerLabel','loginAt'].forEach((key) => localStorage.removeItem(key));
+const clearAuthSession = () => AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 
 
 function AdminRoute({ children }) {
-  return isAdmin() ? children : <Navigate to="/dashboard" replace />;
+  return isAdmin() ? children : <Navigate to={ROUTE_PATH.DASHBOARD} replace />;
 }
 
 function ProtectedRoute() {
   const location = useLocation();
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(STORAGE_KEY.TOKEN);
   const expired = token ? isTokenExpired(token) : false;
 
   useEffect(() => {
     if (expired) {
       clearAuthSession();
-      toast.error('Session expired. Please sign in again.');
+      toast.error(APP_MESSAGES.SESSION_EXPIRED);
     }
   }, [expired]);
 
-  if (!token || expired) return <Navigate to={LOGIN_PATH} replace state={{ from: location }} />;
+  if (!token || expired) return <Navigate to={ROUTE_PATH.LOGIN} replace state={{ from: location }} />;
   return <Outlet />;
 }
 
@@ -90,7 +90,7 @@ const MainRoutes = {
           { index: true, element: <WorkflowHomePage /> },
           { path: 'dashboard', element: <DashboardPage /> },
           { path: 'workflow', element: <WorkflowHomePage /> },
-          { path: 'orders-management', element: <Navigate to="/buyers/lululemon/orders" replace /> },
+          { path: 'orders-management', element: <Navigate to={`/buyers/${String(BUYER_CODE.LULULEMON).toLowerCase()}/orders`} replace /> },
           { path: 'users', element: <AdminRoute><UserManagementPage /></AdminRoute> },
           { path: 'departments', element: <AdminRoute><DepartmentManagementPage /></AdminRoute> },
           { path: 'buyers', element: <AdminRoute><BuyerManagementPage /></AdminRoute> },
@@ -103,14 +103,14 @@ const MainRoutes = {
           { path: 'buyers/:buyerSlug/orders/:orderId/pos/:poKey/cartons/:cartonId', element: <BuyerWorkspaceRoute><BuyerCartonItemsPage /></BuyerWorkspaceRoute> },
 
           // Buyer-owned operational routes.
-          ...esRoutes,
-          ...lululemonRoutes,
+          ...barcodePackingRoutes,
+          ...ssccPackingRoutes,
 
           { path: '*', element: <BuyerHomeRedirect /> }
         ]
       }]
     },
-    { path: '*', element: <Navigate to={LOGIN_PATH} replace /> }
+    { path: '*', element: <Navigate to={ROUTE_PATH.LOGIN} replace /> }
   ]
 };
 

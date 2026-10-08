@@ -1,53 +1,15 @@
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography
-} from '@mui/material';
-import {
-  ArrowBackOutlined,
-  CheckCircleOutline,
-  KeyboardOutlined,
-  QrCodeScannerOutlined,
-  RefreshOutlined,
-  ScaleOutlined,
-  WarningAmberOutlined
-} from '@mui/icons-material';
-
-import {
-  getCartonTransaction,
-  getCurrentStationTransaction,
-  listCartonsForItem,
-  listScaleStations,
-  scanAssignedFactoryBarcode,
-  submitManualWeight
-} from 'buyers/es/services/cartonLoadingService';
+import {   Alert, Box, Button, Chip, CircularProgress, FormControl, InputLabel, MenuItem, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import {   ArrowBackOutlined, CheckCircleOutline, KeyboardOutlined, QrCodeScannerOutlined, RefreshOutlined, ScaleOutlined, WarningAmberOutlined } from '@mui/icons-material';
+import { APP_MESSAGES, createBarcodeIdentifiedMessage, createCartonCompletedManualMessage, createCartonCompletedWeightMessage, createCartonWaitingForWeightMessage } from '../../../../constants/appMessages';
+import {   getCartonTransaction, getCurrentStationTransaction, listCartonsForItem, listScaleStations, scanAssignedFactoryBarcode, submitManualWeight } from 'buyers/es/services/cartonLoadingService';
 import TableFilterBar from 'components/TableFilterBar';
 import { getPackingOrder } from 'buyers/es/services/packingListService';
 import { getBuyerBySlug } from 'utils/buyerAccess';
+import { CARTON_FINAL_STATUSES, BARCODE_CARTON_STATUS, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE, SCAN_INPUT_MODE, WEIGHT_SOURCE } from '../../../../constants/appConstants';
 
-const FINAL_STATUSES = ['COMPLETED', 'WEIGHT_WARNING'];
 
 const getErrorMessage = (error, fallback) => (
   error?.response?.data?.message
@@ -77,20 +39,20 @@ const writeStorage = (key, value) => {
 };
 
 const weightMeta = (value) => {
-  const status = String(value || 'NOT_WEIGHED').toUpperCase();
-  if (status === 'OK') return { label: 'OK', color: 'success' };
-  if (status === 'UNDER') return { label: 'Underweight', color: 'error' };
-  if (status === 'OVER') return { label: 'Overweight', color: 'warning' };
-  if (status === 'NO_STANDARD') return { label: 'No standard', color: 'info' };
+  const status = String(value || SCALE_WEIGHT_STATUS.NOT_WEIGHED).toUpperCase();
+  if (status === SCALE_WEIGHT_STATUS.OK) return { label: 'OK', color: 'success' };
+  if (status === SCALE_WEIGHT_STATUS.UNDER) return { label: 'Underweight', color: 'error' };
+  if (status === SCALE_WEIGHT_STATUS.OVER) return { label: 'Overweight', color: 'warning' };
+  if (status === SCALE_WEIGHT_STATUS.NO_STANDARD) return { label: 'No standard', color: 'info' };
   return { label: 'Not weighed', color: 'default' };
 };
 
 const scanMeta = (value) => {
-  const status = String(value || 'PLANNED').toUpperCase();
-  if (status === 'COMPLETED') return { label: 'Completed', color: 'success' };
-  if (status === 'WEIGHT_WARNING') return { label: 'Weight warning', color: 'warning' };
-  if (status === 'WAITING_WEIGHT') return { label: 'Waiting for weight', color: 'info' };
-  if (status === 'CANCELLED') return { label: 'Cancelled', color: 'default' };
+  const status = String(value || BARCODE_CARTON_STATUS.PLANNED).toUpperCase();
+  if (status === BARCODE_CARTON_STATUS.COMPLETED) return { label: 'Completed', color: 'success' };
+  if (status === BARCODE_CARTON_STATUS.WEIGHT_WARNING) return { label: 'Weight warning', color: 'warning' };
+  if (status === BARCODE_CARTON_STATUS.WAITING_WEIGHT) return { label: 'Waiting for weight', color: 'info' };
+  if (status === BARCODE_CARTON_STATUS.CANCELLED) return { label: 'Cancelled', color: 'default' };
   return { label: 'Not scanned', color: 'default' };
 };
 
@@ -109,7 +71,7 @@ export default function CartonItemDetailPage() {
   const [order, setOrder] = useState(null);
   const [rows, setRows] = useState([]);
   const [tablePage, setTablePage] = useState(0);
-  const [tableRowsPerPage, setTableRowsPerPage] = useState(25);
+  const [tableRowsPerPage, setTableRowsPerPage] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [stations, setStations] = useState([]);
   const [stationCode, setStationCode] = useState(() => (
     location.state?.stationCode
@@ -117,13 +79,13 @@ export default function CartonItemDetailPage() {
   ));
   const [palletCode, setPalletCode] = useState(() => (
     location.state?.palletCode
-    || (buyer?.code ? readStorage(palletStorageKey(buyer.code), 'P01') : 'P01')
+    || (buyer?.code ? readStorage(palletStorageKey(buyer.code), DEFAULT_PALLET_CODE) : DEFAULT_PALLET_CODE)
   ));
   const [scanInputMode, setScanInputMode] = useState(() => (
     location.state?.inputMode
-    || (buyer?.code ? readStorage(modeStorageKey(buyer.code), 'ZEBRA') : 'ZEBRA')
+    || (buyer?.code ? readStorage(modeStorageKey(buyer.code), SCAN_INPUT_MODE.ZEBRA) : SCAN_INPUT_MODE.ZEBRA)
   ));
-  const [weightMode, setWeightMode] = useState(routedTransaction?.stationCode ? 'PLC' : 'MANUAL');
+  const [weightMode, setWeightMode] = useState(routedTransaction?.stationCode ? WEIGHT_SOURCE.PLC : WEIGHT_SOURCE.MANUAL);
   const [barcode, setBarcode] = useState('');
   const [manualWeight, setManualWeight] = useState('');
   const [manualReason, setManualReason] = useState('Manual test / PLC unavailable');
@@ -150,7 +112,7 @@ export default function CartonItemDetailPage() {
         listCartonsForItem(buyer.code, orderId, masterLineId)
       ]);
       const normalizedRows = Array.isArray(itemRows) ? itemRows : [];
-      const waitingRow = normalizedRows.find((row) => row.status === 'WAITING_WEIGHT'
+      const waitingRow = normalizedRows.find((row) => row.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT
         && (stationCode ? row.stationCode === stationCode : !row.stationCode));
 
       setOrder(orderData);
@@ -167,16 +129,16 @@ export default function CartonItemDetailPage() {
             plannedCartons: waitingRow.plannedCartons || normalizedRows.length
           };
         }
-        if (current?.status === 'WAITING_WEIGHT') return null;
+        if (current?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT) return null;
         return current;
       });
 
       if (waitingRow) {
-        setWeightMode(waitingRow.stationCode ? 'PLC' : 'MANUAL');
+        setWeightMode(waitingRow.stationCode ? WEIGHT_SOURCE.PLC : WEIGHT_SOURCE.MANUAL);
         setError('');
       }
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to load the carton list.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.LOAD_CARTON_LIST_FAILED));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -193,7 +155,7 @@ export default function CartonItemDetailPage() {
         return '';
       });
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to load Scale Stations.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.LOAD_SCALE_STATIONS_FAILED));
     }
   }, []);
 
@@ -202,7 +164,7 @@ export default function CartonItemDetailPage() {
     setNotice('');
     const nextTransaction = routedTransaction?.masterLineId === masterLineId ? routedTransaction : null;
     setActiveTransaction(nextTransaction);
-    setWeightMode(nextTransaction?.stationCode ? 'PLC' : 'MANUAL');
+    setWeightMode(nextTransaction?.stationCode ? WEIGHT_SOURCE.PLC : WEIGHT_SOURCE.MANUAL);
     setBarcode('');
     setManualWeight('');
     loadRows();
@@ -228,7 +190,7 @@ export default function CartonItemDetailPage() {
   }, [buyer?.code, scanInputMode]);
 
   useEffect(() => {
-    if (!buyer?.code || !stationCode || activeTransaction?.status === 'WAITING_WEIGHT') return;
+    if (!buyer?.code || !stationCode || activeTransaction?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT) return;
     let cancelled = false;
     getCurrentStationTransaction(buyer.code, stationCode)
       .then((transaction) => {
@@ -243,7 +205,7 @@ export default function CartonItemDetailPage() {
   }, [buyer?.code, stationCode, masterLineId, activeTransaction?.status]);
 
   useEffect(() => {
-    if (!buyer?.code || !activeTransaction?.id || activeTransaction.status !== 'WAITING_WEIGHT') return undefined;
+    if (!buyer?.code || !activeTransaction?.id || activeTransaction.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT) return undefined;
 
     let cancelled = false;
     const checkWeight = async () => {
@@ -251,8 +213,8 @@ export default function CartonItemDetailPage() {
         const latest = await getCartonTransaction(buyer.code, activeTransaction.id);
         if (cancelled || !latest) return;
         setActiveTransaction(latest);
-        if (latest.status !== 'WAITING_WEIGHT') {
-          setNotice(`Carton ${latest.cartonNumber ?? latest.cartonSequence} completed with ${kg(latest.weightKg)} from ${latest.weightSource || 'weight input'}. Scan the next assigned Factory Barcode when the station is ready.`);
+        if (latest.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT) {
+          setNotice(createCartonCompletedWeightMessage(latest.cartonNumber ?? latest.cartonSequence, kg(latest.weightKg), latest.weightSource));
           await loadRows({ showLoading: false });
           setManualWeight('');
         }
@@ -269,10 +231,10 @@ export default function CartonItemDetailPage() {
     };
   }, [buyer?.code, activeTransaction?.id, activeTransaction?.status, loadRows]);
 
-  const waitingForWeight = activeTransaction?.status === 'WAITING_WEIGHT';
+  const waitingForWeight = activeTransaction?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT;
 
   useEffect(() => {
-    if (!loading && !scanSubmitting && !waitingForWeight && scanInputMode === 'ZEBRA') {
+    if (!loading && !scanSubmitting && !waitingForWeight && scanInputMode === SCAN_INPUT_MODE.ZEBRA) {
       focusScanner();
     }
   }, [loading, scanSubmitting, waitingForWeight, scanInputMode, focusScanner]);
@@ -288,20 +250,20 @@ export default function CartonItemDetailPage() {
   }), [rows, filters]);
 
   const first = rows[0] || {};
-  const completed = rows.filter((row) => FINAL_STATUSES.includes(row.status)).length;
-  const waiting = rows.filter((row) => row.status === 'WAITING_WEIGHT').length;
-  const warnings = rows.filter((row) => ['UNDER', 'OVER'].includes(row.weightStatus)).length;
-  const readyAssigned = rows.filter((row) => row.status === 'PLANNED' && row.factoryBarcode).length;
+  const completed = rows.filter((row) => CARTON_FINAL_STATUSES.includes(row.status)).length;
+  const waiting = rows.filter((row) => row.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT).length;
+  const warnings = rows.filter((row) => [SCALE_WEIGHT_STATUS.UNDER, SCALE_WEIGHT_STATUS.OVER].includes(row.weightStatus)).length;
+  const readyAssigned = rows.filter((row) => row.status === BARCODE_CARTON_STATUS.PLANNED && row.factoryBarcode).length;
 
   const submitScan = async () => {
     const code = barcode.trim();
     if (!buyer?.code || scanSubmitting) return;
     if (waitingForWeight) {
-      setError(`Carton ${activeTransaction.cartonCode || activeTransaction.cartonSequence} is still waiting for weight. Complete it before scanning another carton.`);
+      setError(createCartonWaitingForWeightMessage(activeTransaction.cartonCode || activeTransaction.cartonSequence));
       return;
     }
     if (!code) {
-      setError('Scan or enter an assigned Factory Barcode.');
+      setError(APP_MESSAGES.SCAN_ASSIGNED_FACTORY_BARCODE_REQUIRED);
       focusScanner();
       return;
     }
@@ -319,8 +281,8 @@ export default function CartonItemDetailPage() {
       });
       setBarcode('');
       setActiveTransaction(transaction);
-      setWeightMode(transaction.stationCode ? 'PLC' : 'MANUAL');
-      setNotice(`Factory Barcode ${transaction.factoryBarcode || code} identified ${transaction.cartonCode || `Carton ${transaction.cartonNumber ?? transaction.cartonSequence}`}. The carton is waiting for weight.`);
+      setWeightMode(transaction.stationCode ? WEIGHT_SOURCE.PLC : WEIGHT_SOURCE.MANUAL);
+      setNotice(createBarcodeIdentifiedMessage(transaction.factoryBarcode || code, transaction.cartonCode || `Carton ${transaction.cartonNumber ?? transaction.cartonSequence}`));
 
       if (transaction.masterLineId !== masterLineId) {
         navigate(`/buyers/${buyer.slug}/orders/${orderId}/items/${transaction.masterLineId}`, {
@@ -336,7 +298,7 @@ export default function CartonItemDetailPage() {
       }
       await loadRows({ showLoading: false });
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to scan the Factory Barcode.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.SCAN_FACTORY_BARCODE_FAILED));
       focusScanner();
     } finally {
       setScanSubmitting(false);
@@ -347,7 +309,7 @@ export default function CartonItemDetailPage() {
     if (!buyer?.code || !activeTransaction?.id || weightSubmitting) return;
     const value = Number(manualWeight);
     if (!Number.isFinite(value) || value <= 0) {
-      setError('Enter a valid weight greater than 0 kg.');
+      setError(APP_MESSAGES.VALID_WEIGHT_REQUIRED);
       return;
     }
     setWeightSubmitting(true);
@@ -358,18 +320,18 @@ export default function CartonItemDetailPage() {
         reason: manualReason.trim() || 'Manual weight input'
       });
       setActiveTransaction(completedTransaction);
-      setNotice(`Carton ${completedTransaction.cartonNumber ?? completedTransaction.cartonSequence} completed manually with ${kg(completedTransaction.weightKg)}. Scan the next assigned Factory Barcode when the station is ready.`);
+      setNotice(createCartonCompletedManualMessage(completedTransaction.cartonNumber ?? completedTransaction.cartonSequence, kg(completedTransaction.weightKg)));
       setManualWeight('');
       await loadRows({ showLoading: false });
       focusScanner();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to save the manual weight.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.SAVE_MANUAL_WEIGHT_FAILED));
     } finally {
       setWeightSubmitting(false);
     }
   };
 
-  if (!buyer) return <Alert severity="warning">Buyer could not be identified.</Alert>;
+  if (!buyer) return <Alert severity="warning">{APP_MESSAGES.BUYER_NOT_IDENTIFIED}</Alert>;
 
   const currentSequence = activeTransaction?.cartonSequence;
   const plannedCartons = activeTransaction?.plannedCartons || rows.length;
@@ -500,8 +462,8 @@ export default function CartonItemDetailPage() {
               onChange={(_, value) => value && setScanInputMode(value)}
               disabled={waitingForWeight}
             >
-              <ToggleButton value="ZEBRA"><QrCodeScannerOutlined sx={{ mr: 0.5 }} /> Zebra USB</ToggleButton>
-              <ToggleButton value="MANUAL"><KeyboardOutlined sx={{ mr: 0.5 }} /> Manual input</ToggleButton>
+              <ToggleButton value={SCAN_INPUT_MODE.ZEBRA}><QrCodeScannerOutlined sx={{ mr: 0.5 }} /> Zebra USB</ToggleButton>
+              <ToggleButton value={WEIGHT_SOURCE.MANUAL}><KeyboardOutlined sx={{ mr: 0.5 }} /> Manual input</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
 
@@ -510,18 +472,18 @@ export default function CartonItemDetailPage() {
               inputRef={scanInputRef}
               fullWidth
               size="medium"
-              label={scanInputMode === 'ZEBRA' ? 'Scan assigned Factory Barcode' : 'Enter Factory Barcode manually'}
+              label={scanInputMode === SCAN_INPUT_MODE.ZEBRA ? 'Scan assigned Factory Barcode' : 'Enter Factory Barcode manually'}
               value={barcode}
               onChange={(event) => setBarcode(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && scanInputMode === 'ZEBRA') {
+                if (event.key === 'Enter' && scanInputMode === SCAN_INPUT_MODE.ZEBRA) {
                   event.preventDefault();
                   submitScan();
                 }
               }}
               disabled={waitingForWeight || scanSubmitting}
               autoComplete="off"
-              placeholder={scanInputMode === 'ZEBRA'
+              placeholder={scanInputMode === SCAN_INPUT_MODE.ZEBRA
                 ? 'Scan the Factory Use Only label. Zebra Enter identifies the exact assigned carton.'
                 : 'Type or paste the Factory Barcode, then click Identify Carton.'}
               sx={{
@@ -540,7 +502,7 @@ export default function CartonItemDetailPage() {
             </Button>
           </Stack>
 
-          {activeTransaction?.status === 'WAITING_WEIGHT' ? (
+          {activeTransaction?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT ? (
             <Paper
               variant="outlined"
               sx={{
@@ -598,12 +560,12 @@ export default function CartonItemDetailPage() {
                     value={weightMode}
                     onChange={(_, value) => value && setWeightMode(value)}
                   >
-                    <ToggleButton value="PLC" disabled={!activeTransaction.stationCode}><ScaleOutlined sx={{ mr: 0.5 }} /> PLC automatic</ToggleButton>
-                    <ToggleButton value="MANUAL"><KeyboardOutlined sx={{ mr: 0.5 }} /> Manual weight</ToggleButton>
+                    <ToggleButton value={WEIGHT_SOURCE.PLC} disabled={!activeTransaction.stationCode}><ScaleOutlined sx={{ mr: 0.5 }} /> PLC automatic</ToggleButton>
+                    <ToggleButton value={WEIGHT_SOURCE.MANUAL}><KeyboardOutlined sx={{ mr: 0.5 }} /> Manual weight</ToggleButton>
                   </ToggleButtonGroup>
                 </Stack>
 
-                {weightMode === 'PLC' && activeTransaction.stationCode && (
+                {weightMode === WEIGHT_SOURCE.PLC && activeTransaction.stationCode && (
                   <Alert severity="info">
                     Waiting for PLC to send a stable weight for Job {activeTransaction.jobId}. The page checks the result automatically.
                   </Alert>
@@ -615,7 +577,7 @@ export default function CartonItemDetailPage() {
                   </Alert>
                 )}
 
-                {weightMode === 'MANUAL' && (
+                {weightMode === WEIGHT_SOURCE.MANUAL && (
                   <Box sx={{ p: { xs: 1.25, md: 1.5 }, borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #BAE6FD' }}>
                     <Typography sx={{ mb: 1.1, fontWeight: 950, color: '#103B5C' }}>Manual weight entry</Typography>
                     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.1} alignItems="stretch">
@@ -686,13 +648,13 @@ export default function CartonItemDetailPage() {
                 { key: 'poNumber', label: 'PO No.' },
                 { key: 'articleNumber', label: 'Article' },
                 { key: 'status', label: 'Status', options: [
-                  { value: 'PLANNED', label: 'Not scanned' },
-                  { value: 'WAITING_WEIGHT', label: 'Waiting for weight' },
-                  { value: 'COMPLETED', label: 'Completed' },
-                  { value: 'WEIGHT_WARNING', label: 'Weight warning' },
-                  { value: 'UNDER', label: 'Underweight' },
-                  { value: 'OVER', label: 'Overweight' },
-                  { value: 'OK', label: 'OK' }
+                  { value: BARCODE_CARTON_STATUS.PLANNED, label: 'Not scanned' },
+                  { value: BARCODE_CARTON_STATUS.WAITING_WEIGHT, label: 'Waiting for weight' },
+                  { value: BARCODE_CARTON_STATUS.COMPLETED, label: 'Completed' },
+                  { value: BARCODE_CARTON_STATUS.WEIGHT_WARNING, label: 'Weight warning' },
+                  { value: SCALE_WEIGHT_STATUS.UNDER, label: 'Underweight' },
+                  { value: SCALE_WEIGHT_STATUS.OVER, label: 'Overweight' },
+                  { value: SCALE_WEIGHT_STATUS.OK, label: 'OK' }
                 ] }
               ]}
               values={filters}

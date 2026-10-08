@@ -4,15 +4,17 @@ import { Refresh } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { listManagedOrders } from 'services/managementService';
 
-const BUYER = 'LULULEMON';
-const STORAGE_KEY = 'cartonloading.lululemon.orderId';
 
+
+import { BUYER_CODE, buyerOrderStorageKey } from '../../../constants/appConstants';
+import { APP_MESSAGES, createBuyerOrderFirstMessage } from '../../../constants/appMessages';
+import { buyerPath } from 'utils/buyerAccess';
 async function loadAllOrders() {
   const rows = [];
   let page = 0;
   const size = 100;
   while (true) {
-    const result = await listManagedOrders(BUYER, { page, size });
+    const result = await listManagedOrders(BUYER_CODE.LULULEMON, { page, size });
     rows.push(...(result?.content || []));
     if (result?.last || page + 1 >= Number(result?.totalPages || 0) || !(result?.content || []).length) break;
     page += 1;
@@ -20,7 +22,7 @@ async function loadAllOrders() {
   return rows;
 }
 
-export default function LululemonOrderScope({ value, onChange, disabled = false, embedded = false, compact = false }) {
+export default function OrderScope({ value, onChange, disabled = false, embedded = false, compact = false }) {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +33,7 @@ export default function LululemonOrderScope({ value, onChange, disabled = false,
     try {
       const next = await loadAllOrders();
       setOrders(next);
-      const stored = localStorage.getItem(STORAGE_KEY) || '';
+      const stored = localStorage.getItem(buyerOrderStorageKey(BUYER_CODE.LULULEMON)) || '';
       const validCurrent = next.some((row) => row.id === value) ? value : '';
       const validStored = next.some((row) => row.id === stored) ? stored : '';
       const chosen = validCurrent || validStored || next[0]?.id || '';
@@ -39,23 +41,23 @@ export default function LululemonOrderScope({ value, onChange, disabled = false,
       if (!chosen && value) onChange('');
     } catch (e) {
       setOrders([]);
-      setError(e?.response?.data?.message || e.message || 'Unable to load Orders.');
+      setError(e?.response?.data?.message || e.message || APP_MESSAGES.UNABLE_LOAD_ORDERS);
     } finally { setLoading(false); }
   }, [value, onChange]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next) => {
-    if (next) localStorage.setItem(STORAGE_KEY, next); else localStorage.removeItem(STORAGE_KEY);
+    if (next) localStorage.setItem(buyerOrderStorageKey(BUYER_CODE.LULULEMON), next); else localStorage.removeItem(buyerOrderStorageKey(BUYER_CODE.LULULEMON));
     onChange(next);
   };
 
   if (error) return <Alert severity="error" action={<Button color="inherit" size="small" onClick={load}>Retry</Button>}>{error}</Alert>;
-  if (!loading && !orders.length) return <Alert severity="warning" action={<Button color="inherit" size="small" onClick={() => navigate('/buyers/lululemon/orders')}>Create Order</Button>}>Create a LULULEMON Order before importing PO or scanning cartons.</Alert>;
+  if (!loading && !orders.length) return <Alert severity="warning" action={<Button color="inherit" size="small" onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'orders'))}>Create Order</Button>}>{createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON)}</Alert>;
 
   const content = (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.8} alignItems={{ md: 'center' }}>
-      {!embedded ? <Box sx={{ minWidth: 92 }}><Typography variant="caption" color="text.secondary">Active Order</Typography><Typography variant="body2" sx={{ fontWeight: 750 }}>Order scope</Typography></Box> : null}
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.55} alignItems={{ md: 'center' }}>
+      {!embedded ? <Box sx={{ minWidth: 76 }}><Typography variant="caption" color="text.secondary">Active Order</Typography><Typography variant="body2" sx={{ fontWeight: 750 }}>Order scope</Typography></Box> : null}
       <Autocomplete
         size="small"
         sx={{ minWidth: { xs: '100%', md: 300 }, flex: 1 }}
@@ -70,7 +72,7 @@ export default function LululemonOrderScope({ value, onChange, disabled = false,
         clearOnEscape
         noOptionsText="No matching orders"
         renderOption={(props, row) => (
-          <Box component="li" {...props} key={row.id} sx={{ alignItems: 'flex-start !important', py: '8px !important' }}>
+          <Box component="li" {...props} key={row.id} sx={{ alignItems: 'flex-start !important', py: '6px !important' }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" fontWeight={750}>{row.orderName}</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -96,5 +98,5 @@ export default function LululemonOrderScope({ value, onChange, disabled = false,
     </Stack>
   );
 
-  return embedded ? content : <Paper variant="outlined" sx={{ px: 1.25, py: 0.9, borderRadius: 2.25, borderColor: '#DFE7EF' }}>{content}</Paper>;
+  return embedded ? content : <Paper variant="outlined" sx={{ px: 0.9, py: 0.6, borderRadius: 1.9, borderColor: '#DFE7EF' }}>{content}</Paper>;
 }

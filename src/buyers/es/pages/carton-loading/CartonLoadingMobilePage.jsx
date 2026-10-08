@@ -1,3 +1,4 @@
+import { BARCODE_CARTON_STATUS, SCALE_WEIGHT_STATUS, LOOKUP_PAGE_SIZE, WEIGHT_SOURCE, PROGRESS_STATUS, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -33,6 +34,7 @@ import QrCodeScannerOutlinedIcon from '@mui/icons-material/QrCodeScannerOutlined
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined';
+import { APP_MESSAGES, createChildItemAssignedMessage, createChildItemManualSavedMessage, createPlcSubmittedWeightMessage, createRestoredJobWaitingPlcMessage, createStationJobWaitingPlcMessage, createArticleFoundMessage, createArticleAmbiguousMessage, createItemAssignedStationMessage } from '../../../../constants/appMessages';
 
 import { getActiveBuyer } from 'utils/buyerAccess';
 import { listPackingOrders } from 'buyers/es/services/packingListService';
@@ -57,17 +59,17 @@ const orderStorageKey = (buyerCode) => `cartonLoading.order.${buyerCode || 'defa
 const modeStorageKey = (buyerCode) => `cartonLoading.weightMode.${buyerCode || 'default'}`;
 
 const statusMeta = (status) => {
-  if (status === 'COMPLETED') return { label: 'Weighed', color: 'success' };
-  if (status === 'WEIGHT_WARNING') return { label: 'Weight warning', color: 'error' };
-  if (status === 'WAITING_WEIGHT') return { label: 'Waiting for PLC', color: 'warning' };
+  if (status === BARCODE_CARTON_STATUS.COMPLETED) return { label: 'Weighed', color: 'success' };
+  if (status === BARCODE_CARTON_STATUS.WEIGHT_WARNING) return { label: 'Weight warning', color: 'error' };
+  if (status === BARCODE_CARTON_STATUS.WAITING_WEIGHT) return { label: 'Waiting for PLC', color: 'warning' };
   return { label: 'Not scanned', color: 'default' };
 };
 
 const weightMeta = (status) => {
-  if (status === 'OK') return { label: 'OK', color: 'success' };
-  if (status === 'UNDER') return { label: 'Underweight', color: 'error' };
-  if (status === 'OVER') return { label: 'Overweight', color: 'warning' };
-  if (status === 'NO_STANDARD') return { label: 'No standard', color: 'info' };
+  if (status === SCALE_WEIGHT_STATUS.OK) return { label: 'OK', color: 'success' };
+  if (status === SCALE_WEIGHT_STATUS.UNDER) return { label: 'Underweight', color: 'error' };
+  if (status === SCALE_WEIGHT_STATUS.OVER) return { label: 'Overweight', color: 'warning' };
+  if (status === SCALE_WEIGHT_STATUS.NO_STANDARD) return { label: 'No standard', color: 'info' };
   return { label: 'Not weighed', color: 'default' };
 };
 
@@ -124,15 +126,15 @@ function MasterItemCard({ item, selected, disabled, onClick }) {
 function ChildCartonCard({ carton, disabled, onClick }) {
   const status = statusMeta(carton.status);
   const weight = weightMeta(carton.weightStatus);
-  const canSelect = carton.status === 'PLANNED' && !disabled;
-  const source = carton.weightSource || (carton.manualReason ? 'MANUAL' : (carton.weightKg != null ? 'PLC' : null));
+  const canSelect = carton.status === BARCODE_CARTON_STATUS.PLANNED && !disabled;
+  const source = carton.weightSource || (carton.manualReason ? WEIGHT_SOURCE.MANUAL : (carton.weightKg != null ? WEIGHT_SOURCE.PLC : null));
   return (
     <Card
       variant="outlined"
       sx={{
         borderRadius: 2.5,
         height: '100%',
-        borderColor: carton.status === 'WAITING_WEIGHT' ? 'warning.main' : carton.status === 'COMPLETED' ? 'success.light' : 'divider'
+        borderColor: carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT ? 'warning.main' : carton.status === BARCODE_CARTON_STATUS.COMPLETED ? 'success.light' : 'divider'
       }}
     >
       <CardActionArea disabled={!canSelect} onClick={() => onClick(carton)} sx={{ height: '100%' }}>
@@ -153,13 +155,13 @@ function ChildCartonCard({ carton, disabled, onClick }) {
                 <Typography fontWeight={950} color="success.main">{formatWeight(carton.weightKg)}</Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                   <Chip size="small" label={weight.label} color={weight.color} />
-                  <Typography variant="caption" color="text.secondary">Source: {source === 'MANUAL' ? 'Manual' : 'PLC'}</Typography>
+                  <Typography variant="caption" color="text.secondary">Source: {source === WEIGHT_SOURCE.MANUAL ? 'Manual' : 'PLC'}</Typography>
                 </Stack>
                 {carton.expectedWeightKg != null && <Typography variant="caption" color="text.secondary">Standard {formatWeight(carton.expectedWeightKg)} · Difference {formatWeight(carton.weightDifferenceKg)}</Typography>}
               </Box>
             )}
-            {carton.status === 'PLANNED' && <Typography variant="caption" fontWeight={800} color="primary.main">Tap to scan/weigh</Typography>}
-            {carton.status === 'WAITING_WEIGHT' && <Typography variant="caption" color="warning.main">Job {carton.jobId}</Typography>}
+            {carton.status === BARCODE_CARTON_STATUS.PLANNED && <Typography variant="caption" fontWeight={800} color="primary.main">Tap to scan/weigh</Typography>}
+            {carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT && <Typography variant="caption" color="warning.main">Job {carton.jobId}</Typography>}
           </Stack>
         </CardContent>
       </CardActionArea>
@@ -179,7 +181,7 @@ export default function CartonLoadingMobilePage() {
   const [orderId, setOrderId] = useState('');
   const [stationCode, setStationCode] = useState('');
   const [palletCode, setPalletCode] = useState('');
-  const [weightMode, setWeightMode] = useState('PLC');
+  const [weightMode, setWeightMode] = useState(WEIGHT_SOURCE.PLC);
 
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scannedBarcode, setScannedBarcode] = useState('');
@@ -192,7 +194,7 @@ export default function CartonLoadingMobilePage() {
   const [plcConfirmOpen, setPlcConfirmOpen] = useState(false);
   const [transaction, setTransaction] = useState(null);
   const [manualOpen, setManualOpen] = useState(false);
-  const [manualContext, setManualContext] = useState('PLANNED');
+  const [manualContext, setManualContext] = useState(BARCODE_CARTON_STATUS.PLANNED);
   const [manualWeight, setManualWeight] = useState('');
   const [manualReason, setManualReason] = useState('Manual entry required by operation');
 
@@ -204,8 +206,8 @@ export default function CartonLoadingMobilePage() {
 
   const notify = useCallback((message, severity = 'success') => setNotice({ open: true, severity, message }), []);
   const selectedStation = useMemo(() => stations.find((item) => item.stationCode === stationCode), [stations, stationCode]);
-  const waiting = transaction?.status === 'WAITING_WEIGHT';
-  const completed = ['COMPLETED', 'WEIGHT_WARNING'].includes(transaction?.status);
+  const waiting = transaction?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT;
+  const completed = [BARCODE_CARTON_STATUS.COMPLETED, BARCODE_CARTON_STATUS.WEIGHT_WARNING].includes(transaction?.status);
   const percent = progress?.plannedCartons > 0
     ? Math.min(100, ((Number(progress.completedCartons || 0) + Number(progress.warningCartons || 0)) / Number(progress.plannedCartons)) * 100)
     : 0;
@@ -226,7 +228,7 @@ export default function CartonLoadingMobilePage() {
     try {
       setProgress(await getCartonProgress(buyer.code, orderId));
     } catch (error) {
-      notify(getApiError(error, 'Unable to load item progress.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_ITEM_PROGRESS_FAILED), 'error');
     }
   }, [buyer?.code, notify, orderId]);
 
@@ -240,7 +242,7 @@ export default function CartonLoadingMobilePage() {
       const rows = await listCartonsForItem(buyer.code, orderId, item.masterLineId);
       setChildCartons(Array.isArray(rows) ? rows : []);
     } catch (error) {
-      notify(getApiError(error, 'Unable to load the child item list.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_CHILD_ITEMS_FAILED), 'error');
       setChildCartons([]);
     } finally {
       setChildLoading(false);
@@ -264,7 +266,7 @@ export default function CartonLoadingMobilePage() {
         setMatchedItems([]);
         setSelectedItem(null);
         setChildCartons([]);
-        notify(result?.message || 'No matching item was found in the WSP data.', 'error');
+        notify(result?.message || APP_MESSAGES.NO_WSP_ITEM_MATCH, 'error');
         return;
       }
       const items = Array.isArray(result.items) ? result.items : [];
@@ -283,9 +285,11 @@ export default function CartonLoadingMobilePage() {
         setChildCartons([]);
       }
       stopCamera();
-      notify(items.length === 1 ? `Article ${items[0].articleNumber} found. Select child item 1–${items[0].plannedCartons}.` : `${items.length} items use the same Article. Select the correct Size/Color.`, 'success');
+      notify(items.length === 1
+        ? createArticleFoundMessage(items[0].articleNumber, items[0].plannedCartons)
+        : createArticleAmbiguousMessage(items.length), 'success');
     } catch (error) {
-      notify(getApiError(error, 'Unable to match the barcode with the Order data.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.MATCH_BARCODE_ORDER_FAILED), 'error');
     } finally {
       lookupLockedRef.current = false;
       setBusy(false);
@@ -305,7 +309,7 @@ export default function CartonLoadingMobilePage() {
       setBusy(true);
       try {
         const [orderData, stationData] = await Promise.all([
-          listPackingOrders(buyer.code, { page: 0, size: 100 }),
+          listPackingOrders(buyer.code, { page: 0, size: LOOKUP_PAGE_SIZE }),
           listScaleStations(true)
         ]);
         const orderRows = Array.isArray(orderData?.content) ? orderData.content : [];
@@ -323,9 +327,9 @@ export default function CartonLoadingMobilePage() {
           : orderRows.some((row) => row.id === savedOrder) ? savedOrder : (orderRows[0]?.id || ''));
         setStationCode(stationRows.some((row) => row.stationCode === queryStation) ? queryStation
           : stationRows.some((row) => row.stationCode === savedStation) ? savedStation : (stationRows[0]?.stationCode || ''));
-        setWeightMode(savedMode === 'MANUAL' ? 'MANUAL' : 'PLC');
+        setWeightMode(savedMode === WEIGHT_SOURCE.MANUAL ? WEIGHT_SOURCE.MANUAL : WEIGHT_SOURCE.PLC);
       } catch (error) {
-        notify(getApiError(error, 'Unable to load the Order or scale stations.'), 'error');
+        notify(getApiError(error, APP_MESSAGES.LOAD_ORDER_OR_SCALE_FAILED), 'error');
       } finally {
         setBusy(false);
       }
@@ -356,10 +360,10 @@ export default function CartonLoadingMobilePage() {
           if (current.orderId && current.orderId !== orderId) setOrderId(current.orderId);
           setScannedBarcode(current.barcode || '');
           setBarcodeInput(current.barcode || '');
-          notify(`Restored Job ${current.jobId}, which is waiting for PLC.`, 'info');
+          notify(createRestoredJobWaitingPlcMessage(current.jobId), 'info');
         }
       } catch (error) {
-        notify(getApiError(error, 'Unable to check the waiting Job.'), 'error');
+        notify(getApiError(error, APP_MESSAGES.CHECK_WAITING_JOB_FAILED), 'error');
       }
     };
     resume();
@@ -371,13 +375,13 @@ export default function CartonLoadingMobilePage() {
   }, [buyer?.code, weightMode]);
 
   useEffect(() => {
-    if (!buyer?.code || !transaction?.id || transaction.status !== 'WAITING_WEIGHT') return undefined;
+    if (!buyer?.code || !transaction?.id || transaction.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT) return undefined;
     const timer = window.setInterval(async () => {
       try {
         const updated = await getCartonTransaction(buyer.code, transaction.id);
         setTransaction(updated);
-        if (updated?.status !== 'WAITING_WEIGHT') {
-          notify(`PLC submitted weight ${formatWeight(updated.weightKg)}.`, 'success');
+        if (updated?.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT) {
+          notify(createPlcSubmittedWeightMessage(formatWeight(updated.weightKg)), 'success');
           await refreshMatchedData();
         }
       } catch (error) {
@@ -389,20 +393,20 @@ export default function CartonLoadingMobilePage() {
 
   const chooseChild = (carton) => {
     if (waiting) {
-      notify(`Station ${stationCode} already has Job ${transaction?.jobId} waiting for PLC.`, 'warning');
+      notify(createStationJobWaitingPlcMessage(stationCode, transaction?.jobId), 'warning');
       return;
     }
     if (!stationCode) {
-      notify('Select a scale station first.', 'warning');
+      notify(APP_MESSAGES.SELECT_SCALE_STATION_FIRST, 'warning');
       return;
     }
     if (!scannedBarcode) {
-      notify('Scan the item label first.', 'warning');
+      notify(APP_MESSAGES.SCAN_ITEM_LABEL_FIRST, 'warning');
       return;
     }
     setSelectedCarton(carton);
-    if (weightMode === 'MANUAL') {
-      setManualContext('PLANNED');
+    if (weightMode === WEIGHT_SOURCE.MANUAL) {
+      setManualContext(BARCODE_CARTON_STATUS.PLANNED);
       setManualWeight('');
       setManualReason('Manual entry required by operation');
       setManualOpen(true);
@@ -423,17 +427,17 @@ export default function CartonLoadingMobilePage() {
       setPlcConfirmOpen(false);
       setSelectedCarton(null);
       setTransaction(created);
-      notify(`Child item #${created.cartonSequence} was assigned to Job ${created.jobId}. Waiting for PLC.`, 'info');
+      notify(createChildItemAssignedMessage(created.cartonSequence, created.jobId), 'info');
       await refreshMatchedData();
     } catch (error) {
-      notify(getApiError(error, 'Unable to create a Job waiting for PLC.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.CREATE_PLC_JOB_FAILED), 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const openWaitingManual = () => {
-    setManualContext('WAITING');
+    setManualContext(PROGRESS_STATUS.WAITING);
     setManualWeight('');
     setManualReason('PLC/Gateway is temporarily unavailable');
     setManualOpen(true);
@@ -444,7 +448,7 @@ export default function CartonLoadingMobilePage() {
     setBusy(true);
     try {
       let updated;
-      if (manualContext === 'WAITING') {
+      if (manualContext === PROGRESS_STATUS.WAITING) {
         if (!transaction?.id) return;
         updated = await submitManualWeight(buyer.code, transaction.id, {
           weightKg: Number(manualWeight),
@@ -464,10 +468,10 @@ export default function CartonLoadingMobilePage() {
       setSelectedCarton(null);
       setManualOpen(false);
       setManualWeight('');
-      notify(`Saved child item #${updated.cartonSequence}: ${formatWeight(updated.weightKg)} by manual entry.`, 'success');
+      notify(createChildItemManualSavedMessage(updated.cartonSequence, formatWeight(updated.weightKg)), 'success');
       await refreshMatchedData();
     } catch (error) {
-      notify(getApiError(error, 'Unable to save the manual weight.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.SAVE_MANUAL_WEIGHT_FAILED), 'error');
     } finally {
       setBusy(false);
     }
@@ -475,11 +479,11 @@ export default function CartonLoadingMobilePage() {
 
   const startCamera = useCallback(async () => {
     if (!orderId) {
-      notify('Select an Order first.', 'warning');
+      notify(APP_MESSAGES.SELECT_ORDER_FIRST, 'warning');
       return;
     }
     if (!window.BarcodeDetector) {
-      notify('This browser does not support BarcodeDetector. Use a Bluetooth scanner or enter the code manually.', 'warning');
+      notify(APP_MESSAGES.BARCODE_DETECTOR_UNSUPPORTED, 'warning');
       return;
     }
     try {
@@ -505,7 +509,7 @@ export default function CartonLoadingMobilePage() {
       }, 120);
     } catch (error) {
       stopCamera();
-      notify(error?.name === 'NotAllowedError' ? 'Camera permission was not granted.' : 'Unable to open the camera. Mobile camera access usually requires HTTPS.', 'error');
+      notify(error?.name === 'NotAllowedError' ? APP_MESSAGES.CAMERA_PERMISSION_DENIED : APP_MESSAGES.CAMERA_OPEN_FAILED, 'error');
     }
   }, [notify, orderId, performLookup, stopCamera]);
 
@@ -518,7 +522,7 @@ export default function CartonLoadingMobilePage() {
     setChildCartons([]);
   };
 
-  if (!buyer?.code) return <Alert severity="warning">Buyer could not be identified.</Alert>;
+  if (!buyer?.code) return <Alert severity="warning">{APP_MESSAGES.BUYER_NOT_IDENTIFIED}</Alert>;
 
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', pb: 9, px: { xs: 0.5, sm: 1 } }}>
@@ -544,7 +548,7 @@ export default function CartonLoadingMobilePage() {
               </TextField>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <TextField fullWidth size="small" label="Pallet/Location" value={palletCode} onChange={(event) => setPalletCode(event.target.value)} disabled={waiting || busy} placeholder="P01" InputProps={{ startAdornment: <WarehouseOutlinedIcon sx={{ mr: 1, color: 'text.secondary' }} /> }} />
+              <TextField fullWidth size="small" label="Pallet/Location" value={palletCode} onChange={(event) => setPalletCode(event.target.value)} disabled={waiting || busy} placeholder={DEFAULT_PALLET_CODE} InputProps={{ startAdornment: <WarehouseOutlinedIcon sx={{ mr: 1, color: 'text.secondary' }} /> }} />
             </Grid>
           </Grid>
 
@@ -558,8 +562,8 @@ export default function CartonLoadingMobilePage() {
             disabled={waiting || busy}
             sx={{ mt: 0.7 }}
           >
-            <ToggleButton value="PLC" sx={{ py: 1, fontWeight: 900 }}><ScaleOutlinedIcon sx={{ mr: 0.7 }} /> PLC (default)</ToggleButton>
-            <ToggleButton value="MANUAL" sx={{ py: 1, fontWeight: 900 }}><KeyboardOutlinedIcon sx={{ mr: 0.7 }} /> Manual</ToggleButton>
+            <ToggleButton value={WEIGHT_SOURCE.PLC} sx={{ py: 1, fontWeight: 900 }}><ScaleOutlinedIcon sx={{ mr: 0.7 }} /> PLC (default)</ToggleButton>
+            <ToggleButton value={WEIGHT_SOURCE.MANUAL} sx={{ py: 1, fontWeight: 900 }}><KeyboardOutlinedIcon sx={{ mr: 0.7 }} /> Manual</ToggleButton>
           </ToggleButtonGroup>
         </Paper>
 
@@ -587,7 +591,7 @@ export default function CartonLoadingMobilePage() {
                   <Typography>{transaction.itemKey || transaction.cartonCode} · Job {transaction.jobId}</Typography>
                   <Typography color="text.secondary">Article {transaction.articleNumber} · Station {transaction.stationCode}</Typography>
                 </Box>
-                <Alert severity="warning" sx={{ width: '100%' }}>Place the item on the scale. The Gateway will submit the weight to this Job.</Alert>
+                <Alert severity="warning" sx={{ width: '100%' }}>{APP_MESSAGES.PLACE_ITEM_ON_SCALE}</Alert>
                 <LinearProgress sx={{ width: '100%', height: 8, borderRadius: 8 }} />
                 <Button variant="outlined" startIcon={<KeyboardOutlinedIcon />} onClick={openWaitingManual}>PLC unavailable — switch to manual entry</Button>
               </Stack>
@@ -603,7 +607,7 @@ export default function CartonLoadingMobilePage() {
                 <Typography variant="h4" fontWeight={950}>Completed {transaction.itemKey || transaction.cartonCode}</Typography>
                 <Typography variant="h2" color="success.main" fontWeight={950}>{formatWeight(transaction.weightKg)}</Typography>
                 <Stack direction="row" spacing={0.7}>
-                  <Chip label={`Source: ${transaction.weightSource === 'MANUAL' || transaction.manualReason ? 'Manual' : 'PLC'}`} color="success" variant="outlined" />
+                  <Chip label={`Source: ${transaction.weightSource === WEIGHT_SOURCE.MANUAL || transaction.manualReason ? 'Manual' : 'PLC'}`} color="success" variant="outlined" />
                   <Chip label={weightMeta(transaction.weightStatus).label} color={weightMeta(transaction.weightStatus).color} />
                 </Stack>
                 {transaction.warningMessage && <Alert severity="warning" sx={{ width: '100%' }}>{transaction.warningMessage}</Alert>}
@@ -646,7 +650,7 @@ export default function CartonLoadingMobilePage() {
         </Paper>
 
         {!progress?.plannedCartons && !busy && (
-          <Alert severity="info">No Carton Master rows are available. Prepare Order Items, verify Master Total ctns, then generate one row per physical carton.</Alert>
+          <Alert severity="info">{APP_MESSAGES.NO_CARTON_MASTER_ROWS}</Alert>
         )}
 
         {matchedItems.length > 0 && (
@@ -673,7 +677,7 @@ export default function CartonLoadingMobilePage() {
               <Box>
                 <Typography fontWeight={950}>3. Select Child Item 1–{selectedItem.plannedCartons}</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Article {selectedItem.articleNumber} · Size {selectedItem.size || '—'} · {selectedItem.color || '—'} · Mode {weightMode === 'PLC' ? 'PLC' : 'Manual'}
+                  Article {selectedItem.articleNumber} · Size {selectedItem.size || '—'} · {selectedItem.color || '—'} · Mode {weightMode === WEIGHT_SOURCE.PLC ? 'PLC' : 'Manual'}
                 </Typography>
               </Box>
               {childLoading ? <Box textAlign="center" py={3}><CircularProgress /></Box> : (
@@ -685,7 +689,7 @@ export default function CartonLoadingMobilePage() {
                   ))}
                 </Grid>
               )}
-              {!childLoading && childCartons.length === 0 && <Alert severity="warning">This item has no physical cartons. Regenerate Carton Master from Master Total ctns.</Alert>}
+              {!childLoading && childCartons.length === 0 && <Alert severity="warning">{APP_MESSAGES.ITEM_HAS_NO_PHYSICAL_CARTONS}</Alert>}
             </Stack>
           </Paper>
         )}
@@ -695,7 +699,7 @@ export default function CartonLoadingMobilePage() {
         <DialogTitle sx={{ fontWeight: 950 }}>Confirm Item for PLC</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.2}>
-            <Alert severity="info">Item {selectedCarton?.itemKey || selectedCarton?.cartonCode} will be assigned to station <strong>{stationCode}</strong>.</Alert>
+            <Alert severity="info">{createItemAssignedStationMessage(selectedCarton?.itemKey || selectedCarton?.cartonCode, stationCode)}</Alert>
             <Typography>Article: <strong>{selectedCarton?.articleNumber}</strong></Typography>
             <Typography>Scanned barcode: <strong>{scannedBarcode}</strong></Typography>
             <Typography>After confirmation, place the item on the scale and wait for PLC to submit the weight.</Typography>
@@ -712,7 +716,7 @@ export default function CartonLoadingMobilePage() {
         <DialogContent dividers>
           <Stack spacing={1.5}>
             <Alert severity="warning">
-              {manualContext === 'WAITING'
+              {manualContext === PROGRESS_STATUS.WAITING
                 ? `Replace the PLC result for Job ${transaction?.jobId}.`
                 : `Item ${selectedCarton?.itemKey || selectedCarton?.cartonCode} will be completed using the manually entered weight.`}
             </Alert>

@@ -1,40 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Breadcrumbs, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider,
-  FormControl, IconButton, InputLabel, Link, ListItemText, Menu, MenuItem, Select, Stack, TextField, Tooltip, Typography
+  Alert, Box, Breadcrumbs, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, IconButton, InputLabel, LinearProgress, Link, ListItemText, Menu, MenuItem, Select, Stack, TextField, Tooltip, Typography
 } from '@mui/material';
 import {
-  ArrowBack, CloudUploadOutlined, DeleteOutline, EditOutlined, LocalShippingOutlined, MoveToInboxOutlined,
-  QrCodeScannerOutlined, Refresh, ViewColumnOutlined
+  ArrowBack, CloudUploadOutlined, DeleteOutline, EditOutlined, LocalShippingOutlined, MoveToInboxOutlined, QrCodeScannerOutlined, Refresh, ScaleOutlined, ViewColumnOutlined
 } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { APP_MESSAGES, createAllBpImportedMessage, createGenerationReviewMessage, createMasterDataBuildSummary, createMasterDataImportedMessage, createPoDeletedMessage, createWorkflowNotConfiguredMessage, createDeleteImportedPoConfirmMessage } from '../../constants/appMessages';
 
 import ManagementTable from 'components/ManagementTable';
+import PoScanProgressCell from 'buyers/lululemon/components/PoScanProgressCell';
 import StatusChip from 'components/StatusChip';
 import { CompactPageHeader, CompactStat, CompactToolbar } from 'components/CompactPageHeader';
 import TableFilterBar from 'components/TableFilterBar';
-import { canManageSales } from 'utils/accessControl';
+import { BUYER_CODE, buyerOrderStorageKey, ALL_BP_KNOWN_HEADERS, ALL_BP_SOURCE_ALIAS, ALL_BP_FORMULA_KEYS, ALL_BP_FORMULA_TEXT, ALL_BP_UI_LABELS, ALL_BP_SHARED_KEYS, ALL_BP_IMPORTANT_SOURCE_ORDER, DEFAULT_TABLE_ROWS_PER_PAGE, EXCEL_FILE_ACCEPT, IMPORT_MODE, DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY, WORKSPACE_SYSTEM_COLUMN_DEFINITIONS, WORKSPACE_DEFAULT_COLUMN_KEYS, PROGRESS_STATUS } from '../../constants/appConstants';
+import { canAssignBarcode, canManageSales, canWeightCheck } from 'utils/accessControl';
 import { getBuyerBySlug, saveSelectedBuyer } from 'utils/buyerAccess';
 import { getManagedOrder, listManagedPos } from 'services/managementService';
-import { deleteLululemonPo, importAllBp, updateLululemonPo } from 'buyers/lululemon/services/lululemonService';
+import { createWeighingOrder, deletePo, importAllBp, updatePo } from 'buyers/lululemon/services/service';
 import { generatePackingList, importPackingAllocationLines } from 'buyers/es/services/packingListService';
 import { generateCartonPlanFromWsp } from 'buyers/es/services/cartonLoadingService';
 
-const pageState = () => ({ page: 0, size: 10, count: 0, rows: [], loading: false });
-const isLululemon = (buyer) => buyer?.code === 'LULULEMON';
+const pageState = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
+const isSsccWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.LULULEMON;
+const isBarcodeWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.ENGELBERT_STRAUSS;
+const hasOperationalWorkflow = (buyer) => isSsccWorkflowBuyer(buyer) || isBarcodeWorkflowBuyer(buyer);
 const value = (v) => (v === null || v === undefined || v === '' ? '—' : v);
-
-const COLUMN_STORAGE_KEY = 'cartonloading.lululemon.order-workspace.visible-columns.v1';
-
-// Exact columns from the current ALL_BP workbook. If a future workbook adds a new
-// header, the backend returns it in allBpHeaders/allBpRows and this screen adds it automatically.
-const KNOWN_ALL_BP_HEADERS = [
-  'HOD (Hand over date)', 'SGS testing', 'GB testing', 'BV inspection', 'DC Code', 'Destination', 'Chanel',
-  'Master PO', 'PO', 'Packing Plan', 'SO (PTS)', 'Style#', 'Description', 'Color description', "Q\'ty", 'Pcs/ctn',
-  'lẻ', 'Ctns', 'Dư', 'Remark', 'FOB Price', 'Care & Content Label', 'China Inspection Tag', 'FOB Amount',
-  'Total FOB+Prcie Tag', 'FOB Fty Price', 'FOB Fty Amount', 'Ship mode', 'Season', 'DP%', 'MPR NUMBER',
-  'FWD', 'Carton Box Size', 'NW', 'GW', 'Remark 2'
-];
 
 const headerKey = (input) => String(input || '')
   .normalize('NFD')
@@ -42,74 +33,54 @@ const headerKey = (input) => String(input || '')
   .toUpperCase()
   .replace(/[^A-Z0-9]+/g, '');
 
-const SOURCE_ALIAS = {
-  HOD: 'HOD', HODHANDOVERDATE: 'HOD', HANDOVERDATE: 'HOD',
-  SGSTESTING: 'SGS_TESTING', SGSTEST: 'SGS_TESTING',
-  GBTESTING: 'GB_TESTING', GBTEST: 'GB_TESTING',
-  BVINSPECTION: 'BV_INSPECTION', BVINSPECT: 'BV_INSPECTION',
-  DCCODE: 'DC_CODE', DC: 'DC_CODE',
-  DESTINATION: 'DESTINATION', DEST: 'DESTINATION',
-  CHANEL: 'CHANNEL', CHANNEL: 'CHANNEL',
-  MASTERPO: 'MASTER_PO',
-  PO: 'PO', PONO: 'PO', PONUMBER: 'PO', PURCHASEORDER: 'PO',
-  PACKINGPLAN: 'PACKING_PLAN', PACKINGPLANNO: 'PACKING_PLAN',
-  SOPTS: 'SALES_ORDER_PTS', SO: 'SALES_ORDER_PTS', SALESORDERPTS: 'SALES_ORDER_PTS', SALESORDER: 'SALES_ORDER_PTS',
-  STYLE: 'STYLE', STYLENO: 'STYLE', STYLENUMBER: 'STYLE',
-  DESCRIPTION: 'DESCRIPTION', DESC: 'DESCRIPTION',
-  COLORDESCRIPTION: 'COLOR', COLOR: 'COLOR', COLOURDESCRIPTION: 'COLOR', COLOUR: 'COLOR',
-  QTY: 'QTY', QTYTOTAL: 'QTY', TOTALQTY: 'QTY', QUANTITY: 'QTY', ORDERQTY: 'QTY',
-  PCSCTN: 'PCS_CTN', PCSPERCTN: 'PCS_CTN', PCSPERCARTON: 'PCS_CTN', QTYPERCTN: 'PCS_CTN', PCSCTNS: 'PCS_CTN', UNITQTY: 'PCS_CTN',
-  LE: 'ODD_RATIO',
-  CTNS: 'CTNS', CARTONS: 'CTNS', CARTONQTY: 'CTNS', TOTALCARTONS: 'CTNS',
-  DU: 'REMAINDER', REMAINDER: 'REMAINDER', REMAINDERQTY: 'REMAINDER', BALANCEQTY: 'REMAINDER', ODDPCS: 'REMAINDER',
-  REMARK: 'REMARK',
-  FOBPRICE: 'FOB_PRICE',
-  CARECONTENTLABEL: 'CARE_CONTENT_LABEL', CAREANDCONTENTLABEL: 'CARE_CONTENT_LABEL',
-  CHINAINSPECTIONTAG: 'CHINA_INSPECTION_TAG',
-  FOBAMOUNT: 'FOB_AMOUNT',
-  TOTALFOBPRCIETAG: 'TOTAL_FOB_PRICE_TAG', TOTALFOBPRICETAG: 'TOTAL_FOB_PRICE_TAG',
-  FOBFTYPRICE: 'FOB_FTY_PRICE', FOBFACTORYPRICE: 'FOB_FTY_PRICE',
-  FOBFTYAMOUNT: 'FOB_FTY_AMOUNT', FOBFACTORYAMOUNT: 'FOB_FTY_AMOUNT',
-  SHIPMODE: 'SHIP_MODE', SHIPPINGMODE: 'SHIP_MODE',
-  SEASON: 'SEASON',
-  DP: 'DP_PERCENT', DPPERCENT: 'DP_PERCENT',
-  MPRNUMBER: 'MPR_NUMBER', MPRNO: 'MPR_NUMBER', MPR: 'MPR_NUMBER',
-  FWD: 'FWD', FORWARDER: 'FWD',
-  CARTONBOXSIZE: 'CARTON_BOX_SIZE', CARTONSIZE: 'CARTON_BOX_SIZE', BOXSIZE: 'CARTON_BOX_SIZE',
-  NW: 'NW', NETWEIGHT: 'NW', NETWEIGHTKG: 'NW',
-  GW: 'GW', GROSSWEIGHT: 'GW', GROSSWEIGHTKG: 'GW',
-  REMARK2: 'REMARK_2', REMARK02: 'REMARK_2'
-};
 
 const canonicalSourceKey = (label) => {
   const normalized = headerKey(label);
-  return SOURCE_ALIAS[normalized] || `RAW_${normalized || 'COLUMN'}`;
+  return ALL_BP_SOURCE_ALIAS[normalized] || `RAW_${normalized || 'COLUMN'}`;
 };
 
 
-const ALL_BP_FORMULA_KEYS = new Set([
-  'ODD_RATIO', 'CTNS', 'REMAINDER', 'FOB_AMOUNT', 'TOTAL_FOB_PRICE_TAG', 'FOB_FTY_PRICE', 'FOB_FTY_AMOUNT'
-]);
 
-const ALL_BP_FORMULA_TEXT = {
-  ODD_RATIO: '=O/P',
-  CTNS: '=ROUNDDOWN(Q,0)',
-  REMAINDER: '=O-(R*P)',
-  FOB_AMOUNT: '=O*U',
-  TOTAL_FOB_PRICE_TAG: '=O*(U+V+W)',
-  FOB_FTY_PRICE: '=ROUND((U+V+W)*AD,2)',
-  FOB_FTY_AMOUNT: '=O*Z'
-};
-
-const ALL_BP_SHARED_KEYS = new Set([
-  'PO', 'STYLE', 'PCS_CTN', 'DC_CODE', 'DESTINATION', 'CHANNEL', 'MASTER_PO',
-  'DESCRIPTION', 'COLOR', 'SHIP_MODE', 'SEASON', 'FWD', 'CARTON_BOX_SIZE'
-]);
 
 const canonicalRowEntry = (sourceRow, canonical) => Object.entries(sourceRow || {})
   .find(([label]) => canonicalSourceKey(label) === canonical);
 
 const canonicalRowValue = (sourceRow, canonical) => canonicalRowEntry(sourceRow, canonical)?.[1] ?? '';
+
+
+const calculatedCartonMetrics = (row) => {
+  const metrics = [];
+  const sourceRows = Array.isArray(row?.allBpRows) ? row.allBpRows : [];
+
+  for (const sourceRow of sourceRows) {
+    const qty = Number(String(canonicalRowValue(sourceRow, 'QTY') ?? '').replace(/,/g, '').trim());
+    const pcs = Number(String(canonicalRowValue(sourceRow, 'PCS_CTN') ?? '').replace(/,/g, '').trim());
+    if (!Number.isFinite(qty) || !Number.isFinite(pcs) || qty <= 0 || pcs <= 0) continue;
+    const quotient = qty / pcs;
+    const fullCartons = Math.floor(quotient);
+    metrics.push({
+      // ALL_BP column "lẻ" is =Q'ty/Pcs/ctn and is formatted with 0 decimals in Excel.
+      cartonRatio: Math.ceil(quotient),
+      fullCartons,
+      remainderQty: qty - (fullCartons * pcs)
+    });
+  }
+
+  if (!metrics.length) {
+    const qty = Number(row?.totalQty ?? row?.plannedTotalQty ?? 0);
+    const pcs = Number(row?.qtyPerCarton ?? row?.pcsPerCarton ?? 0);
+    if (Number.isFinite(qty) && Number.isFinite(pcs) && qty > 0 && pcs > 0) {
+      const quotient = qty / pcs;
+      const fullCartons = Math.floor(quotient);
+      metrics.push({
+        cartonRatio: Math.ceil(quotient),
+        fullCartons,
+        remainderQty: qty - (fullCartons * pcs)
+      });
+    }
+  }
+  return metrics;
+};
 
 const numberValue = (raw, percent = false) => {
   const text = String(raw ?? '').trim();
@@ -180,56 +151,77 @@ const recalculateAllBpPreview = (sourceRow) => {
   return next;
 };
 
-const SYSTEM_COLUMNS = [
-  { key: '__stt', label: 'STT', minWidth: 65, group: 'System', render: (row) => value(row.__stt) },
-  { key: 'sys:factory', label: 'Factory', minWidth: 90, group: 'System', render: (row) => value(row.factoryCode) },
-  { key: 'sys:sku', label: 'SKU', minWidth: 135, group: 'System', render: (row) => value(row.sku) },
-  { key: 'sys:exFtyDate', label: 'Ex-Factory', minWidth: 110, group: 'System', render: (row) => value(row.exFtyDate) },
-  { key: 'sys:status', label: 'Status', minWidth: 110, group: 'System', render: (row) => <StatusChip status={row.status || 'READY'} /> }
-];
-
-const DEFAULT_COLUMN_KEYS = [
-  '__stt', 'src:PO', 'src:MASTER_PO', 'sys:factory', 'src:STYLE', 'src:DESCRIPTION', 'src:COLOR',
-  'src:QTY', 'src:PCS_CTN', 'src:CTNS', 'src:DESTINATION', 'sys:sku', 'sys:status'
-];
-
-const IMPORTANT_SOURCE_ORDER = [
-  'PO', 'MASTER_PO', 'STYLE', 'DESCRIPTION', 'COLOR', 'SIZE', 'QTY', 'PCS_CTN', 'CTNS',
-  'DESTINATION', 'DC_CODE', 'CHANNEL', 'SHIP_MODE', 'SEASON', 'FWD'
-];
+const systemColumns = WORKSPACE_SYSTEM_COLUMN_DEFINITIONS.map((column) => ({
+  ...column,
+  render: (row) => {
+    if (column.key === '__stt') return value(row.__stt);
+    if (column.key === 'sys:factory') return value(row.factoryCode);
+    if (column.key === 'sys:sku') return value(row.sku);
+    if (column.key === 'sys:exFtyDate') return value(row.exFtyDate);
+    if (column.key === 'sys:status') return <StatusChip status={row.status || PROGRESS_STATUS.READY} />;
+    return '—';
+  }
+}));
 
 const loadSavedColumns = () => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(COLUMN_STORAGE_KEY));
+    const parsed = JSON.parse(localStorage.getItem(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY));
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
 };
 
-const uniqueSourceValues = (row, canonical) => {
+const sourceValues = (row, canonical) => {
   const result = [];
   for (const sourceRow of Array.isArray(row?.allBpRows) ? row.allBpRows : []) {
     for (const [label, raw] of Object.entries(sourceRow || {})) {
       if (canonicalSourceKey(label) !== canonical) continue;
       const text = String(raw ?? '').trim();
-      if (text && !result.includes(text)) result.push(text);
+      if (text) result.push(text);
     }
   }
   return result;
 };
 
+const uniqueSourceValues = (row, canonical) => [...new Set(sourceValues(row, canonical))];
+
+const summedSourceNumber = (row, canonical) => {
+  const values = sourceValues(row, canonical);
+  if (!values.length) return null;
+  const numbers = values.map((item) => Number(String(item).replace(/,/g, '')));
+  if (numbers.some((item) => !Number.isFinite(item))) return null;
+  return numbers.reduce((sum, item) => sum + item, 0);
+};
+
 const sourceValue = (row, canonical) => {
-  // These are PO-level aggregates. For repeated PO rows we show the combined value
-  // used by the workflow instead of a misleading "row1 | row2" display.
+  // These are record-level aggregates. Multiple ALL_BP rows are combined only
+  // when the full LULULEMON 10-field business key is identical.
   if (canonical === 'PO') return value(row.poNumber);
   if (canonical === 'MASTER_PO') return value(row.masterPo);
   if (canonical === 'STYLE') return value(row.styleNumber);
   if (canonical === 'QTY') return value(row.totalQty);
-  if (canonical === 'PCS_CTN') return value(row.qtyPerCarton);
+  if (canonical === 'PCS_CTN') {
+    const values = uniqueSourceValues(row, canonical);
+    return values.length > 1 ? values.join(' | ') : value(row.qtyPerCarton ?? values[0]);
+  }
+  if (canonical === 'ODD_RATIO') {
+    const metrics = calculatedCartonMetrics(row);
+    return metrics.length ? metrics.map((item) => item.cartonRatio).join(' | ') : '—';
+  }
+  if (canonical === 'CTNS') {
+    const metrics = calculatedCartonMetrics(row);
+    if (metrics.length) return metrics.reduce((sum, item) => sum + item.fullCartons, 0);
+    const total = summedSourceNumber(row, canonical);
+    return total == null ? '—' : total;
+  }
+  if (canonical === 'REMAINDER') {
+    const metrics = calculatedCartonMetrics(row);
+    return metrics.length ? metrics.reduce((sum, item) => sum + item.remainderQty, 0) : '—';
+  }
 
   // Formula columns always come from recalculated ALL_BP rows.
-  if (ALL_BP_FORMULA_KEYS.has(canonical)) {
+  if (ALL_BP_FORMULA_KEYS.includes(canonical)) {
     const calculatedValues = uniqueSourceValues(row, canonical);
     return calculatedValues.length ? calculatedValues.join(' | ') : '—';
   }
@@ -254,8 +246,8 @@ const sourceValue = (row, canonical) => {
   }[canonical];
   if (liveField) return value(row?.[liveField]);
 
-  const sourceValues = uniqueSourceValues(row, canonical);
-  if (sourceValues.length) return sourceValues.join(' | ');
+  const fallbackSourceValues = uniqueSourceValues(row, canonical);
+  if (fallbackSourceValues.length) return fallbackSourceValues.join(' | ');
 
   const fallback = {
     DC_CODE: row.dcCode,
@@ -280,16 +272,21 @@ const sourceValue = (row, canonical) => {
 export default function BuyerOrderWorkspacePage() {
   const { buyerSlug, orderId } = useParams();
   const navigate = useNavigate();
-  const buyer = getBuyerBySlug(buyerSlug);
+  // Keep the resolved buyer object stable for the lifetime of the route.
+  // getBuyerBySlug() rebuilds the catalog objects, so calling it on every render
+  // would otherwise create a new object reference each time.
+  const buyer = useMemo(() => getBuyerBySlug(buyerSlug), [buyerSlug]);
   const buyerCode = buyer?.code || '';
   const writable = canManageSales();
+  const maySendToWeight = canManageSales() || canAssignBarcode() || canWeightCheck();
   const fileRef = useRef(null);
 
   const [order, setOrder] = useState(null);
   const [pos, setPos] = useState(pageState());
   const [filters, setFilters] = useState({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', exFtyDate: '' });
-  const [importMode, setImportMode] = useState('UPSERT');
+  const [importMode, setImportMode] = useState(IMPORT_MODE.UPSERT);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState('');
   const [columnMenuAnchor, setColumnMenuAnchor] = useState(null);
@@ -297,22 +294,33 @@ export default function BuyerOrderWorkspacePage() {
   const [poEditor, setPoEditor] = useState(null);
   const [poSaving, setPoSaving] = useState(false);
   const [poDeletingId, setPoDeletingId] = useState(null);
+  const [selectedWeightPoIds, setSelectedWeightPoIds] = useState([]);
+  const [sendingToWeight, setSendingToWeight] = useState(false);
   const posRequestRef = useRef(0);
-  const posPaginationRef = useRef({ page: 0, size: 10 });
+  const posPaginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
 
   useEffect(() => {
     if (buyer) saveSelectedBuyer(buyer);
-    if (buyer?.code === 'LULULEMON' && orderId) localStorage.setItem('cartonloading.lululemon.orderId', orderId);
+    if (buyer?.code === BUYER_CODE.LULULEMON && orderId) localStorage.setItem(buyerOrderStorageKey(buyer.code), orderId);
   }, [buyer?.code, orderId]);
 
   const loadOrder = useCallback(async () => {
     if (!buyerCode || !orderId) return;
     try { setOrder(await getManagedOrder(buyerCode, orderId)); }
-    catch (e) { setError(e?.response?.data?.message || e?.message || 'Unable to load Order.'); }
+    catch (e) { setError(e?.response?.data?.message || e?.message || APP_MESSAGES.LOAD_ORDER_FAILED); }
   }, [buyerCode, orderId]);
 
   const loadPos = useCallback(async (page = posPaginationRef.current.page, size = posPaginationRef.current.size) => {
     if (!buyerCode || !orderId) return;
+    // IMPORTANT: depend on the stable primitive buyerCode, not the buyer object.
+    // The buyer catalog can return a newly allocated object, which used to recreate
+    // loadPos and retrigger the effect indefinitely (GET /pos request loop).
+    const workflowEnabled = buyerCode === BUYER_CODE.LULULEMON
+      || buyerCode === BUYER_CODE.ENGELBERT_STRAUSS;
+    if (!workflowEnabled) {
+      setPos((current) => ({ ...current, page: 0, count: 0, rows: [], loading: false }));
+      return;
+    }
     const nextPage = Math.max(0, Number(page || 0));
     const nextSize = Math.max(1, Number(size || 10));
     const requestId = ++posRequestRef.current;
@@ -328,7 +336,7 @@ export default function BuyerOrderWorkspacePage() {
       setPos({ page: nextPage, size: nextSize, count: Number(result?.totalElements || 0), rows, loading: false });
     } catch (e) {
       if (requestId !== posRequestRef.current) return;
-      setError(e?.response?.data?.message || e?.message || 'Unable to load PO.');
+      setError(e?.response?.data?.message || e?.message || APP_MESSAGES.LOAD_PO_FAILED);
       setPos((current) => ({ ...current, loading: false }));
     }
   }, [buyerCode, orderId, filters]);
@@ -345,35 +353,49 @@ export default function BuyerOrderWorkspacePage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !buyer || !orderId) return;
-    setImporting(true); setNotice(null); setError('');
+    setImporting(true); setImportProgress(0); setNotice(null); setError('');
     try {
-      if (isLululemon(buyer)) {
-        const result = await importAllBp(orderId, file, true, buyerCode);
-        setNotice({ severity: 'success', text: `ALL_BP imported ${result.createdPos || 0} PO(s). Cartons and Items will be generated only when opened.` });
-      } else {
+      if (isSsccWorkflowBuyer(buyer)) {
+        const result = await importAllBp(orderId, file, true, buyerCode, (progressEvent) => {
+          const total = Number(progressEvent?.total || 0);
+          const loaded = Number(progressEvent?.loaded || 0);
+          const percent = total > 0
+            ? Math.round((loaded * 100) / total)
+            : Math.round(Number(progressEvent?.progress || 0) * 100);
+          if (Number.isFinite(percent)) setImportProgress(Math.max(0, Math.min(100, percent)));
+        });
+        setImportProgress(100);
+        const warnings = Array.isArray(result?.warnings) ? result.warnings.filter(Boolean) : [];
+        setNotice({
+          severity: warnings.length ? 'warning' : 'success',
+          text: [createAllBpImportedMessage(result?.createdPos), ...warnings].join(' ')
+        });
+      } else if (isBarcodeWorkflowBuyer(buyer)) {
         const result = await importPackingAllocationLines(buyerCode, orderId, file, importMode);
-        if (result?.applied === false) throw new Error(result?.errors?.[0]?.message || 'Master Data import failed.');
+        if (result?.applied === false) throw new Error(result?.errors?.[0]?.message || APP_MESSAGES.MASTER_DATA_IMPORT_FAILED);
         let buildMessage = '';
         try {
           const packing = await generatePackingList(buyerCode, orderId, true);
           const cartonPlan = await generateCartonPlanFromWsp(buyerCode, orderId, true);
-          buildMessage = ` ${packing?.created || 0} packing row(s), ${cartonPlan?.createdCartons ?? cartonPlan?.created ?? 0} carton(s).`;
+          buildMessage = createMasterDataBuildSummary(packing?.created, cartonPlan?.createdCartons ?? cartonPlan?.created);
         } catch (buildError) {
-          buildMessage = ` Import completed; generation needs review: ${buildError?.response?.data?.message || buildError?.message || 'generation failed'}`;
+          buildMessage = createGenerationReviewMessage(buildError?.response?.data?.message || buildError?.message);
         }
-        setNotice({ severity: buildMessage.includes('needs review') ? 'warning' : 'success', text: `Master Data imported.${buildMessage}` });
+        setNotice({ severity: buildMessage.includes('needs review') ? 'warning' : 'success', text: createMasterDataImportedMessage(buildMessage) });
+      } else {
+        throw new Error(createWorkflowNotConfiguredMessage(buyerCode));
       }
       await loadOrder(); await loadPos(0, posPaginationRef.current.size);
     } catch (e) {
-      setNotice({ severity: 'error', text: e?.response?.data?.message || e?.message || 'Master Data import failed.' });
-    } finally { setImporting(false); }
+      setNotice({ severity: 'error', text: e?.response?.data?.message || e?.message || APP_MESSAGES.MASTER_DATA_IMPORT_FAILED });
+    } finally { setImporting(false); setImportProgress(0); }
   };
 
   const openPoEditor = (row) => {
-    if (!isLululemon(buyer) || !writable) return;
+    if (!isSsccWorkflowBuyer(buyer) || !writable) return;
     const headers = Array.isArray(row.allBpHeaders) && row.allBpHeaders.length
       ? row.allBpHeaders
-      : KNOWN_ALL_BP_HEADERS;
+      : ALL_BP_KNOWN_HEADERS;
     const rawRows = Array.isArray(row.allBpRows) && row.allBpRows.length
       ? row.allBpRows
       : [Object.fromEntries(headers.map((label) => [label, fallbackAllBpValue(row, canonicalSourceKey(label))]))];
@@ -396,10 +418,10 @@ export default function BuyerOrderWorkspacePage() {
   const setAllBpField = (rowIndex, label, nextValue) => setPoEditor((current) => {
     if (!current) return current;
     const canonical = canonicalSourceKey(label);
-    if (ALL_BP_FORMULA_KEYS.has(canonical)) return current;
+    if (ALL_BP_FORMULA_KEYS.includes(canonical)) return current;
 
     let rows = current.allBpRows.map((sourceRow, index) => {
-      if (index !== rowIndex && !ALL_BP_SHARED_KEYS.has(canonical)) return sourceRow;
+      if (index !== rowIndex && !ALL_BP_SHARED_KEYS.includes(canonical)) return sourceRow;
       const entry = canonicalRowEntry(sourceRow, canonical);
       if (!entry) return sourceRow;
       return { ...sourceRow, [entry[0]]: nextValue };
@@ -412,7 +434,7 @@ export default function BuyerOrderWorkspacePage() {
     if (!poEditor?.id) return;
     const sourceRows = Array.isArray(poEditor.allBpRows) ? poEditor.allBpRows : [];
     if (!sourceRows.length) {
-      setNotice({ severity: 'error', text: 'ALL_BP source row is required.' });
+      setNotice({ severity: 'error', text: APP_MESSAGES.ALL_BP_SOURCE_ROW_REQUIRED });
       return;
     }
 
@@ -425,15 +447,15 @@ export default function BuyerOrderWorkspacePage() {
       && Number.isInteger(qtyPerCarton) && qtyPerCarton > 0;
 
     if (!poNumber) {
-      setNotice({ severity: 'error', text: 'PO is required in ALL_BP.' });
+      setNotice({ severity: 'error', text: APP_MESSAGES.ALL_BP_PO_REQUIRED });
       return;
     }
     if (!styleNumber) {
-      setNotice({ severity: 'error', text: 'Style# is required in ALL_BP.' });
+      setNotice({ severity: 'error', text: APP_MESSAGES.ALL_BP_STYLE_REQUIRED });
       return;
     }
     if (!allWholePositive) {
-      setNotice({ severity: 'error', text: "Q'ty and Pcs/ctn must be positive whole numbers in every ALL_BP row." });
+      setNotice({ severity: 'error', text: APP_MESSAGES.ALL_BP_QUANTITY_RULE });
       return;
     }
 
@@ -447,7 +469,7 @@ export default function BuyerOrderWorkspacePage() {
     setPoSaving(true);
     setNotice(null);
     try {
-      await updateLululemonPo(orderId, poEditor.id, {
+      await updatePo(orderId, poEditor.id, {
         allBpRows: sourceRows,
         poNumber,
         masterPo: canonicalRowValue(first, 'MASTER_PO'),
@@ -474,36 +496,34 @@ export default function BuyerOrderWorkspacePage() {
       setPoEditor(null);
       setNotice({
         severity: 'success',
-        text: 'PO updated. ALL_BP formulas were recalculated and any previously generated Cartons/Items were rebuilt from the new data.'
+        text: APP_MESSAGES.PO_UPDATED_REBUILT
       });
       await loadPos(posPaginationRef.current.page, posPaginationRef.current.size);
     } catch (e) {
-      setNotice({ severity: 'error', text: e?.response?.data?.message || e?.message || 'Unable to update PO.' });
+      setNotice({ severity: 'error', text: e?.response?.data?.message || e?.message || APP_MESSAGES.UPDATE_PO_FAILED });
     } finally {
       setPoSaving(false);
     }
   };
 
   const removeImportedPo = async (row) => {
-    if (!row || !isLululemon(buyer) || !writable) return;
+    if (!row || !isSsccWorkflowBuyer(buyer) || !writable) return;
     const poId = row.id || row.key;
     if (!poId) return;
-    const confirmed = window.confirm(
-      `Delete PO "${row.poNumber || ''}"?\n\nGenerated Cartons/Items that have not started Packing will also be removed. This cannot be undone.`
-    );
+    const confirmed = window.confirm(createDeleteImportedPoConfirmMessage(row.poNumber));
     if (!confirmed) return;
 
     setPoDeletingId(poId);
     setNotice(null);
     try {
-      await deleteLululemonPo(orderId, poId, buyerCode);
+      await deletePo(orderId, poId, buyerCode);
       const targetPage = pos.rows.length <= 1 && posPaginationRef.current.page > 0
         ? posPaginationRef.current.page - 1
         : posPaginationRef.current.page;
-      setNotice({ severity: 'success', text: `PO ${row.poNumber || ''} deleted.` });
+      setNotice({ severity: 'success', text: createPoDeletedMessage(row.poNumber) });
       await loadPos(targetPage, posPaginationRef.current.size);
     } catch (e) {
-      setNotice({ severity: 'error', text: e?.response?.data?.message || e?.message || 'Unable to delete PO.' });
+      setNotice({ severity: 'error', text: e?.response?.data?.message || e?.message || APP_MESSAGES.DELETE_PO_FAILED });
     } finally {
       setPoDeletingId(null);
     }
@@ -525,7 +545,7 @@ export default function BuyerOrderWorkspacePage() {
     });
 
     // Keep the full current ALL_BP schema visible even when a page happens to have no source value.
-    KNOWN_ALL_BP_HEADERS.forEach(add);
+    ALL_BP_KNOWN_HEADERS.forEach(add);
     return detected;
   }, [pos.rows]);
 
@@ -537,26 +557,58 @@ export default function BuyerOrderWorkspacePage() {
         byCanonical.set(canonical, {
           key: `src:${canonical}`,
           canonical,
-          label,
-          minWidth: canonical === 'DESCRIPTION' ? 200 : canonical === 'COLOR' ? 145 : 115,
+          label: ALL_BP_UI_LABELS[canonical] || label,
+          minWidth: canonical === 'DESCRIPTION' ? 200 : canonical === 'COLOR' ? 145 : canonical === 'ODD_RATIO' || canonical === 'REMAINDER' ? 125 : 115,
           group: 'ALL_BP',
           sourceIndex: index,
-          render: (row) => sourceValue(row, canonical)
+          render: (row) => {
+            if (buyerCode === BUYER_CODE.LULULEMON && ['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(canonical)) {
+              const progress = <PoScanProgressCell row={row} canonical={canonical} metrics={calculatedCartonMetrics(row)} />;
+              if (row.identifiedQty !== null && row.identifiedQty !== undefined) return progress;
+            }
+            return sourceValue(row, canonical);
+          }
         });
       }
     });
 
-    const priority = new Map(IMPORTANT_SOURCE_ORDER.map((key, index) => [key, index]));
+    const priority = new Map(ALL_BP_IMPORTANT_SOURCE_ORDER.map((key, index) => [key, index]));
     return Array.from(byCanonical.values()).sort((a, b) => {
       const ap = priority.has(a.canonical) ? priority.get(a.canonical) : 1000 + a.sourceIndex;
       const bp = priority.has(b.canonical) ? priority.get(b.canonical) : 1000 + b.sourceIndex;
       return ap - bp;
     });
-  }, [sourceHeaders]);
+  }, [sourceHeaders, buyerCode]);
 
-  const allLululemonColumns = useMemo(() => {
-    const stt = SYSTEM_COLUMNS[0];
-    const otherSystem = SYSTEM_COLUMNS.slice(1);
+  const sendSelectedToCartonWeight = async () => {
+    if (!orderId || !selectedWeightPoIds.length || sendingToWeight) return;
+    setSendingToWeight(true);
+    setNotice(null);
+    setError('');
+    try {
+      const created = await createWeighingOrder(orderId, { name: '', poIds: selectedWeightPoIds }, buyerCode);
+      setNotice({
+        severity: 'success',
+        text: `Sent ${selectedWeightPoIds.length} PO(s) to Carton Weight as ${created?.name || 'a Weighing Order'}.`
+      });
+      setSelectedWeightPoIds([]);
+    } catch (e) {
+      setError(e?.response?.data?.message || e?.message || 'Unable to send the selected PO(s) to Carton Weight.');
+    } finally {
+      setSendingToWeight(false);
+    }
+  };
+
+  const toggleWeightPo = (poId) => {
+    if (!poId) return;
+    setSelectedWeightPoIds((current) => current.includes(poId)
+      ? current.filter((id) => id !== poId)
+      : [...current, poId]);
+  };
+
+  const allWorkflowColumns = useMemo(() => {
+    const stt = systemColumns[0];
+    const otherSystem = systemColumns.slice(1);
     const columns = [stt];
 
     // Place Factory next to PO/Master PO, then put operational fields at the end.
@@ -569,24 +621,34 @@ export default function BuyerOrderWorkspacePage() {
     return columns;
   }, [sourceColumns]);
 
-  const availableColumnKeys = useMemo(() => new Set(allLululemonColumns.map((column) => column.key)), [allLululemonColumns]);
-  const availableColumnSignature = useMemo(() => allLululemonColumns.map((column) => column.key).join('|'), [allLululemonColumns]);
+  const availableColumnKeys = useMemo(() => new Set(allWorkflowColumns.map((column) => column.key)), [allWorkflowColumns]);
+  const availableColumnSignature = useMemo(() => allWorkflowColumns.map((column) => column.key).join('|'), [allWorkflowColumns]);
 
   useEffect(() => {
-    if (!isLululemon(buyer) || !allLululemonColumns.length) return;
+    if (!isSsccWorkflowBuyer(buyer) || !allWorkflowColumns.length) return;
     setVisibleColumnKeys((current) => {
-      const defaults = DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key));
+      const defaults = WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key));
       if (!Array.isArray(current)) return defaults;
       const valid = current.filter((key) => availableColumnKeys.has(key));
-      const next = valid.length ? valid : defaults;
+      const next = valid.length ? [...valid] : [...defaults];
+
+      // One-time compatibility migration for users who already saved column preferences
+      // before Carton Ratio / Remainder Qty were added. Keep their choices, but surface
+      // the two new required carton calculation columns automatically.
+      ['src:ODD_RATIO', 'src:REMAINDER'].forEach((key) => {
+        if (!availableColumnKeys.has(key) || next.includes(key)) return;
+        const anchor = key === 'src:ODD_RATIO' ? next.indexOf('src:PCS_CTN') : next.indexOf('src:CTNS');
+        next.splice(anchor >= 0 ? anchor + 1 : next.length, 0, key);
+      });
+
       if (current.length === next.length && current.every((key, index) => key === next[index])) return current;
       return next;
     });
   }, [buyerCode, availableColumnSignature, availableColumnKeys]);
 
   useEffect(() => {
-    if (!isLululemon(buyer) || !Array.isArray(visibleColumnKeys)) return;
-    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(visibleColumnKeys));
+    if (!isSsccWorkflowBuyer(buyer) || !Array.isArray(visibleColumnKeys)) return;
+    localStorage.setItem(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY, JSON.stringify(visibleColumnKeys));
   }, [buyerCode, visibleColumnKeys]);
 
   const fixedColumns = [
@@ -615,12 +677,30 @@ export default function BuyerOrderWorkspacePage() {
   ];
 
   const tableColumns = (() => {
-    if (!isLululemon(buyer)) return fixedColumns;
-    const selected = new Set(Array.isArray(visibleColumnKeys) ? visibleColumnKeys : DEFAULT_COLUMN_KEYS);
-    const dataColumns = allLululemonColumns.filter((column) => selected.has(column.key));
-    if (!writable) return dataColumns;
+    if (!isSsccWorkflowBuyer(buyer)) return fixedColumns;
+    const selected = new Set(Array.isArray(visibleColumnKeys) ? visibleColumnKeys : WORKSPACE_DEFAULT_COLUMN_KEYS);
+    const dataColumns = allWorkflowColumns.filter((column) => selected.has(column.key));
+    const weightSelectColumn = maySendToWeight ? [{
+      key: '__sendWeight',
+      label: 'CW',
+      minWidth: 56,
+      render: (row) => {
+        const poId = row.id || row.key;
+        return (
+          <Tooltip title="Select PO to send to Carton Weight">
+            <Checkbox
+              size="small"
+              checked={selectedWeightPoIds.includes(poId)}
+              onClick={(event) => event.stopPropagation()}
+              onChange={() => toggleWeightPo(poId)}
+            />
+          </Tooltip>
+        );
+      }
+    }] : [];
+    if (!writable) return [...weightSelectColumn, ...dataColumns];
 
-    return [...dataColumns, {
+    return [...weightSelectColumn, ...dataColumns, {
       key: '__actions',
       label: 'Actions',
       minWidth: 105,
@@ -643,7 +723,7 @@ export default function BuyerOrderWorkspacePage() {
 
   const toggleColumn = (key) => {
     setVisibleColumnKeys((current) => {
-      const selected = new Set(Array.isArray(current) ? current : DEFAULT_COLUMN_KEYS);
+      const selected = new Set(Array.isArray(current) ? current : WORKSPACE_DEFAULT_COLUMN_KEYS);
       if (selected.has(key)) {
         if (selected.size === 1) return Array.from(selected);
         selected.delete(key);
@@ -654,10 +734,10 @@ export default function BuyerOrderWorkspacePage() {
     });
   };
 
-  const resetColumns = () => setVisibleColumnKeys(DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key)));
-  const showAllColumns = () => setVisibleColumnKeys(allLululemonColumns.map((column) => column.key));
+  const resetColumns = () => setVisibleColumnKeys(WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key)));
+  const showAllColumns = () => setVisibleColumnKeys(allWorkflowColumns.map((column) => column.key));
 
-  if (!buyer) return <Alert severity="error">Buyer not found.</Alert>;
+  if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
   const openPo = (row) => navigate(`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(row.key)}`);
 
@@ -678,7 +758,7 @@ export default function BuyerOrderWorkspacePage() {
           actions={(<>
             <Tooltip title="Back to Orders"><Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(`/buyers/${buyer.slug}/orders`)}>Orders</Button></Tooltip>
             <Tooltip title="Refresh"><Button size="small" startIcon={<Refresh />} onClick={() => { loadOrder(); loadPos(posPaginationRef.current.page, posPaginationRef.current.size); }}>Refresh</Button></Tooltip>
-            {isLululemon(buyer) ? <>
+            {isSsccWorkflowBuyer(buyer) ? <>
               <Button size="small" component={RouterLink} to={`/buyers/${buyer.slug}/packing`} startIcon={<MoveToInboxOutlined />}>Packing</Button>
               <Button size="small" component={RouterLink} to={`/buyers/${buyer.slug}/shipping`} startIcon={<LocalShippingOutlined />}>Shipping</Button>
               <Button size="small" component={RouterLink} to={`/buyers/${buyer.slug}/carton-loading`} startIcon={<QrCodeScannerOutlined />}>SSCC</Button>
@@ -688,34 +768,68 @@ export default function BuyerOrderWorkspacePage() {
 
         {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert> : null}
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        {!hasOperationalWorkflow(buyer) ? (
+          <Alert severity="info">{APP_MESSAGES.BUYER_WORKFLOW_NOT_ASSIGNED}</Alert>
+        ) : null}
 
         <CompactToolbar>
           <CompactStat label="PO" value={pos.count.toLocaleString()} />
-          {!isLululemon(buyer) && writable ? (
+          {isBarcodeWorkflowBuyer(buyer) && writable ? (
             <FormControl size="small" sx={{ minWidth: 155 }}>
               <InputLabel>Import Mode</InputLabel>
               <Select label="Import Mode" value={importMode} onChange={(e) => setImportMode(e.target.value)}>
-                <MenuItem value="CREATE_ONLY">Create Only</MenuItem>
-                <MenuItem value="UPSERT">Update + Create</MenuItem>
-                <MenuItem value="REPLACE_ALL">Replace All</MenuItem>
+                <MenuItem value={IMPORT_MODE.CREATE_ONLY}>Create Only</MenuItem>
+                <MenuItem value={IMPORT_MODE.UPSERT}>Update + Create</MenuItem>
+                <MenuItem value={IMPORT_MODE.REPLACE_ALL}>Replace All</MenuItem>
               </Select>
             </FormControl>
           ) : null}
-          {writable ? <>
-            <Button size="small" variant="contained" startIcon={<CloudUploadOutlined />} onClick={() => fileRef.current?.click()} disabled={importing}>
-              {importing ? 'Importing...' : 'Import Excel'}
+          {writable && hasOperationalWorkflow(buyer) ? <>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={importing ? <CircularProgress size={15} thickness={5} /> : <CloudUploadOutlined />}
+              onClick={() => fileRef.current?.click()}
+              disabled={importing}
+            >
+              {importing
+                ? (importProgress < 100 ? `Uploading ${importProgress}%` : 'Processing file...')
+                : 'Import Excel'}
             </Button>
-            <input ref={fileRef} hidden type="file" accept=".xlsx,.xls" onChange={uploadMasterData} />
-          </> : <Chip size="small" label="View only" />}
+            {importing && isSsccWorkflowBuyer(buyer) ? (
+              <Box sx={{ width: 190, minWidth: 150 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.25 }}>
+                  <Typography variant="caption" fontWeight={700}>
+                    {importProgress < 100 ? 'Uploading ALL_BP' : 'Processing ALL_BP'}
+                  </Typography>
+                  <Typography variant="caption" fontWeight={800}>{importProgress}%</Typography>
+                </Stack>
+                <LinearProgress variant="determinate" value={importProgress} />
+              </Box>
+            ) : null}
+            <input ref={fileRef} hidden type="file" accept={EXCEL_FILE_ACCEPT} onChange={uploadMasterData} />
+          </> : !writable ? <Chip size="small" label="View only" /> : null}
 
-          {isLululemon(buyer) ? <>
+          {isSsccWorkflowBuyer(buyer) ? <>
+            {maySendToWeight ? (
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                startIcon={sendingToWeight ? <CircularProgress size={15} color="inherit" /> : <ScaleOutlined />}
+                disabled={sendingToWeight || !selectedWeightPoIds.length}
+                onClick={sendSelectedToCartonWeight}
+              >
+                {sendingToWeight ? 'Sending...' : `Send to Carton Weight${selectedWeightPoIds.length ? ` (${selectedWeightPoIds.length})` : ''}`}
+              </Button>
+            ) : null}
             <Button
               size="small"
               variant="outlined"
               startIcon={<ViewColumnOutlined />}
               onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
             >
-              Columns {(visibleColumnKeys || DEFAULT_COLUMN_KEYS).filter((key) => availableColumnKeys.has(key)).length}/{allLululemonColumns.length}
+              Columns {(visibleColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).filter((key) => availableColumnKeys.has(key)).length}/{allWorkflowColumns.length}
             </Button>
             <Menu
               anchorEl={columnMenuAnchor}
@@ -732,8 +846,8 @@ export default function BuyerOrderWorkspacePage() {
                 </Stack>
               </Box>
               <Divider />
-              {allLululemonColumns.map((column) => {
-                const checked = (visibleColumnKeys || DEFAULT_COLUMN_KEYS).includes(column.key);
+              {allWorkflowColumns.map((column) => {
+                const checked = (visibleColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).includes(column.key);
                 return (
                   <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
                     <Checkbox size="small" checked={checked} />
@@ -787,7 +901,7 @@ export default function BuyerOrderWorkspacePage() {
               <Box>
                 <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 0.75 }}>System fields</Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 320px))' }, gap: 1.25 }}>
-                  <TextField required size="small" label="Factory" value={poEditor.factoryCode || ''} onChange={(e) => setPoField('factoryCode', e.target.value)} />
+                  <TextField size="small" label="Factory (optional)" value={poEditor.factoryCode || ''} onChange={(e) => setPoField('factoryCode', e.target.value)} />
                   <TextField size="small" type="date" label="Ex-Factory" InputLabelProps={{ shrink: true }} value={poEditor.exFtyDate || ''} onChange={(e) => setPoField('exFtyDate', e.target.value)} />
                 </Box>
               </Box>
@@ -803,7 +917,7 @@ export default function BuyerOrderWorkspacePage() {
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1.1 }}>
                     {(poEditor.headers || []).map((label) => {
                       const canonical = canonicalSourceKey(label);
-                      const formula = ALL_BP_FORMULA_KEYS.has(canonical);
+                      const formula = ALL_BP_FORMULA_KEYS.includes(canonical);
                       const required = ['PO', 'STYLE', 'QTY', 'PCS_CTN'].includes(canonical);
                       return (
                         <TextField

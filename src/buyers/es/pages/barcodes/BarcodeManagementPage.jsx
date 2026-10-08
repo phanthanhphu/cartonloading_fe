@@ -1,49 +1,11 @@
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Pagination,
-  Paper,
-  Select,
-  Stack,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography
-} from '@mui/material';
-import {
-  AddOutlined,
-  BlockOutlined,
-  PrintOutlined,
-  QrCode2Outlined,
-  RefreshOutlined,
-  SearchOutlined
-} from '@mui/icons-material';
-
-import {
-  generateFactoryBarcodes,
-  getFactoryBarcodeSequence,
-  listFactoryBarcodes,
-  markFactoryBarcodesPrinted,
-  voidFactoryBarcode
-} from 'buyers/es/services/factoryBarcodeService';
+import {   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Pagination, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import {   AddOutlined, BlockOutlined, PrintOutlined, QrCode2Outlined, RefreshOutlined, SearchOutlined } from '@mui/icons-material';
+import { APP_MESSAGES, createBarcodeVoidedMessage, createBarcodesGeneratedMessage, createPrintPreparedMessage, createVoidFactoryBarcodeReasonMessage } from '../../../../constants/appMessages';
+import {   generateFactoryBarcodes, getFactoryBarcodeSequence, listFactoryBarcodes, markFactoryBarcodesPrinted, voidFactoryBarcode } from 'buyers/es/services/factoryBarcodeService';
 import { buildCode128Svg } from 'utils/code128';
+import { DEFAULT_FACTORY_BARCODE_CODE, FACTORY_BARCODE_STATUS, COMMON_FILTER, DEFAULT_BARCODE_GENERATION_QUANTITY, LARGE_TABLE_PAGE_SIZE } from '../../../../constants/appConstants';
 
 const getErrorMessage = (error, fallback) => (
   error?.response?.data?.message
@@ -53,12 +15,11 @@ const getErrorMessage = (error, fallback) => (
 );
 
 const currentYear = new Date().getFullYear();
-const DEFAULT_FACTORY_CODE = '002';
 
 const statusMeta = (value) => {
-  const status = String(value || 'AVAILABLE').toUpperCase();
-  if (status === 'ASSIGNED') return { label: 'Assigned', color: 'success' };
-  if (status === 'VOID') return { label: 'Void', color: 'error' };
+  const status = String(value || FACTORY_BARCODE_STATUS.AVAILABLE).toUpperCase();
+  if (status === FACTORY_BARCODE_STATUS.ASSIGNED) return { label: 'Assigned', color: 'success' };
+  if (status === FACTORY_BARCODE_STATUS.VOID) return { label: 'Void', color: 'error' };
   return { label: 'Available', color: 'info' };
 };
 
@@ -120,10 +81,10 @@ export default function BarcodeManagementPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState('ALL');
+  const [status, setStatus] = useState(COMMON_FILTER.ALL);
   const [yearFilter, setYearFilter] = useState('');
   const [factoryFilter, setFactoryFilter] = useState('');
-  const [applied, setApplied] = useState({ keyword: '', status: 'ALL', year: '', factoryCode: '' });
+  const [applied, setApplied] = useState({ keyword: '', status: COMMON_FILTER.ALL, year: '', factoryCode: '' });
   const [selected, setSelected] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
@@ -132,8 +93,8 @@ export default function BarcodeManagementPage() {
 
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateYear, setGenerateYear] = useState(currentYear);
-  const [generateFactoryCode, setGenerateFactoryCode] = useState(DEFAULT_FACTORY_CODE);
-  const [generateQuantity, setGenerateQuantity] = useState(10);
+  const [generateFactoryCode, setGenerateFactoryCode] = useState(DEFAULT_FACTORY_BARCODE_CODE);
+  const [generateQuantity, setGenerateQuantity] = useState(DEFAULT_BARCODE_GENERATION_QUANTITY);
   const [sequence, setSequence] = useState(null);
   const [generating, setGenerating] = useState(false);
 
@@ -143,18 +104,18 @@ export default function BarcodeManagementPage() {
     try {
       const result = await listFactoryBarcodes({
         keyword: applied.keyword || undefined,
-        status: applied.status === 'ALL' ? undefined : applied.status,
+        status: applied.status === COMMON_FILTER.ALL ? undefined : applied.status,
         year: applied.year || undefined,
         factoryCode: applied.factoryCode || undefined,
         page,
-        size: 50
+        size: LARGE_TABLE_PAGE_SIZE
       });
       setRows(Array.isArray(result?.content) ? result.content : []);
       setTotalPages(Number(result?.totalPages || 0));
       setTotalElements(Number(result?.totalElements || 0));
       setSelected(new Set());
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to load Factory Barcodes.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.LOAD_FACTORY_BARCODES_FAILED));
     } finally {
       setLoading(false);
     }
@@ -175,7 +136,7 @@ export default function BarcodeManagementPage() {
   }, [generateOpen, generateYear, generateFactoryCode]);
 
   const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.barcode)), [rows, selected]);
-  const printableSelected = selectedRows.filter((row) => row.status !== 'VOID');
+  const printableSelected = selectedRows.filter((row) => row.status !== FACTORY_BARCODE_STATUS.VOID);
   const allPageSelected = rows.length > 0 && rows.every((row) => selected.has(row.barcode));
 
   const toggleAll = (checked) => {
@@ -197,22 +158,22 @@ export default function BarcodeManagementPage() {
 
   const resetSearch = () => {
     setKeyword('');
-    setStatus('ALL');
+    setStatus(COMMON_FILTER.ALL);
     setYearFilter('');
     setFactoryFilter('');
     setPage(0);
-    setApplied({ keyword: '', status: 'ALL', year: '', factoryCode: '' });
+    setApplied({ keyword: '', status: COMMON_FILTER.ALL, year: '', factoryCode: '' });
   };
 
   const runGenerate = async () => {
     const code = generateFactoryCode.trim();
     const qty = Number(generateQuantity);
     if (!/^\d{3}$/.test(code)) {
-      setError('Factory Code must contain exactly 3 digits, for example 002.');
+      setError(APP_MESSAGES.FACTORY_CODE_FORMAT);
       return;
     }
     if (!Number.isInteger(qty) || qty < 1 || qty > 1000) {
-      setError('Generate quantity must be between 1 and 1000.');
+      setError(APP_MESSAGES.GENERATE_QUANTITY_RANGE);
       return;
     }
     setGenerating(true);
@@ -220,24 +181,24 @@ export default function BarcodeManagementPage() {
     setNotice('');
     try {
       const result = await generateFactoryBarcodes({ year: Number(generateYear), factoryCode: code, quantity: qty });
-      setNotice(`Generated ${Number(result?.quantity || qty).toLocaleString()} Factory Barcodes in batch ${result?.batchId || ''}.`);
+      setNotice(createBarcodesGeneratedMessage(result?.quantity || qty, result?.batchId));
       setGenerateOpen(false);
       setPage(0);
-      setApplied({ keyword: result?.batchId || '', status: 'ALL', year: '', factoryCode: '' });
+      setApplied({ keyword: result?.batchId || '', status: COMMON_FILTER.ALL, year: '', factoryCode: '' });
       setKeyword(result?.batchId || '');
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to generate Factory Barcodes.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.GENERATE_FACTORY_BARCODES_FAILED));
     } finally {
       setGenerating(false);
     }
   };
 
   const printRows = async (items) => {
-    const printable = items.filter((row) => row?.barcode && row.status !== 'VOID');
+    const printable = items.filter((row) => row?.barcode && row.status !== FACTORY_BARCODE_STATUS.VOID);
     if (!printable.length || printing) return;
     const printWindow = window.open('', '_blank', 'width=900,height=720');
     if (!printWindow) {
-      setError('The browser blocked the print window. Allow pop-ups for this site and try again.');
+      setError(APP_MESSAGES.PRINT_WINDOW_BLOCKED);
       return;
     }
     printWindow.opener = null;
@@ -249,7 +210,7 @@ export default function BarcodeManagementPage() {
     setError('');
     try {
       await markFactoryBarcodesPrinted(printable.map((row) => row.barcode));
-      setNotice(`Print prepared for ${printable.length.toLocaleString()} label${printable.length === 1 ? '' : 's'}.`);
+      setNotice(createPrintPreparedMessage(printable.length));
       window.setTimeout(() => {
         printWindow.focus();
         printWindow.print();
@@ -257,23 +218,23 @@ export default function BarcodeManagementPage() {
       await loadRows();
     } catch (requestError) {
       printWindow.close();
-      setError(getErrorMessage(requestError, 'Unable to record the print request.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.RECORD_PRINT_REQUEST_FAILED));
     } finally {
       setPrinting(false);
     }
   };
 
   const runVoid = async (row) => {
-    if (!row || row.status !== 'AVAILABLE') return;
-    const reason = window.prompt(`Reason to VOID ${row.barcode} (optional):`, 'Damaged / unused label');
+    if (!row || row.status !== FACTORY_BARCODE_STATUS.AVAILABLE) return;
+    const reason = window.prompt(createVoidFactoryBarcodeReasonMessage(row.barcode), APP_MESSAGES.DEFAULT_VOID_REASON);
     if (reason === null) return;
     setError('');
     try {
       await voidFactoryBarcode(row.barcode, reason);
-      setNotice(`Factory Barcode ${row.barcode} is now VOID and will never be reused.`);
+      setNotice(createBarcodeVoidedMessage(row.barcode));
       await loadRows();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Unable to VOID Factory Barcode.'));
+      setError(getErrorMessage(requestError, APP_MESSAGES.VOID_FACTORY_BARCODE_FAILED));
     }
   };
 
@@ -296,10 +257,10 @@ export default function BarcodeManagementPage() {
           <FormControl size="small">
             <InputLabel>Status</InputLabel>
             <Select value={status} label="Status" onChange={(event) => setStatus(event.target.value)}>
-              <MenuItem value="ALL">All</MenuItem>
-              <MenuItem value="AVAILABLE">Available</MenuItem>
-              <MenuItem value="ASSIGNED">Assigned</MenuItem>
-              <MenuItem value="VOID">Void</MenuItem>
+              <MenuItem value={COMMON_FILTER.ALL}>All</MenuItem>
+              <MenuItem value={FACTORY_BARCODE_STATUS.AVAILABLE}>Available</MenuItem>
+              <MenuItem value={FACTORY_BARCODE_STATUS.ASSIGNED}>Assigned</MenuItem>
+              <MenuItem value={FACTORY_BARCODE_STATUS.VOID}>Void</MenuItem>
             </Select>
           </FormControl>
           <TextField size="small" type="number" label="Year" value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} placeholder={String(currentYear)} />
@@ -334,9 +295,9 @@ export default function BarcodeManagementPage() {
                 return (
                   <TableRow key={row.id || row.barcode} hover>
                     <TableCell padding="checkbox"><Checkbox checked={selected.has(row.barcode)} onChange={(event) => toggleOne(row.barcode, event.target.checked)} /></TableCell>
-                    <TableCell align="center" sx={{ width: 56, color: '#64748B', fontWeight: 650 }}>{page * 50 + index + 1}</TableCell>
+                    <TableCell align="center" sx={{ width: 56, color: '#64748B', fontWeight: 650 }}>{page * LARGE_TABLE_PAGE_SIZE + index + 1}</TableCell>
                     <TableCell sx={{ fontWeight: 750, color: '#173B63', letterSpacing: 0.35 }}>{row.barcode}</TableCell>
-                    <TableCell><Chip size="small" label={meta.label} color={meta.color} variant={row.status === 'AVAILABLE' ? 'outlined' : 'filled'} /></TableCell>
+                    <TableCell><Chip size="small" label={meta.label} color={meta.color} variant={row.status === FACTORY_BARCODE_STATUS.AVAILABLE ? 'outlined' : 'filled'} /></TableCell>
                     <TableCell>{row.factoryCode || '—'}</TableCell>
                     <TableCell>{row.year || '—'}</TableCell>
                     <TableCell>{Number(row.runningNumber || 0).toLocaleString()}</TableCell>
@@ -356,8 +317,8 @@ export default function BarcodeManagementPage() {
                     <TableCell>{row.assignedPoNumber || row.assignedArticleNumber ? `${row.assignedPoNumber || '—'} / ${row.assignedArticleNumber || '—'}` : '—'}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{dateTimeText(row.createdAt)}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Button size="small" startIcon={<PrintOutlined />} onClick={() => printRows([row])} disabled={row.status === 'VOID' || printing} sx={{ textTransform: 'none', mr: 0.5 }}>Print</Button>
-                      <Button size="small" color="error" startIcon={<BlockOutlined />} onClick={() => runVoid(row)} disabled={row.status !== 'AVAILABLE'} sx={{ textTransform: 'none' }}>Void</Button>
+                      <Button size="small" startIcon={<PrintOutlined />} onClick={() => printRows([row])} disabled={row.status === FACTORY_BARCODE_STATUS.VOID || printing} sx={{ textTransform: 'none', mr: 0.5 }}>Print</Button>
+                      <Button size="small" color="error" startIcon={<BlockOutlined />} onClick={() => runVoid(row)} disabled={row.status !== FACTORY_BARCODE_STATUS.AVAILABLE} sx={{ textTransform: 'none' }}>Void</Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -381,7 +342,7 @@ export default function BarcodeManagementPage() {
               Format: <strong>YY + Factory Code + 9-digit Running Number</strong>. Running numbers are allocated by the server and can never be reused.
             </Alert>
             <TextField type="number" label="Year" value={generateYear} onChange={(event) => setGenerateYear(Number(event.target.value))} inputProps={{ min: 2000, max: 2099 }} />
-            <TextField label="Factory Code" value={generateFactoryCode} onChange={(event) => setGenerateFactoryCode(event.target.value.replace(/\D/g, '').slice(0, 3))} helperText="Exactly 3 digits, for example 002." />
+            <TextField label="Factory Code" value={generateFactoryCode} onChange={(event) => setGenerateFactoryCode(event.target.value.replace(/\D/g, '').slice(0, 3))} helperText={APP_MESSAGES.FACTORY_CODE_HELPER} />
             <TextField type="number" label="Quantity" value={generateQuantity} onChange={(event) => setGenerateQuantity(event.target.value)} inputProps={{ min: 1, max: 1000 }} />
             <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, bgcolor: '#F8FAFC' }}>
               <Typography variant="caption" color="text.secondary">Next Running Number</Typography>

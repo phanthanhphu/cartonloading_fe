@@ -37,10 +37,9 @@ import {
 } from '../utils/buyerAccess';
 import { listAccessibleBuyers, listLoginBuyers } from '../services/buyerService';
 import { getBuyerAccessLandingPath } from '../buyers/core/buyerModules';
+import { AUTH_STORAGE_KEYS, ROLE, STORAGE_KEY } from '../constants/appConstants';
+import { APP_MESSAGES, createLoginSuccessMessage } from '../constants/appMessages';
 
-const LOGIN_DRAFT_EMAIL_KEY = 'loginDraftEmail';
-const LOGIN_DRAFT_PASSWORD_KEY = 'loginDraftPassword';
-const LOGIN_DRAFT_BUYER_KEY = 'loginDraftBuyer';
 const DEFAULT_LOGIN_BUYER_CODE = getBuyerCatalog()[0]?.code || '';
 
 const getSavedLoginDraft = (key) => {
@@ -61,9 +60,9 @@ const saveLoginDraft = (key, value) => {
 
 const clearLoginDraft = () => {
   try {
-    sessionStorage.removeItem(LOGIN_DRAFT_EMAIL_KEY);
-    sessionStorage.removeItem(LOGIN_DRAFT_PASSWORD_KEY);
-    sessionStorage.removeItem(LOGIN_DRAFT_BUYER_KEY);
+    sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_EMAIL);
+    sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_PASSWORD);
+    sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_BUYER);
   } catch {
     // Ignore storage errors.
   }
@@ -115,24 +114,20 @@ const normalizePermission = (value) => String(value || '').trim().toUpperCase();
 
 const isAdminRole = (role) => {
   const normalized = normalizeRole(role);
-  return normalized === 'ADMIN' || normalized === 'ROLE_ADMIN';
+  return normalized === ROLE.ADMIN || normalized === ROLE.ROLE_ADMIN;
 };
 
 const getStoredUserForRedirect = () => {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}') || {};
+    return JSON.parse(localStorage.getItem(STORAGE_KEY.USER) || '{}') || {};
   } catch {
-    return { role: localStorage.getItem('role') || '' };
+    return { role: localStorage.getItem(STORAGE_KEY.ROLE) || '' };
   }
 };
 
 
 const clearAuthSession = () => {
-  [
-    'token', 'accessToken', 'user', 'userId', 'isAuthenticated', 'role',
-    'accessPermissions', 'buyerPermissions', 'factoryPermissions',
-    'selectedBuyer', 'selectedBuyerLabel', 'loginAt'
-  ].forEach((key) => localStorage.removeItem(key));
+  AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 };
 
 
@@ -167,26 +162,26 @@ const persistAuthSession = ({ token, user, role }) => {
     factoryPermissions: safeFactoryPermissions
   };
 
-  localStorage.setItem('token', token);
-  localStorage.setItem('accessToken', token);
-  localStorage.setItem('user', JSON.stringify(storedUser));
-  localStorage.setItem('userId', userId);
-  localStorage.setItem('isAuthenticated', 'true');
-  localStorage.setItem('role', safeRole);
-  localStorage.setItem('accessPermissions', JSON.stringify(safeAccessPermissions));
-  localStorage.setItem('buyerPermissions', JSON.stringify(safeBuyerPermissions));
-  localStorage.setItem('factoryPermissions', JSON.stringify(safeFactoryPermissions));
-  localStorage.setItem('loginAt', new Date().toISOString());
+  localStorage.setItem(STORAGE_KEY.TOKEN, token);
+  localStorage.setItem(STORAGE_KEY.ACCESS_TOKEN, token);
+  localStorage.setItem(STORAGE_KEY.USER, JSON.stringify(storedUser));
+  localStorage.setItem(STORAGE_KEY.USER_ID, userId);
+  localStorage.setItem(STORAGE_KEY.IS_AUTHENTICATED, 'true');
+  localStorage.setItem(STORAGE_KEY.ROLE, safeRole);
+  localStorage.setItem(STORAGE_KEY.ACCESS_PERMISSIONS, JSON.stringify(safeAccessPermissions));
+  localStorage.setItem(STORAGE_KEY.BUYER_PERMISSIONS, JSON.stringify(safeBuyerPermissions));
+  localStorage.setItem(STORAGE_KEY.FACTORY_PERMISSIONS, JSON.stringify(safeFactoryPermissions));
+  localStorage.setItem(STORAGE_KEY.LOGIN_AT, new Date().toISOString());
 };
 
 
 export default function LoginPage() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState(() => getSavedLoginDraft(LOGIN_DRAFT_EMAIL_KEY));
-  const [password, setPassword] = useState(() => getSavedLoginDraft(LOGIN_DRAFT_PASSWORD_KEY));
+  const [email, setEmail] = useState(() => getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_EMAIL));
+  const [password, setPassword] = useState(() => getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_PASSWORD));
   const [selectedBuyerCode, setSelectedBuyerCode] = useState(
-    () => getSavedLoginDraft(LOGIN_DRAFT_BUYER_KEY) || DEFAULT_LOGIN_BUYER_CODE
+    () => getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER) || DEFAULT_LOGIN_BUYER_CODE
   );
   const [buyerOptions, setBuyerOptions] = useState(() => getBuyerCatalog().filter((buyer) => buyer.active));
   const [showPw, setShowPw] = useState(false);
@@ -194,7 +189,7 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(STORAGE_KEY.TOKEN);
 
     if (!token) return;
 
@@ -239,7 +234,7 @@ export default function LoginPage() {
     const cleanEmail = email.trim();
 
     if (!cleanEmail || !password || !selectedBuyerCode) {
-      const message = 'Please enter your email, password, and select a Buyer.';
+      const message = APP_MESSAGES.LOGIN_REQUIRED_FIELDS;
       setLoginError(message);
       toast.error(message);
       return;
@@ -281,7 +276,7 @@ export default function LoginPage() {
         const storedUser = getStoredUserForRedirect();
         if (!canAccessBuyer(selectedBuyerCode, storedUser)) {
           clearAuthSession();
-          const message = 'Your account does not have permission to access the selected Buyer.';
+          const message = APP_MESSAGES.LOGIN_BUYER_ACCESS_DENIED;
           setLoginError(message);
           toast.error(message);
           return;
@@ -290,7 +285,7 @@ export default function LoginPage() {
         const selectedBuyer = saveSelectedBuyer(selectedBuyerCode);
         if (!selectedBuyer) {
           clearAuthSession();
-          const message = 'The selected Buyer is invalid. Please select another Buyer.';
+          const message = APP_MESSAGES.LOGIN_BUYER_INVALID;
           setLoginError(message);
           toast.error(message);
           return;
@@ -298,24 +293,24 @@ export default function LoginPage() {
 
         clearLoginDraft();
         const landingPath = getBuyerAccessLandingPath(selectedBuyer);
-        toast.success(`Login successful. Opening ${selectedBuyer.label}.`);
+        toast.success(createLoginSuccessMessage(selectedBuyer.label));
         navigate(landingPath, { replace: true });
 
         return;
       }
 
-      let message = data?.message || 'The email or password is incorrect. Please try again.';
+      let message = data?.message || APP_MESSAGES.LOGIN_BAD_CREDENTIALS;
 
       if (res.status >= 200 && res.status < 300 && !token) {
-        message = 'Login response does not include an authentication token. Please contact the system administrator.';
+        message = APP_MESSAGES.LOGIN_TOKEN_MISSING;
       }
 
       if (res.status === 401 || res.status === 404) {
-        message = 'The email or password is incorrect. Please try again.';
+        message = APP_MESSAGES.LOGIN_BAD_CREDENTIALS;
       }
 
       if (res.status === 403) {
-        message = data?.message || 'Your account has been disabled. Please contact the system administrator.';
+        message = data?.message || APP_MESSAGES.LOGIN_ACCOUNT_DISABLED;
       }
 
       clearAuthSession();
@@ -323,14 +318,14 @@ export default function LoginPage() {
       // Keep both email and password so the user can correct only the wrong field.
       setEmail(cleanEmail);
       setPassword(password);
-      saveLoginDraft(LOGIN_DRAFT_EMAIL_KEY, cleanEmail);
-      saveLoginDraft(LOGIN_DRAFT_PASSWORD_KEY, password);
-      saveLoginDraft(LOGIN_DRAFT_BUYER_KEY, selectedBuyerCode);
+      saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_EMAIL, cleanEmail);
+      saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_PASSWORD, password);
+      saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER, selectedBuyerCode);
       setLoginError(message);
       toast.error(message);
     } catch (err) {
       console.error(err);
-      const message = 'Unable to connect to the Order Scan server.';
+      const message = APP_MESSAGES.LOGIN_SERVER_UNREACHABLE;
       setLoginError(message);
       toast.error(message);
     } finally {
@@ -513,7 +508,7 @@ export default function LoginPage() {
                   onChange={(e) => {
                     const nextEmail = e.target.value;
                     setEmail(nextEmail);
-                    saveLoginDraft(LOGIN_DRAFT_EMAIL_KEY, nextEmail);
+                    saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_EMAIL, nextEmail);
                     if (loginError) setLoginError('');
                   }}
                   autoComplete="email"
@@ -544,7 +539,7 @@ export default function LoginPage() {
                   onChange={(e) => {
                     const nextPassword = e.target.value;
                     setPassword(nextPassword);
-                    saveLoginDraft(LOGIN_DRAFT_PASSWORD_KEY, nextPassword);
+                    saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_PASSWORD, nextPassword);
                     if (loginError) setLoginError('');
                   }}
                   type={showPw ? 'text' : 'password'}
@@ -588,7 +583,7 @@ export default function LoginPage() {
                   onChange={(e) => {
                     const nextBuyer = e.target.value;
                     setSelectedBuyerCode(nextBuyer);
-                    saveLoginDraft(LOGIN_DRAFT_BUYER_KEY, nextBuyer);
+                    saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER, nextBuyer);
                     if (loginError) setLoginError('');
                   }}
                   fullWidth

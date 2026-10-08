@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { Add, DeleteOutline, EditOutlined, FolderOpenOutlined, Refresh } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { APP_MESSAGES, createDeleteOrderConfirmMessage } from '../../constants/appMessages';
 
 import ManagementTable from 'components/ManagementTable';
 import { CompactPageHeader } from 'components/CompactPageHeader';
@@ -30,8 +31,9 @@ import {
   listManagedOrders,
   updateManagedOrder
 } from 'services/managementService';
+import { DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
 
-const stateOf = () => ({ page: 0, size: 10, count: 0, rows: [], loading: false });
+const stateOf = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
 
 const formatDate = (value) => {
   if (!value) return '—';
@@ -59,7 +61,7 @@ export default function BuyerOrdersPage() {
   const [dialog, setDialog] = useState(null);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
-  const paginationRef = useRef({ page: 0, size: 10 });
+  const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
 
   useEffect(() => {
     if (buyer) saveSelectedBuyer(buyer);
@@ -88,7 +90,7 @@ export default function BuyerOrdersPage() {
       });
     } catch (e) {
       if (requestId !== requestRef.current) return;
-      setError(e?.response?.data?.message || e?.message || 'Unable to load Orders.');
+      setError(e?.response?.data?.message || e?.message || APP_MESSAGES.LOAD_ORDERS_FAILED);
       setState((current) => ({ ...current, loading: false }));
     }
   }, [buyerCode, filters]);
@@ -104,21 +106,21 @@ export default function BuyerOrdersPage() {
       setDialog(null);
       await load(0, paginationRef.current.size);
     } catch (e) {
-      setError(e?.response?.data?.message || e?.message || 'Unable to save Order.');
+      setError(e?.response?.data?.message || e?.message || APP_MESSAGES.SAVE_ORDER_FAILED);
     }
   };
 
   const remove = async (row) => {
-    if (!row || !window.confirm(`Delete Order "${row.orderName}"?`)) return;
+    if (!row || !window.confirm(createDeleteOrderConfirmMessage(row.orderName))) return;
     try {
       await deleteManagedOrder(buyerCode, row.id);
       await load(paginationRef.current.page, paginationRef.current.size);
     } catch (e) {
-      setError(e?.response?.data?.message || e?.message || 'Unable to delete Order.');
+      setError(e?.response?.data?.message || e?.message || APP_MESSAGES.DELETE_ORDER_FAILED);
     }
   };
 
-  if (!buyer) return <Alert severity="error">Buyer not found.</Alert>;
+  if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
   const columns = [
     { key: '__stt', label: 'STT', minWidth: 64 },

@@ -1,8 +1,9 @@
+import { STORAGE_KEY } from '../../../constants/appConstants';
 import { apiRawClient } from 'routes/globalApi';
 
 const root = (buyer) => `/api/buyers/${encodeURIComponent(buyer)}/shipment-management`;
 const auth = (config = {}) => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const token = localStorage.getItem(STORAGE_KEY.ACCESS_TOKEN) || localStorage.getItem(STORAGE_KEY.TOKEN);
   return { ...config, headers: token ? { Authorization: `Bearer ${token}` } : {} };
 };
 const data = async (request) => (await request).data;

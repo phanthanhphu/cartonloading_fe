@@ -1,45 +1,30 @@
 import axios from 'axios';
 import { API_BASE_URL, API_ROOT, FILE_ROOT } from '../config';
+import { AUTH_STORAGE_KEYS, ROUTE_PATH, STORAGE_KEY, REDIRECT_REASON } from '../constants/appConstants';
+import { APP_MESSAGES } from '../constants/appMessages';
 
 window.API_BASE_URL = API_BASE_URL;
 
-const LOGIN_PATH = '/login';
-
-const AUTH_KEYS = [
-  'token',
-  'accessToken',
-  'user',
-  'userId',
-  'isAuthenticated',
-  'role',
-  'accessPermissions',
-  'buyerPermissions',
-  'factoryPermissions',
-  'selectedBuyer',
-  'selectedBuyerLabel',
-  'loginAt',
-];
-
 export const clearAuthSession = () => {
-  AUTH_KEYS.forEach((key) => localStorage.removeItem(key));
+  AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
 };
 
-export const redirectToLogin = (reason = 'sessionExpired') => {
+export const redirectToLogin = (reason = REDIRECT_REASON.SESSION_EXPIRED) => {
   clearAuthSession();
 
   const currentPath = window.location.pathname;
 
-  if (currentPath !== LOGIN_PATH) {
-    window.location.href = `${LOGIN_PATH}?${reason}=true`;
+  if (currentPath !== ROUTE_PATH.LOGIN) {
+    window.location.href = `${ROUTE_PATH.LOGIN}?${reason}=true`;
   }
 };
 
 export const getStoredToken = () => {
   return (
-    localStorage.getItem('token') ||
-    localStorage.getItem('accessToken') ||
-    sessionStorage.getItem('token') ||
-    sessionStorage.getItem('accessToken') ||
+    localStorage.getItem(STORAGE_KEY.TOKEN) ||
+    localStorage.getItem(STORAGE_KEY.ACCESS_TOKEN) ||
+    sessionStorage.getItem(STORAGE_KEY.TOKEN) ||
+    sessionStorage.getItem(STORAGE_KEY.ACCESS_TOKEN) ||
     ''
   );
 };
@@ -65,7 +50,7 @@ const getRawUrl = (input) => {
 export const normalizeApiUrl = (rawUrl) => {
   if (isBadUrl(rawUrl)) {
     console.error('❌ BAD API URL:', rawUrl);
-    throw new Error('API URL is undefined. Please check caller file.');
+    throw new Error(APP_MESSAGES.API_URL_UNDEFINED);
   }
 
   try {
@@ -125,7 +110,7 @@ const handleResponseError = (error) => {
   const isLoginRequest = String(url).includes('/login');
 
   if (status === 401 && !isLoginRequest) {
-    redirectToLogin('sessionExpired');
+    redirectToLogin(REDIRECT_REASON.SESSION_EXPIRED);
   }
 
   return Promise.reject(error);
@@ -176,7 +161,7 @@ if (!window.__BSL_FETCH_AUTH_INTERCEPTOR_INSTALLED__) {
 
     if (isBadUrl(rawUrl)) {
       console.error('❌ FETCH URL UNDEFINED:', rawUrl, input);
-      throw new Error('Fetch URL is undefined. Please check the file calling fetch().');
+      throw new Error(APP_MESSAGES.FETCH_URL_UNDEFINED);
     }
 
     const normalizedUrl = normalizeApiUrl(rawUrl);
@@ -205,7 +190,7 @@ if (!window.__BSL_FETCH_AUTH_INTERCEPTOR_INSTALLED__) {
     const isLoginRequest = String(normalizedUrl).includes('/login');
 
     if (response.status === 401 && !isLoginRequest) {
-      redirectToLogin('sessionExpired');
+      redirectToLogin(REDIRECT_REASON.SESSION_EXPIRED);
     }
 
     return response;
@@ -232,7 +217,7 @@ window.addEventListener('unhandledrejection', (event) => {
     const isLoginRequest = String(url).includes('/login');
 
     if (!isLoginRequest) {
-      redirectToLogin('globalError');
+      redirectToLogin(REDIRECT_REASON.GLOBAL_ERROR);
     }
   }
 });

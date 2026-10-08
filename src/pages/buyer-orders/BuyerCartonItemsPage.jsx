@@ -7,9 +7,12 @@ import TableFilterBar from 'components/TableFilterBar';
 import { CompactPageHeader, CompactStat } from 'components/CompactPageHeader';
 import { getBuyerBySlug } from 'utils/buyerAccess';
 import { getManagedCarton, getManagedOrder, getManagedPo, listManagedItems } from 'services/managementService';
+import { APP_MESSAGES } from '../../constants/appMessages';
+import { BUYER_CODE, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
 
-const initial = { page: 0, size: 25, count: 0, rows: [], loading: false };
+const initial = { page: 0, size: DEFAULT_TABLE_PAGE_SIZE, count: 0, rows: [], loading: false };
 const v = (x) => (x === null || x === undefined || x === '' ? '—' : x);
+const fromPoIfMissing = (value, poValue) => (value == null || String(value).trim() === '' ? poValue ?? null : value);
 
 export default function BuyerCartonItemsPage() {
   const { buyerSlug, orderId, poKey, cartonId } = useParams();
@@ -20,13 +23,13 @@ export default function BuyerCartonItemsPage() {
   const [state, setState] = useState(initial);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
-  const paginationRef = useRef({ page: 0, size: 25 });
+  const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_PAGE_SIZE });
   const [filters, setFilters] = useState({ itemNo: '', sku: '', style: '', color: '', sizeValue: '', status: '', scannedBy: '' });
 
   const load = useCallback(async (page = paginationRef.current.page, size = paginationRef.current.size) => {
     if (!buyer?.code) return;
     const nextPage = Math.max(0, Number(page || 0));
-    const nextSize = Math.max(1, Number(size || 25));
+    const nextSize = Math.max(1, Number(size || DEFAULT_TABLE_PAGE_SIZE));
     const requestId = ++requestRef.current;
 
     paginationRef.current = { page: nextPage, size: nextSize };
@@ -40,16 +43,33 @@ export default function BuyerCartonItemsPage() {
       ]);
       if (requestId !== requestRef.current) return;
       setOrder(orderData); setPo(poData); setCarton(cartonData);
-      setState({ page: nextPage, size: nextSize, count: Number(items?.totalElements || 0), rows: (items?.content || []).map((r, i) => ({ ...r, __stt: nextPage * nextSize + i + 1 })), loading: false });
+      // Never enrich a carton with attributes from a different PO (for example,
+      // when a user changes the PO segment in the URL manually).
+      const itemPo = buyer.code === BUYER_CODE.LULULEMON && cartonData?.poKey === poData?.key ? poData : null;
+      setState({
+        page: nextPage, size: nextSize, count: Number(items?.totalElements || 0),
+        rows: (items?.content || []).map((r, i) => ({
+          ...r,
+          // Compatibility with an older management API that returned null PO attributes.
+          // Only the matching LULULEMON PO may supply these generated item slots.
+          ...(itemPo ? {
+            style: fromPoIfMissing(r.style, itemPo.styleNumber),
+            color: fromPoIfMissing(r.color, itemPo.color),
+            size: fromPoIfMissing(r.size, itemPo.size)
+          } : {}),
+          __stt: nextPage * nextSize + i + 1
+        })),
+        loading: false
+      });
     } catch (e) {
       if (requestId !== requestRef.current) return;
-      setError(e?.response?.data?.message || e?.message || 'Unable to load Items.');
+      setError(e?.response?.data?.message || e?.message || APP_MESSAGES.LOAD_ITEMS_FAILED);
       setState((current) => ({ ...current, loading: false }));
     }
   }, [buyer?.code, orderId, poKey, cartonId, order?.id, po?.key, carton?.id, filters]);
 
   useEffect(() => { load(0, paginationRef.current.size); }, [load]);
-  if (!buyer) return <Alert severity="error">Buyer not found.</Alert>;
+  if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
   const columns = [
     { key: '__stt', label: 'STT', minWidth: 60 },

@@ -4,17 +4,12 @@ import { Add, Delete, Edit, FolderOpenOutlined } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
 import { useNavigate } from 'react-router-dom';
-import { getBuyerByCode, saveSelectedBuyer } from 'utils/buyerAccess';
+import { getBuyerCatalog, normalizeBuyerCode, saveSelectedBuyer, setBuyerCatalog } from 'utils/buyerAccess';
 import { createBuyerAdmin, deleteBuyerAdmin, listBuyersAdmin, updateBuyerAdmin } from 'services/adminService';
-
-const SUPPORTED_BUYERS = [
-  { key: 'LULULEMON', name: 'LULULEMON' },
-  { key: 'ENGELBERT_STRAUSS', name: 'ENGELBERT STRAUSS' }
-];
 
 export default function BuyerManagementPage() {
   const navigate = useNavigate();
-  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: 25, loading: false });
+  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: DEFAULT_TABLE_PAGE_SIZE, loading: false });
   const [filters, setFilters] = useState({ buyerKey: '', buyerName: '', description: '', active: '' });
   const [dialog, setDialog] = useState(null);
   const [error, setError] = useState('');
@@ -23,7 +18,9 @@ export default function BuyerManagementPage() {
     setState((s) => ({ ...s, loading: true }));
     try {
       const r = await listBuyersAdmin({ ...filters, active: filters.active === '' ? undefined : filters.active === 'true', page, size });
-      setState({ rows: r.content || [], count: r.totalElements || 0, page, size, loading: false });
+      const rows = r.content || [];
+      setState({ rows, count: r.totalElements || 0, page, size, loading: false });
+      setBuyerCatalog([...getBuyerCatalog(), ...rows]);
     } catch (e) {
       setError(e?.response?.data?.message || e.message);
       setState((s) => ({ ...s, loading: false }));
@@ -43,7 +40,7 @@ export default function BuyerManagementPage() {
   };
 
   const remove = async (row) => {
-    if (!row || !confirm(`Delete buyer ${row.buyerKey}?`)) return;
+    if (!row || !confirm(createDeleteBuyerConfirmMessage(row.buyerKey))) return;
     try {
       await deleteBuyerAdmin(row.id);
       load(state.page, state.size);
@@ -54,9 +51,17 @@ export default function BuyerManagementPage() {
 
 
   const openOrders = (row) => {
-    const buyer = getBuyerByCode(row?.buyerKey);
+    const buyer = saveSelectedBuyer({
+      id: row?.id,
+      buyerKey: row?.buyerKey,
+      buyerName: row?.buyerName,
+      slug: row?.slug,
+      active: row?.active,
+      sequence: row?.sequence,
+      description: row?.description
+    });
     if (!buyer) return;
-    saveSelectedBuyer(buyer);
+    setBuyerCatalog([...getBuyerCatalog(), buyer]);
     navigate(`/buyers/${buyer.slug}/orders`);
   };
 
@@ -88,7 +93,7 @@ export default function BuyerManagementPage() {
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add Buyer</Button>
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
-        <Alert severity="info">Supported Buyer Keys: LULULEMON and ENGELBERT_STRAUSS. Existing Buyer Keys cannot be changed.</Alert>
+        <Alert severity="info">{APP_MESSAGES.BUYER_CONFIGURATION_INFO}</Alert>
         <TableFilterBar
           fields={[
             { key: 'buyerKey', label: 'Buyer Key' },
@@ -108,6 +113,9 @@ export default function BuyerManagementPage() {
   );
 }
 
+import { APP_MESSAGES, createDeleteBuyerConfirmMessage } from '../../constants/appMessages';
+import { DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
+
 function BuyerDialog({ row, onClose, onSave }) {
   const editing = Boolean(row.id);
   const [form, setForm] = useState({
@@ -118,9 +126,9 @@ function BuyerDialog({ row, onClose, onSave }) {
     description: row.description || ''
   });
 
-  const changeKey = (key) => {
-    const match = SUPPORTED_BUYERS.find((b) => b.key === key);
-    setForm((s) => ({ ...s, buyerKey: key, buyerName: s.buyerName || match?.name || '' }));
+  const changeKey = (value) => {
+    const key = normalizeBuyerCode(value);
+    setForm((s) => ({ ...s, buyerKey: key }));
   };
 
   return (
@@ -128,9 +136,13 @@ function BuyerDialog({ row, onClose, onSave }) {
       <DialogTitle>{editing ? 'Edit' : 'Add'} Buyer</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
-          <TextField select={!editing} label="Buyer Key" value={form.buyerKey} disabled={editing} onChange={(e) => changeKey(e.target.value)}>
-            {!editing ? SUPPORTED_BUYERS.map((b) => <MenuItem key={b.key} value={b.key}>{b.key}</MenuItem>) : null}
-          </TextField>
+          <TextField
+            label="Buyer Key"
+            value={form.buyerKey}
+            disabled={editing}
+            onChange={(e) => changeKey(e.target.value)}
+            helperText={editing ? 'Buyer Key cannot be changed.' : 'Example: NIKE, ADIDAS, NEW_BUYER. Letters/numbers are normalized to an uppercase key.'}
+          />
           <TextField label="Buyer Name" value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} />
           <TextField select label="Status" value={form.active ? 'active' : 'inactive'} onChange={(e) => setForm({ ...form, active: e.target.value === 'active' })}>
             <MenuItem value="active">Active</MenuItem>

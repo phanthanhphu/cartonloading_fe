@@ -1,3 +1,4 @@
+import { BARCODE_CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, LOOKUP_PAGE_SIZE, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,6 +39,7 @@ import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import UsbOutlinedIcon from '@mui/icons-material/UsbOutlined';
 import WarehouseOutlinedIcon from '@mui/icons-material/WarehouseOutlined';
+import { APP_MESSAGES, createJobWaitingMessage, createPlcWeightReceivedMessage, createRestoredPlcJobMessage } from '../../../../constants/appMessages';
 
 import { getActiveBuyer } from 'utils/buyerAccess';
 import { listPackingOrders } from 'buyers/es/services/packingListService';
@@ -80,16 +82,16 @@ const createScanId = () => {
 };
 
 const statusLabel = (status) => {
-  if (status === 'WAITING_WEIGHT') return 'Waiting for PLC';
-  if (status === 'WEIGHT_WARNING') return 'Weight warning';
-  if (status === 'COMPLETED') return 'Completed';
+  if (status === BARCODE_CARTON_STATUS.WAITING_WEIGHT) return 'Waiting for PLC';
+  if (status === BARCODE_CARTON_STATUS.WEIGHT_WARNING) return 'Weight warning';
+  if (status === BARCODE_CARTON_STATUS.COMPLETED) return 'Completed';
   return 'Ready';
 };
 
 const statusColor = (status) => {
-  if (status === 'WEIGHT_WARNING') return 'warning';
-  if (status === 'COMPLETED') return 'success';
-  if (status === 'WAITING_WEIGHT') return 'info';
+  if (status === BARCODE_CARTON_STATUS.WEIGHT_WARNING) return 'warning';
+  if (status === BARCODE_CARTON_STATUS.COMPLETED) return 'success';
+  if (status === BARCODE_CARTON_STATUS.WAITING_WEIGHT) return 'info';
   return 'default';
 };
 
@@ -158,7 +160,7 @@ export default function ZebraScanPage() {
   const [progress, setProgress] = useState(null);
   const [recent, setRecent] = useState([]);
   const [recentPage, setRecentPage] = useState(0);
-  const [recentRowsPerPage, setRecentRowsPerPage] = useState(10);
+  const [recentRowsPerPage, setRecentRowsPerPage] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState({ open: false, severity: 'success', message: '' });
 
@@ -176,8 +178,8 @@ export default function ZebraScanPage() {
     [stations, stationCode]
   );
 
-  const waiting = transaction?.status === 'WAITING_WEIGHT';
-  const completed = ['COMPLETED', 'WEIGHT_WARNING'].includes(transaction?.status);
+  const waiting = transaction?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT;
+  const completed = [BARCODE_CARTON_STATUS.COMPLETED, BARCODE_CARTON_STATUS.WEIGHT_WARNING].includes(transaction?.status);
   const ready = Boolean(orderId && stationCode && !busy && !waiting && !completed);
   const percent = progress?.plannedCartons > 0
     ? Math.min(100, ((Number(progress.completedCartons || 0) + Number(progress.warningCartons || 0)) / Number(progress.plannedCartons)) * 100)
@@ -202,7 +204,7 @@ export default function ZebraScanPage() {
       setRecent(Array.isArray(recentData) ? recentData : []);
       setRecentPage(0);
     } catch (error) {
-      notify(getApiError(error, 'Unable to load carton loading progress.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_CARTON_PROGRESS_FAILED), 'error');
     }
   }, [buyer?.code, notify, orderId]);
 
@@ -219,15 +221,15 @@ export default function ZebraScanPage() {
     const barcode = String(rawValue || '').trim();
     if (!barcode || submitLockedRef.current) return;
     if (!orderId) {
-      notify('Select an Order before submitting a QA Code.', 'warning');
+      notify(APP_MESSAGES.SELECT_ORDER_QA, 'warning');
       return;
     }
     if (!stationCode) {
-      notify('Select a Scale Station before submitting a QA Code.', 'warning');
+      notify(APP_MESSAGES.SELECT_SCALE_STATION_QA, 'warning');
       return;
     }
     if (waiting) {
-      notify(`Job ${transaction?.jobId} is still waiting for PLC weight.`, 'warning');
+      notify(createJobWaitingMessage(transaction?.jobId), 'warning');
       return;
     }
 
@@ -251,7 +253,7 @@ export default function ZebraScanPage() {
     } catch (error) {
       setBarcodeInput('');
       if (source !== 'manual') setManualBarcodeInput('');
-      notify(getApiError(error, 'Unable to process the QA Code.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.QA_PROCESS_FAILED), 'error');
       window.setTimeout(() => {
         if (source === 'manual') manualInputRef.current?.focus();
         else scannerInputRef.current?.focus();
@@ -268,7 +270,7 @@ export default function ZebraScanPage() {
       setBusy(true);
       try {
         const [orderData, stationData] = await Promise.all([
-          listPackingOrders(buyer.code, { page: 0, size: 100 }),
+          listPackingOrders(buyer.code, { page: 0, size: LOOKUP_PAGE_SIZE }),
           listScaleStations(true)
         ]);
         const orderRows = Array.isArray(orderData?.content) ? orderData.content : [];
@@ -291,7 +293,7 @@ export default function ZebraScanPage() {
         setPalletCode(savedPallet || '');
         setInputMode(savedInputMode === 'manual' ? 'manual' : 'zebra');
       } catch (error) {
-        notify(getApiError(error, 'Unable to load Orders or Scale Stations.'), 'error');
+        notify(getApiError(error, APP_MESSAGES.LOAD_ORDERS_SCALE_STATIONS_FAILED), 'error');
       } finally {
         setBusy(false);
       }
@@ -302,7 +304,7 @@ export default function ZebraScanPage() {
   useEffect(() => {
     if (!buyer?.code || !orderId) return;
     localStorage.setItem(orderStorageKey(buyer.code), orderId);
-    setTransaction((value) => (value?.status === 'WAITING_WEIGHT' && value.orderId === orderId ? value : null));
+    setTransaction((value) => (value?.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT && value.orderId === orderId ? value : null));
     setBarcodeInput('');
     setManualBarcodeInput('');
     loadOrderState();
@@ -317,13 +319,13 @@ export default function ZebraScanPage() {
         if (current?.id) {
           setTransaction(current);
           if (current.orderId && current.orderId !== orderId) setOrderId(current.orderId);
-          notify(`Restored PLC Job ${current.jobId}.`, 'info');
+          notify(createRestoredPlcJobMessage(current.jobId), 'info');
         } else {
           setTransaction(null);
           focusActiveInput();
         }
       } catch (error) {
-        notify(getApiError(error, 'Unable to check the current PLC Job.'), 'error');
+        notify(getApiError(error, APP_MESSAGES.CHECK_PLC_JOB_FAILED), 'error');
       }
     };
     restoreWaitingJob();
@@ -347,13 +349,13 @@ export default function ZebraScanPage() {
   }, [focusActiveInput]);
 
   useEffect(() => {
-    if (!buyer?.code || !transaction?.id || transaction.status !== 'WAITING_WEIGHT') return undefined;
+    if (!buyer?.code || !transaction?.id || transaction.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT) return undefined;
     const timer = window.setInterval(async () => {
       try {
         const updated = await getCartonTransaction(buyer.code, transaction.id);
         setTransaction(updated);
-        if (updated?.status !== 'WAITING_WEIGHT') {
-          notify(`PLC weight received: ${formatWeight(updated.weightKg)}.`, updated.status === 'WEIGHT_WARNING' ? 'warning' : 'success');
+        if (updated?.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT) {
+          notify(createPlcWeightReceivedMessage(formatWeight(updated.weightKg)), updated.status === BARCODE_CARTON_STATUS.WEIGHT_WARNING ? 'warning' : 'success');
           await loadOrderState();
         }
       } catch (error) {
@@ -411,7 +413,7 @@ export default function ZebraScanPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [inputMode, ready, submitBarcode]);
 
-  if (!buyer?.code) return <Alert severity="warning">Buyer could not be identified.</Alert>;
+  if (!buyer?.code) return <Alert severity="warning">{APP_MESSAGES.BUYER_NOT_IDENTIFIED}</Alert>;
 
   return (
     <Box sx={{ width: '100%', p: { xs: 1.25, md: 2.5 } }}>
@@ -504,7 +506,7 @@ export default function ZebraScanPage() {
                       onChange={(event) => setPalletCode(event.target.value)}
                       onBlur={focusActiveInput}
                       disabled={waiting || busy}
-                      placeholder="P01"
+                      placeholder={DEFAULT_PALLET_CODE}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -550,7 +552,7 @@ export default function ZebraScanPage() {
                   borderColor: waiting
                     ? 'warning.main'
                     : completed
-                      ? (transaction?.status === 'WEIGHT_WARNING' ? 'warning.main' : 'success.main')
+                      ? (transaction?.status === BARCODE_CARTON_STATUS.WEIGHT_WARNING ? 'warning.main' : 'success.main')
                       : 'primary.main'
                 }}
               >
@@ -617,7 +619,7 @@ export default function ZebraScanPage() {
                             </InputAdornment>
                           )
                         }}
-                        helperText="The system automatically finds Master Data, selects the next PLANNED carton and creates a PLC weight job."
+                        helperText={APP_MESSAGES.ZEBRA_AUTO_JOB_HELPER}
                       />
                     </Box>
                   )}
@@ -650,7 +652,7 @@ export default function ZebraScanPage() {
                               </InputAdornment>
                             )
                           }}
-                          helperText="Press Enter or click Submit QA Code."
+                          helperText={APP_MESSAGES.ZEBRA_QA_SUBMIT_HELPER}
                         />
                         <Button
                           variant="contained"
@@ -686,13 +688,13 @@ export default function ZebraScanPage() {
                   {completed && (
                     <Stack spacing={1.25} alignItems="center" textAlign="center" py={2}>
                       <CheckCircleOutlineOutlinedIcon
-                        color={transaction?.status === 'WEIGHT_WARNING' ? 'warning' : 'success'}
+                        color={transaction?.status === BARCODE_CARTON_STATUS.WEIGHT_WARNING ? 'warning' : 'success'}
                         sx={{ fontSize: 64 }}
                       />
                       <Typography variant="h3" fontWeight={950}>{statusLabel(transaction?.status)}</Typography>
                       <Typography
                         variant="h1"
-                        color={transaction?.status === 'WEIGHT_WARNING' ? 'warning.main' : 'success.main'}
+                        color={transaction?.status === BARCODE_CARTON_STATUS.WEIGHT_WARNING ? 'warning.main' : 'success.main'}
                         fontWeight={950}
                       >
                         {formatWeight(transaction?.weightKg)}

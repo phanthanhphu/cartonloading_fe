@@ -1,3 +1,5 @@
+
+import { APP_MESSAGES } from '../../constants/appMessages';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -49,7 +51,7 @@ export default function WorkflowHomePage() {
           subtitle="Choose a Buyer, then work through Order → PO → Carton → Item."
         />
 
-        {!buyers.length ? <Alert severity="warning">No Buyer access is assigned to your account. Contact an administrator.</Alert> : null}
+        {!buyers.length ? <Alert severity="warning">{APP_MESSAGES.NO_BUYER_ACCESS_CONTACT_ADMIN}</Alert> : null}
         {loading ? <LinearProgress /> : null}
 
         <Grid container spacing={1}>

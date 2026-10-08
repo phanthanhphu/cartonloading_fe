@@ -1,3 +1,4 @@
+import { EXCEL_FILE_ACCEPT, IMPORT_MODE } from '../../../../constants/appConstants';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -14,15 +15,16 @@ import {
   Typography
 } from '@mui/material';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
+import { APP_MESSAGES } from '../../../../constants/appMessages';
 
 export default function PackingAllocationImportDialog({ open, importing, result, onClose, onImport }) {
   const [file, setFile] = useState(null);
-  const [mode, setMode] = useState('CREATE_ONLY');
+  const [mode, setMode] = useState(IMPORT_MODE.CREATE_ONLY);
 
   useEffect(() => {
     if (open) {
       setFile(null);
-      setMode('CREATE_ONLY');
+      setMode(IMPORT_MODE.CREATE_ONLY);
     }
   }, [open]);
 
@@ -36,21 +38,21 @@ export default function PackingAllocationImportDialog({ open, importing, result,
           </Alert>
           <Button component="label" variant="outlined" startIcon={<UploadFileOutlinedIcon />} sx={{ justifyContent: 'flex-start', textTransform: 'none' }}>
             {file?.name || 'Select an Excel file (.xlsx or .xls)'}
-            <input hidden type="file" accept=".xlsx,.xls" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+            <input hidden type="file" accept={EXCEL_FILE_ACCEPT} onChange={(event) => setFile(event.target.files?.[0] || null)} />
           </Button>
           <FormControl>
             <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Mode for legacy WSP files without ACTION/KEY</Typography>
             <RadioGroup value={mode} onChange={(event) => setMode(event.target.value)}>
-              <FormControlLabel value="CREATE_ONLY" control={<Radio />} label="CREATE_ONLY — add every row as new data" />
-              <FormControlLabel value="UPSERT" control={<Radio />} label="UPSERT — update matching business data and add new rows" />
-              <FormControlLabel value="REPLACE_ALL" control={<Radio />} label="REPLACE_ALL — delete current data and import the file again" />
+              <FormControlLabel value={IMPORT_MODE.CREATE_ONLY} control={<Radio />} label="CREATE_ONLY — add every row as new data" />
+              <FormControlLabel value={IMPORT_MODE.UPSERT} control={<Radio />} label="UPSERT — update matching business data and add new rows" />
+              <FormControlLabel value={IMPORT_MODE.REPLACE_ALL} control={<Radio />} label="REPLACE_ALL — delete current data and import the file again" />
             </RadioGroup>
           </FormControl>
           {result && (
             <Alert severity={result.applied ? 'success' : 'error'}>
               {result.applied
                 ? `Completed: ${result.created || 0} created, ${result.updated || 0} updated, ${result.deleted || 0} deleted.`
-                : `Import failed. ${result.errors?.[0]?.message || 'Please check the file.'}`}
+                : `Import failed. ${result.errors?.[0]?.message || APP_MESSAGES.PLEASE_CHECK_FILE}`}
             </Alert>
           )}
         </Stack>

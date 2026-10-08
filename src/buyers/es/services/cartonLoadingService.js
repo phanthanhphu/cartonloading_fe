@@ -1,13 +1,14 @@
+import { API_PATH, STORAGE_KEY } from '../../../constants/appConstants';
 import { apiRawClient } from 'routes/globalApi';
 
 const unwrap = async (request) => (await request).data;
 const authHeaders = () => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const token = localStorage.getItem(STORAGE_KEY.ACCESS_TOKEN) || localStorage.getItem(STORAGE_KEY.TOKEN);
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 const withAuth = (config = {}) => ({ ...config, headers: { ...authHeaders(), ...(config.headers || {}) } });
-const root = '/api/carton-loading';
-const stationRoot = '/api/buyers/engelbert-strauss/scale-stations';
+const root = API_PATH.CARTON_LOADING;
+const stationRoot = API_PATH.BARCODE_WORKFLOW_SCALE_STATIONS;
 const buyerRoot = (buyerCode) => `${root}/${encodeURIComponent(buyerCode)}`;
 
 export const listScaleStations = (activeOnly = true) => unwrap(

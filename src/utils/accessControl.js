@@ -1,15 +1,10 @@
-export const ACCESS_PERMISSION = Object.freeze({
-  SALES: 'SALES',
-  BARCODE_OPERATOR: 'BARCODE_OPERATOR',
-  ASSIGN_BARCODE: 'ASSIGN_BARCODE',
-  WEIGHT_CHECK: 'WEIGHT_CHECK',
-  PRINT_ROOM: 'PRINT_ROOM',
-  VIEW_SYSTEM: 'VIEW_SYSTEM'
-});
+import { ACCESS_PERMISSION, ROLE, STORAGE_KEY, ADMIN_ACCESS_PERMISSIONS, ALLOWED_ACCESS_PERMISSIONS } from '../constants/appConstants';
+
+export { ACCESS_PERMISSION };
 
 export const readStoredUser = () => {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}') || {};
+    return JSON.parse(localStorage.getItem(STORAGE_KEY.USER) || '{}') || {};
   } catch {
     return {};
   }
@@ -17,27 +12,19 @@ export const readStoredUser = () => {
 
 export const normalizeRole = (value) => {
   const role = String(value || '').trim().toUpperCase();
-  return role === 'ADMIN' || role === 'ROLE_ADMIN' ? 'ADMIN' : 'USER';
+  return role === ROLE.ADMIN || role === ROLE.ROLE_ADMIN ? ROLE.ADMIN : ROLE.USER;
 };
 
-export const isAdmin = () => normalizeRole(readStoredUser().role || localStorage.getItem('role')) === 'ADMIN';
+export const isAdmin = () => normalizeRole(readStoredUser().role || localStorage.getItem(STORAGE_KEY.ROLE)) === ROLE.ADMIN;
 
 const normalizePermissionValue = (value) => String(value || '').trim().toUpperCase();
-const ADMIN_PERMISSIONS = [
-  ACCESS_PERMISSION.SALES,
-  ACCESS_PERMISSION.BARCODE_OPERATOR,
-  ACCESS_PERMISSION.ASSIGN_BARCODE,
-  ACCESS_PERMISSION.WEIGHT_CHECK,
-  ACCESS_PERMISSION.PRINT_ROOM
-];
-const ALLOWED_PERMISSIONS = [...ADMIN_PERMISSIONS, ACCESS_PERMISSION.VIEW_SYSTEM];
 
-export const normalizeAccessPermissions = (value, role = normalizeRole(readStoredUser().role || localStorage.getItem('role'))) => {
-  if (role === 'ADMIN') return [...ADMIN_PERMISSIONS];
+export const normalizeAccessPermissions = (value, role = normalizeRole(readStoredUser().role || localStorage.getItem(STORAGE_KEY.ROLE))) => {
+  if (role === ROLE.ADMIN) return [...ADMIN_ACCESS_PERMISSIONS];
 
   let source = value;
   if (source === undefined || source === null || source === '') {
-    source = readStoredUser().accessPermissions ?? localStorage.getItem('accessPermissions');
+    source = readStoredUser().accessPermissions ?? localStorage.getItem(STORAGE_KEY.ACCESS_PERMISSIONS);
   }
 
   if (typeof source === 'string') {
@@ -52,7 +39,7 @@ export const normalizeAccessPermissions = (value, role = normalizeRole(readStore
   const set = new Set(
     (Array.isArray(source) ? source : [])
       .map(normalizePermissionValue)
-      .filter((item) => ALLOWED_PERMISSIONS.includes(item))
+      .filter((item) => ALLOWED_ACCESS_PERMISSIONS.includes(item))
   );
 
   if (set.has(ACCESS_PERMISSION.VIEW_SYSTEM)) return [ACCESS_PERMISSION.VIEW_SYSTEM];
@@ -69,4 +56,26 @@ export const canPrintRoom = () => isAdmin() || getAccessPermissions().includes(A
 export const isViewOnly = () => !isAdmin() && getAccessPermissions().length === 1 && getAccessPermissions()[0] === ACCESS_PERMISSION.VIEW_SYSTEM;
 export const canUseBuyerWorkspace = () => isAdmin() || canManageSales() || isViewOnly();
 
+export const getFactoryPermissions = () => {
+  const user = readStoredUser();
+  let source = user.factoryPermissions ?? localStorage.getItem(STORAGE_KEY.FACTORY_PERMISSIONS) ?? [];
+  if (typeof source === 'string') {
+    try {
+      const parsed = JSON.parse(source);
+      source = Array.isArray(parsed) ? parsed : source.split(/[,;|]/);
+    } catch {
+      source = source.split(/[,;|]/);
+    }
+  }
+  return [...new Set((Array.isArray(source) ? source : [])
+    .map((item) => String(item || '').trim().toUpperCase())
+    .filter(Boolean))];
+};
 
+export const canAccessAssignedFactory = (factoryCode) => {
+  if (isAdmin() || canManageSales()) return true;
+  const code = String(factoryCode || '').trim().toUpperCase();
+  if (!code) return false;
+  const allowed = getFactoryPermissions();
+  return allowed.includes('*') || allowed.includes(code);
+};

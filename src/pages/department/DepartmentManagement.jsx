@@ -4,11 +4,12 @@ import { Add, Delete, Edit } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
 import { createDepartment, deleteDepartment, listDepartments, updateDepartment } from 'services/adminService';
+import { FACTORY_CODES, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
+import { createDeleteDepartmentConfirmMessage } from '../../constants/appMessages';
 
-const FACTORIES = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7'];
 
 export default function DepartmentManagement() {
-  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: 25, loading: false });
+  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: DEFAULT_TABLE_PAGE_SIZE, loading: false });
   const [filters, setFilters] = useState({ factory: '', division: '', departmentName: '' });
   const [dialog, setDialog] = useState(null);
   const [error, setError] = useState('');
@@ -37,7 +38,7 @@ export default function DepartmentManagement() {
   };
 
   const remove = async (row) => {
-    if (!row || !confirm(`Delete department ${row.factory || ''} / ${row.division} / ${row.departmentName}?`)) return;
+    if (!row || !confirm(createDeleteDepartmentConfirmMessage(row.factory, row.division, row.departmentName))) return;
     try {
       await deleteDepartment(row.id);
       load(state.page, state.size);
@@ -74,7 +75,7 @@ export default function DepartmentManagement() {
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
         <TableFilterBar
           fields={[
-            { key: 'factory', label: 'Factory', options: FACTORIES.map((v) => ({ value: v, label: v })) },
+            { key: 'factory', label: 'Factory', options: FACTORY_CODES.map((v) => ({ value: v, label: v })) },
             { key: 'division', label: 'Division' },
             { key: 'departmentName', label: 'Department' }
           ]}
@@ -100,7 +101,7 @@ function DepartmentDialog({ row, onClose, onSave }) {
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           <TextField select label="Factory" value={factory} onChange={(e) => setFactory(e.target.value)}>
-            {FACTORIES.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+            {FACTORY_CODES.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
           </TextField>
           <TextField label="Division" value={division} onChange={(e) => setDivision(e.target.value)} />
           <TextField label="Department Name" value={departmentName} onChange={(e) => setName(e.target.value)} />

@@ -31,42 +31,23 @@ import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
+import { APP_MESSAGES } from '../../../../constants/appMessages';
+import { DEFAULT_SCALE_STATION, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../../../constants/appConstants';
+import { EMPTY_SCALE_STATION_FORM, toScaleStationForm } from './scaleStationConfig';
 
 import { getApiError } from 'utils/apiError';
 import { createScaleStation, listScaleStations, updateScaleStation } from 'buyers/es/services/cartonLoadingService';
-
-const EMPTY_FORM = {
-  stationCode: '',
-  stationName: '',
-  plcIp: '',
-  gatewayIp: '',
-  location: '',
-  active: true,
-  minimumWeightKg: '0.50',
-  stabilityToleranceKg: '0.02'
-};
-
-const toForm = (row) => ({
-  stationCode: row?.stationCode || '',
-  stationName: row?.stationName || '',
-  plcIp: row?.plcIp || '',
-  gatewayIp: row?.gatewayIp || '',
-  location: row?.location || '',
-  active: row?.active !== false,
-  minimumWeightKg: row?.minimumWeightKg ?? '0.50',
-  stabilityToleranceKg: row?.stabilityToleranceKg ?? '0.02'
-});
 
 export default function ScaleStationPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(EMPTY_SCALE_STATION_FORM);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState({ open: false, severity: 'success', message: '' });
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
 
   const notify = (message, severity = 'success') => setNotice({ open: true, severity, message });
 
@@ -75,7 +56,7 @@ export default function ScaleStationPage() {
     try {
       setRows(await listScaleStations(false));
     } catch (error) {
-      notify(getApiError(error, 'Unable to load scale stations.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.LOAD_SCALE_STATIONS_LOWER_FAILED), 'error');
     } finally {
       setLoading(false);
     }
@@ -85,13 +66,13 @@ export default function ScaleStationPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm(EMPTY_FORM);
+    setForm(EMPTY_SCALE_STATION_FORM);
     setDialogOpen(true);
   };
 
   const openEdit = (row) => {
     setEditing(row);
-    setForm(toForm(row));
+    setForm(toScaleStationForm(row));
     setDialogOpen(true);
   };
 
@@ -111,10 +92,10 @@ export default function ScaleStationPage() {
       if (editing?.stationCode) await updateScaleStation(editing.stationCode, payload);
       else await createScaleStation(payload);
       setDialogOpen(false);
-      notify(editing ? 'Scale station updated.' : 'Scale station created.');
+      notify(editing ? APP_MESSAGES.SCALE_STATION_UPDATED : APP_MESSAGES.SCALE_STATION_CREATED);
       await load();
     } catch (error) {
-      notify(getApiError(error, 'Unable to save the scale station.'), 'error');
+      notify(getApiError(error, APP_MESSAGES.SAVE_SCALE_STATION_FAILED), 'error');
     } finally {
       setSaving(false);
     }
@@ -174,7 +155,7 @@ export default function ScaleStationPage() {
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0 }}>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Station Code" value={form.stationCode} onChange={(e) => setForm((v) => ({ ...v, stationCode: e.target.value }))} placeholder="SCALE-01" />
+              <TextField fullWidth label="Station Code" value={form.stationCode} onChange={(e) => setForm((v) => ({ ...v, stationCode: e.target.value }))} placeholder={DEFAULT_SCALE_STATION} />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth label="Station Name" value={form.stationName} onChange={(e) => setForm((v) => ({ ...v, stationName: e.target.value }))} placeholder="Scale Station 1" />

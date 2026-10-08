@@ -7,7 +7,10 @@ import { getActiveBuyer } from 'utils/buyerAccess';
 import { canManageSales } from 'utils/accessControl';
 import { createManagedOrder, deleteManagedOrder, listManagedCartons, listManagedItems, listManagedOrders, listManagedPos, updateManagedOrder } from 'services/managementService';
 
-const pageState = () => ({ page: 0, size: 10, count: 0, rows: [], loading: false });
+import { APP_MESSAGES, createDeleteOrderConfirmMessage } from '../../constants/appMessages';
+import { DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
+
+const pageState = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
 const todayLocal = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; };
 const emptyOrderFilters = () => ({ orderDate: '', orderName: '', factory: '', supplier: '', createdBy: '', status: '' });
 const emptyPoFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', exFtyDate: '' });
@@ -98,12 +101,12 @@ export default function OrderManagementPage() {
     } catch (e) { setError(e?.response?.data?.message || e.message); }
   };
   const remove = async () => {
-    if (!selectedOrder || !confirm(`Delete order ${selectedOrder.orderName}?`)) return;
+    if (!selectedOrder || !confirm(createDeleteOrderConfirmMessage(selectedOrder.orderName))) return;
     try { await deleteManagedOrder(buyerCode, selectedOrder.id); setSelectedOrder(null); await loadOrders(0, orders.size); }
     catch (e) { setError(e?.response?.data?.message || e.message); }
   };
 
-  if (!buyerCode) return <Alert severity="warning">Select a Buyer first.</Alert>;
+  if (!buyerCode) return <Alert severity="warning">{APP_MESSAGES.SELECT_BUYER_FIRST}</Alert>;
 
   return <Box sx={{ p: { xs: 1, md: 1.5 } }}><Stack spacing={1}>
     <Stack direction={{ xs: 'column', md: 'row' }} gap={1} justifyContent="space-between">

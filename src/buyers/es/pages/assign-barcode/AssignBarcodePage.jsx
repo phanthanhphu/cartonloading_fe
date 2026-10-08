@@ -1,41 +1,15 @@
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  MenuItem,
-  Pagination,
-  Paper,
-  Select,
-  Stack,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography
-} from '@mui/material';
-import {
-  Inventory2Outlined,
-  OpenInNewOutlined,
-  QrCode2Outlined,
-  RefreshOutlined,
-  RestartAltOutlined,
-  SearchOutlined
-} from '@mui/icons-material';
+import {   Alert, Box, Button, Chip, CircularProgress, MenuItem, Pagination, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import {   Inventory2Outlined, OpenInNewOutlined, QrCode2Outlined, RefreshOutlined, RestartAltOutlined, SearchOutlined } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-
+import { APP_MESSAGES } from '../../../../constants/appMessages';
 import { listPackingOrders } from 'buyers/es/services/packingListService';
 import { getApiError } from 'utils/apiError';
 import { getAccessibleBuyers, readSelectedBuyer } from 'utils/buyerAccess';
 import { readStoredUser } from 'utils/accessControl';
+import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE } from '../../../../constants/appConstants';
 
-const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 const formatDate = (value) => {
   if (!value) return '—';
@@ -43,7 +17,7 @@ const formatDate = (value) => {
   return year && month && day ? `${day}/${month}/${year}` : String(value);
 };
 
-const label = (value) => String(value || 'NOT_STARTED').replaceAll('_', ' ');
+const label = (value) => String(value || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ');
 const statusSx = (value) => {
   const status = String(value || '').toUpperCase();
   const colors = {
@@ -67,7 +41,7 @@ export default function AssignBarcodePage() {
   const [appliedAssignmentStatus, setAppliedAssignmentStatus] = useState('');
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -91,7 +65,7 @@ export default function AssignBarcodePage() {
       setTotal(Number(data?.totalElements || 0));
     } catch (requestError) {
       setRows([]);
-      setError(getApiError(requestError, 'Unable to load Orders for Barcode Assignment.'));
+      setError(getApiError(requestError, APP_MESSAGES.LOAD_BARCODE_ASSIGNMENT_ORDERS_FAILED));
     } finally {
       setLoading(false);
     }
@@ -114,12 +88,12 @@ export default function AssignBarcodePage() {
   };
 
   if (!buyers.length) {
-    return <Box sx={{ p: 1 }}><Alert severity="warning">No Buyer workspace is available for this user.</Alert></Box>;
+    return <Box sx={{ p: 1 }}><Alert severity="warning">{APP_MESSAGES.NO_BUYER_WORKSPACE}</Alert></Box>;
   }
 
   const assigned = rows.reduce((sum, row) => sum + Number(row.assignedCartonCount || 0), 0);
   const cartons = rows.reduce((sum, row) => sum + Number(row.plannedCartonCount || 0), 0);
-  const completedOrders = rows.filter((row) => row.assignmentStatus === 'COMPLETED').length;
+  const completedOrders = rows.filter((row) => row.assignmentStatus === PROGRESS_STATUS.COMPLETED).length;
   const from = total === 0 ? 0 : page * pageSize + 1;
   const to = Math.min(total, (page + 1) * pageSize);
 
@@ -132,9 +106,9 @@ export default function AssignBarcodePage() {
           <TextField size="small" label="Search Order" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && applySearch()} sx={{ flex: 1, minWidth: { lg: 260 } }} />
           <TextField select size="small" label="Barcode Assignment Status" value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 170 } }}>
             <MenuItem value="">All</MenuItem>
-            <MenuItem value="NOT_STARTED">Not Started</MenuItem>
-            <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
-            <MenuItem value="COMPLETED">Completed</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.NOT_STARTED}>Not Started</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>In Progress</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.COMPLETED}>Completed</MenuItem>
           </TextField>
           <Button variant="contained" startIcon={<SearchOutlined />} onClick={applySearch} disabled={loading}>Search</Button>
           <Button variant="outlined" startIcon={<RestartAltOutlined />} onClick={resetSearch} disabled={loading}>Reset</Button>
@@ -193,7 +167,7 @@ export default function AssignBarcodePage() {
                       onClick={() => buyer && navigate(`/assign-barcode/${buyer.slug}/${row.id}`)}
                       sx={{ minWidth: 145, textTransform: 'none', fontWeight: 750 }}
                     >
-                      {row.assignmentStatus === 'COMPLETED' ? 'Review Assignment' : 'Assign Barcode'}
+                      {row.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'Review Assignment' : 'Assign Barcode'}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -207,7 +181,7 @@ export default function AssignBarcodePage() {
             <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Showing {from}-{to} of {total}</Typography>
             <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>Rows</Typography>
             <Select size="small" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} sx={{ height: 30, minWidth: 72 }}>
-              {PAGE_SIZE_OPTIONS.map((size) => <MenuItem key={size} value={size}>{size}</MenuItem>)}
+              {COMMON_PAGE_SIZE_OPTIONS.map((size) => <MenuItem key={size} value={size}>{size}</MenuItem>)}
             </Select>
           </Stack>
           <Pagination size="small" page={page + 1} count={totalPages} onChange={(_, next) => setPage(next - 1)} shape="rounded" />

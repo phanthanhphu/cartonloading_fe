@@ -16,13 +16,14 @@ import {
   readSelectedBuyer,
   saveSelectedBuyer
 } from 'utils/buyerAccess';
+import { BUYER_CODE, BUYER_LABEL } from '../../../../constants/appConstants';
 import { readStoredUser } from 'utils/accessControl';
 import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
 
 const PAGE_MAP = [
   { path: '/', title: 'Buyer Workspace', section: 'Workspace' },
   { path: '/dashboard', title: 'Dashboard', section: 'Workspace' },
-  { path: '/orders-management', title: 'Orders', section: 'LULULEMON · Sales' },
+  { path: '/orders-management', title: 'Orders', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Sales` },
   { path: '/users', title: 'Users', section: 'Administration' },
   { path: '/departments', title: 'Departments', section: 'Administration' },
   { path: '/buyers', title: 'Buyers', section: 'Administration' },
@@ -38,14 +39,16 @@ const PAGE_MAP = [
   { path: '/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
   { path: '/buyers/:buyerSlug/orders/:orderId/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
   { path: '/buyers/:buyerSlug/orders/:orderId/scan', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
-  { path: '/buyers/:buyerSlug/po', title: 'Master Data / PO', section: 'LULULEMON' },
-  { path: '/buyers/:buyerSlug/print-requests', title: 'PO Handoff', section: 'LULULEMON · Operations' },
-  { path: '/buyers/:buyerSlug/packing', title: 'Packing', section: 'LULULEMON · Operations' },
-  { path: '/buyers/:buyerSlug/shipping', title: 'Shipping / Ex-Factory', section: 'LULULEMON · Sales' },
-  { path: '/buyers/:buyerSlug/carton-loading', title: 'Carton Label / SSCC', section: 'LULULEMON · Operations' },
+  { path: '/buyers/:buyerSlug/po', title: 'Master Data / PO', section: BUYER_LABEL[BUYER_CODE.LULULEMON] },
+  { path: '/buyers/:buyerSlug/print-requests', title: 'Print Request', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
+  { path: '/buyers/:buyerSlug/packing', title: 'Packing', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
+  { path: '/buyers/:buyerSlug/shipping', title: 'Shipping Schedule', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Sales / Packing` },
+  { path: '/buyers/:buyerSlug/carton-loading', title: 'Carton Label / SSCC', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
+  { path: '/buyers/:buyerSlug/weighing', title: 'Weight Management', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
+  { path: '/buyers/:buyerSlug/weight-history', title: 'Weight Management', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
   { path: '/buyers/:buyerSlug/orders/:orderId/items/:masterLineId', title: 'Carton Item Detail', section: 'Buyer Workspace' },
   { path: '/buyers/:buyerSlug/orders/:orderId', title: 'Order Workspace', section: 'Order Management' },
-  { path: '/buyers/:buyerSlug/orders', title: 'Orders', section: 'LULULEMON · Sales' },
+  { path: '/buyers/:buyerSlug/orders', title: 'Orders', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Sales` },
   { path: '/buyers/:buyerSlug/packing-list/:orderId', title: 'Packing List', section: 'Buyer Workspace' },
   { path: '/buyers/:buyerSlug/packing-list', title: 'Packing List', section: 'Buyer Workspace' },
   { path: '/workflow', title: 'Buyer Workspace', section: 'Workspace' }

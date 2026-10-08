@@ -5,12 +5,14 @@ import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import { clearAuthSession } from '../../../../../routes/globalApi';
 
+import { STORAGE_KEY } from '../../../../../constants/appConstants';
+
 const readUser = () => {
   try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return { username: user.username || user.email || 'User', email: user.email || '', role: user.role || localStorage.getItem('role') || '' };
+    const user = JSON.parse(localStorage.getItem(STORAGE_KEY.USER) || '{}');
+    return { username: user.username || user.email || 'User', email: user.email || '', role: user.role || localStorage.getItem(STORAGE_KEY.ROLE) || '' };
   } catch {
-    return { username: 'User', email: '', role: localStorage.getItem('role') || '' };
+    return { username: 'User', email: '', role: localStorage.getItem(STORAGE_KEY.ROLE) || '' };
   }
 };
 

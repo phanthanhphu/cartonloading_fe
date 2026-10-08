@@ -40,7 +40,7 @@ const getDashboardMenu = () => {
   const buyerEntries = activeBuyer ? getBuyerMenuEntries(activeBuyer) : [];
   const entryById = new Map(buyerEntries.map((entry) => [entry.id, entry]));
   const salesIds = ['orders', 'shipping'];
-  const operationIds = ['print-requests', 'packing', 'carton-loading'];
+  const operationIds = ['print-requests', 'packing', 'checking', 'shipping-operations', 'weight-management'];
 
   const salesChildren = activeBuyer
     ? salesIds.map((id) => entryById.get(id)).filter(Boolean).map((entry) => toMenuItem(entry, activeBuyer))

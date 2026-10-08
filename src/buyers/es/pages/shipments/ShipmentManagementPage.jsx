@@ -1,19 +1,16 @@
 import SortableTable from 'components/SortableTable';
 import { canPlanCarton } from 'buyers/es/domain/workflow';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, MenuItem, Paper, Stack, Tab,  TableBody, TableCell, TableContainer,
-  TableHead, TablePagination, TableRow, Tabs, TextField, Typography
-} from '@mui/material';
+import {   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, Tab, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from '@mui/material';
 import { canManageSales, readStoredUser } from 'utils/accessControl';
 import { getAccessibleBuyers, readSelectedBuyer } from 'utils/buyerAccess';
 import { listPackingOrders } from 'buyers/es/services/packingListService';
 import * as api from 'buyers/es/services/shipmentService';
+import { APP_MESSAGES, createShipmentSelectionStepMessage, createCompleteCartonConfirmMessage, createDispatchShipmentConfirmMessage, createCancelShipmentConfirmMessage } from '../../../../constants/appMessages';
+import { SHIPMENT_FILTER_STATES, BARCODE_CARTON_STATUS, COMMON_FILTER, INSPECTION_RESULT, SHIPMENT_LIFECYCLE_STATUS, DEFAULT_TABLE_PAGE_SIZE, LOOKUP_PAGE_SIZE, SHIPMENT_STATUS } from '../../../../constants/appConstants';
 
-const STATES = ['ALL', 'CREATED', 'ASSIGNED', 'CHECKED', 'COMPLETED', 'SHIPPED', 'CANCELLED'];
 const emptyPage = { content: [], totalElements: 0 };
-const errorMessage = (error) => error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Request failed.';
+const errorMessage = (error) => error?.response?.data?.message || error?.response?.data?.error || error?.message || APP_MESSAGES.REQUEST_FAILED;
 const dateTime = (value) => value ? String(value).replace('T', ' ').slice(0, 19) : '—';
 const lifecycleColor = (state) => ({ SHIPPED: 'success', COMPLETED: 'success', CHECKED: 'info', ASSIGNED: 'warning', CANCELLED: 'error' }[state] || 'default');
 
@@ -29,7 +26,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
   const [orderKeyword, setOrderKeyword] = useState('');
   const [search, setSearch] = useState('');
   const [keyword, setKeyword] = useState('');
-  const [lifecycle, setLifecycle] = useState('ALL');
+  const [lifecycle, setLifecycle] = useState(COMMON_FILTER.ALL);
   const [shipmentId, setShipmentId] = useState('');
   const [page, setPage] = useState(0);
   const [shipmentPage, setShipmentPage] = useState(0);
@@ -53,7 +50,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
     if (!buyer) return undefined;
     let active = true;
     const timer = window.setTimeout(() => {
-      listPackingOrders(buyer, { page: 0, size: 100, keyword: orderKeyword }).then((result) => {
+      listPackingOrders(buyer, { page: 0, size: LOOKUP_PAGE_SIZE, keyword: orderKeyword }).then((result) => {
         if (active) setOrders(result.content || (Array.isArray(result) ? result : []));
       }).catch((err) => { if (active) setError(errorMessage(err)); });
     }, 250);
@@ -66,8 +63,8 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
     setLoading(true);
     setError('');
     Promise.all([
-      (mode === 'sales' ? api.listSalesCartons : api.listCartons)(buyer, { ...filters, page, size: 25 }),
-      (mode === 'sales' ? api.listSalesShipments : api.listShipments)(buyer, { page: shipmentPage, size: 25 })
+      (mode === 'sales' ? api.listSalesCartons : api.listCartons)(buyer, { ...filters, page, size: DEFAULT_TABLE_PAGE_SIZE }),
+      (mode === 'sales' ? api.listSalesShipments : api.listShipments)(buyer, { page: shipmentPage, size: DEFAULT_TABLE_PAGE_SIZE })
     ]).then(([cartonResult, shipmentResult]) => {
       if (active) { setCartons(cartonResult); setShipments(shipmentResult); }
     }).catch((err) => {
@@ -78,7 +75,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
 
   const changeBuyer = (value) => {
     setBuyer(value); setOrderId(''); setOrders([]); setOrderKeyword(''); setKeyword(''); setSearch('');
-    setShipmentId(''); setLifecycle('ALL'); setPage(0); setShipmentPage(0); setSelected([]);
+    setShipmentId(''); setLifecycle(COMMON_FILTER.ALL); setPage(0); setShipmentPage(0); setSelected([]);
     setCartons(emptyPage); setShipments(emptyPage); setNotice(''); setDetails(null);
   };
   const changeFilter = (setter, value) => { setter(value); setPage(0); setSelected([]); };
@@ -86,16 +83,16 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
     setError('');
     setForm(type === 'create'
       ? { shipmentNo: '', plannedDate: '', destination: '', carrier: '', reference: '' }
-      : { result: 'PASS', note: '' });
+      : { result: INSPECTION_RESULT.PASS, note: '' });
     setAction({ type, row });
   };
   const submitAction = async () => {
     if (!action || busy) return;
     const { type, row } = action;
     if (type === 'create' && (!orderId || !selected.length || !form.shipmentNo.trim() || !form.destination.trim() || !form.plannedDate)) {
-      setError('Select an Order and cartons, then enter shipment number, destination and date.'); return;
+      setError(APP_MESSAGES.SHIPMENT_FORM_REQUIRED); return;
     }
-    if (type === 'inspect' && !form.note.trim()) { setError('An inspection note is required.'); return; }
+    if (type === 'inspect' && !form.note.trim()) { setError(APP_MESSAGES.INSPECTION_NOTE_REQUIRED); return; }
     setBusy(true); setError(''); setNotice('');
     try {
       if (type === 'create') await api.createShipment(buyer, { ...form, orderId, cartonIds: selected });
@@ -104,7 +101,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       if (type === 'dispatch') await api.dispatchShipment(buyer, row.id);
       if (type === 'cancel') await api.cancelShipment(buyer, row.id);
       setAction(null); setSelected([]); setDetails(null); setRevision((n) => n + 1);
-      setNotice('Saved successfully.');
+      setNotice(APP_MESSAGES.SAVED_SUCCESSFULLY);
       if (type === 'create') { setTab(1); setShipmentPage(0); }
     } catch (err) { setError(errorMessage(err)); }
     finally { setBusy(false); }
@@ -119,8 +116,8 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
       if (err?.response?.data instanceof Blob) {
-        try { const parsed = JSON.parse(await err.response.data.text()); setError(parsed.message || parsed.error || 'Export failed.'); }
-        catch { setError('Export failed. Narrow the report filters and retry.'); }
+        try { const parsed = JSON.parse(await err.response.data.text()); setError(parsed.message || parsed.error || APP_MESSAGES.EXPORT_FAILED); }
+        catch { setError(APP_MESSAGES.EXPORT_FILTER_RETRY); }
       } else setError(errorMessage(err));
     } finally { setBusy(false); }
   };
@@ -128,7 +125,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
   const field = (name, value) => setForm((old) => ({ ...old, [name]: value }));
   const eligible = cartons.content.filter(canPlanCarton);
 
-  if (!buyer) return <Alert severity="warning">No Buyer access is assigned to your account. Contact an administrator.</Alert>;
+  if (!buyer) return <Alert severity="warning">{APP_MESSAGES.NO_BUYER_ACCESS_CONTACT_ADMIN}</Alert>;
 
   return (
     <Stack spacing={2}>
@@ -156,18 +153,18 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       {tab === 0 && <>
         <Paper sx={{ p: 2 }}><Stack spacing={2}>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-            <TextField size="small" label="Find Order for shipment planning" value={orderKeyword} onChange={(event) => setOrderKeyword(event.target.value)} helperText="Search if the Order is not in the first 100 results." />
+            <TextField size="small" label="Find Order for shipment planning" value={orderKeyword} onChange={(event) => setOrderKeyword(event.target.value)} helperText={APP_MESSAGES.SHIPMENT_ORDER_SEARCH_HELPER} />
             <TextField select size="small" label="Order" value={orderId} onChange={(event) => changeFilter(setOrderId, event.target.value)} sx={{ minWidth: 240 }}>
               <MenuItem value="">Select an Order</MenuItem>
               {orderId && !orders.some((item) => item.id === orderId) && <MenuItem value={orderId}>{cartons.content[0]?.orderName || orderId}</MenuItem>}
               {orders.map((item) => <MenuItem key={item.id} value={item.id}>{item.orderName || item.id}</MenuItem>)}
             </TextField>
             <TextField select size="small" label="Lifecycle" value={lifecycle} onChange={(event) => changeFilter(setLifecycle, event.target.value)} sx={{ minWidth: 150 }}>
-              {STATES.map((state) => <MenuItem key={state} value={state}>{state}</MenuItem>)}
+              {SHIPMENT_FILTER_STATES.map((state) => <MenuItem key={state} value={state}>{state}</MenuItem>)}
             </TextField>
             <TextField select size="small" label="Shipment filter" value={shipmentId} onChange={(event) => changeFilter(setShipmentId, event.target.value)} sx={{ minWidth: 180 }}>
-              <MenuItem value="">All shipments</MenuItem><MenuItem value="UNPLANNED">Not planned</MenuItem>
-              {shipmentId && shipmentId !== 'UNPLANNED' && <MenuItem value={shipmentId}>Selected shipment</MenuItem>}
+              <MenuItem value="">All shipments</MenuItem><MenuItem value={COMMON_FILTER.UNPLANNED}>Not planned</MenuItem>
+              {shipmentId && shipmentId !== COMMON_FILTER.UNPLANNED && <MenuItem value={shipmentId}>Selected shipment</MenuItem>}
             </TextField>
           </Stack>
           <Stack component="form" direction="row" spacing={1} onSubmit={(event) => { event.preventDefault(); changeFilter(setKeyword, search.trim()); }}>
@@ -184,7 +181,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
             Step 2: Select eligible cartons. Sales cannot create new cartons here; shipment planning only uses physical cartons generated from Master Total Ctns and already assigned a Factory Barcode.
           </Alert>}
         </Stack></Paper>
-        <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={page * 25} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
+        <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
           {sales && <TableCell padding="checkbox"><Checkbox aria-label="Select available cartons on this page" disabled={!orderId || loading || !eligible.length}
             checked={eligible.length > 0 && eligible.every((row) => selected.includes(row.id))}
             indeterminate={eligible.some((row) => selected.includes(row.id)) && !eligible.every((row) => selected.includes(row.id))}
@@ -202,15 +199,15 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
             <TableCell>{row.weightKg != null ? `${row.weightKg} kg · ` : ''}{row.weightStatus || 'Not weighed'}<Typography variant="caption" display="block">Manual: {row.manualInspectionResult || '—'}</Typography></TableCell>
             <TableCell>{row.shipmentNo || 'Not planned'}</TableCell>
             <TableCell><Stack spacing={0.5}>
-              {packing && ['ASSIGNED', 'CHECKED'].includes(row.lifecycleStatus) && row.status !== 'WAITING_WEIGHT' && <Button size="small" disabled={busy || loading} onClick={() => openAction('inspect', row)}>Inspect</Button>}
-              {packing && row.lifecycleStatus === 'CHECKED' && row.inspectionPassed && row.status === 'COMPLETED' && <Button size="small" disabled={busy || loading} onClick={() => openAction('complete', row)}>Complete</Button>}
+              {packing && [SHIPMENT_LIFECYCLE_STATUS.ASSIGNED, SHIPMENT_LIFECYCLE_STATUS.CHECKED].includes(row.lifecycleStatus) && row.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT && <Button size="small" disabled={busy || loading} onClick={() => openAction('inspect', row)}>Inspect</Button>}
+              {packing && row.lifecycleStatus === SHIPMENT_LIFECYCLE_STATUS.CHECKED && row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button size="small" disabled={busy || loading} onClick={() => openAction('complete', row)}>Complete</Button>}
             </Stack></TableCell>
           </TableRow>)}
         </TableBody></SortableTable></TableContainer>
         <TablePagination component="div" count={cartons.totalElements} page={page} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => { setPage(next); }} />
       </>}
       {tab === 1 && <>
-        <Alert severity="info">All cartons in a shipment must pass inspection and be explicitly completed before dispatch. Cancel a planned shipment to release its cartons; dispatched shipments are locked.</Alert>
+        <Alert severity="info">{APP_MESSAGES.SHIPMENT_DISPATCH_RULES}</Alert>
         <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label="Shipment plans"><TableHead><TableRow>
           {['Shipment', 'Destination / Carrier', 'Planned date', 'Status', 'Progress (cartons)', 'Actions'].map((label) => <TableCell key={label}>{label}</TableCell>)}
         </TableRow></TableHead><TableBody>
@@ -221,9 +218,9 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
             <TableCell>{row.plannedDate}</TableCell><TableCell><Chip size="small" label={row.status} color={lifecycleColor(row.status)} /></TableCell>
             <TableCell>Checked {checked}/{planned}<br />Completed {completed}/{planned}<br />Shipped {shipped}/{planned}{failed > 0 && <Typography color="error">Failed: {failed}</Typography>}</TableCell>
             <TableCell><Stack spacing={0.5}>
-              <Button size="small" onClick={() => { setOrderId(row.orderId); setShipmentId(row.id); setKeyword(''); setSearch(''); setLifecycle('ALL'); setPage(0); setSelected([]); setTab(0); }}>View cartons</Button>
-              {packing && ['PLANNED', 'DISPATCHING'].includes(row.status) && <Button size="small" disabled={busy || loading || completed !== planned || !planned || failed > 0} onClick={() => openAction('dispatch', row)}>{row.status === 'DISPATCHING' ? 'Resume dispatch' : 'Dispatch'}</Button>}
-              {sales && row.status === 'PLANNED' && !row.executionStarted && <Button size="small" color="error" disabled={busy || loading} onClick={() => openAction('cancel', row)}>Cancel plan</Button>}
+              <Button size="small" onClick={() => { setOrderId(row.orderId); setShipmentId(row.id); setKeyword(''); setSearch(''); setLifecycle(COMMON_FILTER.ALL); setPage(0); setSelected([]); setTab(0); }}>View cartons</Button>
+              {packing && [SHIPMENT_STATUS.PLANNED, SHIPMENT_STATUS.DISPATCHING].includes(row.status) && <Button size="small" disabled={busy || loading || completed !== planned || !planned || failed > 0} onClick={() => openAction('dispatch', row)}>{row.status === SHIPMENT_STATUS.DISPATCHING ? 'Resume dispatch' : 'Dispatch'}</Button>}
+              {sales && row.status === SHIPMENT_STATUS.PLANNED && !row.executionStarted && <Button size="small" color="error" disabled={busy || loading} onClick={() => openAction('cancel', row)}>Cancel plan</Button>}
             </Stack></TableCell>
           </TableRow>)}
         </TableBody></SortableTable></TableContainer>
@@ -234,19 +231,19 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
         <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           {action?.type === 'create' && <>
-            <Alert severity="info">Step 3: {selected.length} cartons selected. Enter the shipment information and confirm. A carton can belong to only one active shipment.</Alert>
+            <Alert severity="info">{createShipmentSelectionStepMessage(selected.length)}</Alert>
             {[['shipmentNo', 'Shipment number'], ['destination', 'Destination'], ['plannedDate', 'Planned shipment date'], ['carrier', 'Carrier (optional)'], ['reference', 'Reference (optional)']].map(([name, label]) =>
               <TextField key={name} label={label} value={form[name] || ''} onChange={(event) => field(name, event.target.value)} type={name === 'plannedDate' ? 'date' : 'text'} InputLabelProps={name === 'plannedDate' ? { shrink: true } : undefined} required={['shipmentNo', 'destination', 'plannedDate'].includes(name)} disabled={busy} fullWidth />)}
           </>}
           {action?.type === 'inspect' && <>
             <Typography>{action.row.factoryBarcode} · {action.row.articleNumber} · {action.row.color} / {action.row.size} · Qty {action.row.assignedQuantity ?? action.row.cartonPcs}</Typography>
-            <Alert severity="info">Manual inspection records PASS/FAIL without inventing a weight. UNDER/OVER weight failures require an Admin reset and a new check.</Alert>
-            <TextField select label="Inspection result" value={form.result || 'PASS'} onChange={(event) => field('result', event.target.value)} disabled={busy}><MenuItem value="PASS">PASS</MenuItem><MenuItem value="FAIL">FAIL</MenuItem></TextField>
+            <Alert severity="info">{APP_MESSAGES.SHIPMENT_MANUAL_INSPECTION_INFO}</Alert>
+            <TextField select label="Inspection result" value={form.result || INSPECTION_RESULT.PASS} onChange={(event) => field('result', event.target.value)} disabled={busy}><MenuItem value={INSPECTION_RESULT.PASS}>PASS</MenuItem><MenuItem value={INSPECTION_RESULT.FAIL}>FAIL</MenuItem></TextField>
             <TextField label="Inspection note" value={form.note || ''} onChange={(event) => field('note', event.target.value)} multiline minRows={3} required disabled={busy} />
           </>}
-          {action?.type === 'complete' && <Alert severity="warning">Complete carton {action.row.factoryBarcode}? Its assignment and inspection data will be locked. This does not ship the carton.</Alert>}
-          {action?.type === 'dispatch' && <Alert severity="warning">Confirm that shipment {action.row.shipmentNo} is being shipped. All its cartons will become SHIPPED. This action cannot be undone here.</Alert>}
-          {action?.type === 'cancel' && <Alert severity="warning">Cancel plan {action.row.shipmentNo}? Cartons will be released for another plan. Their inspection and completion records are retained.</Alert>}
+          {action?.type === 'complete' && <Alert severity="warning">{createCompleteCartonConfirmMessage(action.row.factoryBarcode)}</Alert>}
+          {action?.type === 'dispatch' && <Alert severity="warning">{createDispatchShipmentConfirmMessage(action.row.shipmentNo)}</Alert>}
+          {action?.type === 'cancel' && <Alert severity="warning">{createCancelShipmentConfirmMessage(action.row.shipmentNo)}</Alert>}
         </Stack></DialogContent>
         <DialogActions><Button disabled={busy} onClick={() => setAction(null)}>Back</Button><Button variant="contained" disabled={busy} onClick={submitAction}>{busy ? 'Saving…' : 'Confirm'}</Button></DialogActions>
       </Dialog>

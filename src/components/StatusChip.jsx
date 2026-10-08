@@ -1,14 +1,15 @@
 import { Chip } from '@mui/material';
+import { STATUS_COLOR_GROUPS } from '../constants/appConstants';
 
 const normalize = (value) => String(value || 'UNKNOWN').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
 const colorFor = (status) => {
   const value = normalize(status);
-  if (['COMPLETED', 'FINISHED', 'LABEL_CONFIRMED', 'PACKED', 'READY_TO_SHIP', 'RELEASED', 'PASS', 'PASSED', 'OK', 'AVAILABLE', 'PRINTED', 'SHIPPED', 'SUCCESS'].includes(value)) return 'success';
-  if (['IN_PROGRESS', 'PACKING', 'PRINTING', 'SENT', 'ASSIGNED', 'RUNNING', 'SCANNING'].includes(value)) return 'info';
-  if (['READY', 'READY_TO_PACK', 'PLANNED', 'CREATED', 'OPEN'].includes(value)) return 'primary';
-  if (['WAITING', 'WAITING_LABEL', 'WAITING_SSCC', 'WAITING_EX_FTY', 'WAITING_FOR_WEIGHING', 'WAITING_WEIGHT', 'PENDING', 'NOT_STARTED', 'DRAFT', 'UNASSIGNED'].includes(value)) return 'warning';
-  if (['CANCELLED', 'CANCELED', 'FAILED', 'FAIL', 'ERROR', 'VOID', 'WEIGHT_WARNING', 'WEIGHT_MISMATCH', 'HOLD', 'REJECTED', 'WRONG_SKU'].includes(value)) return 'error';
+  if (STATUS_COLOR_GROUPS.success.includes(value)) return 'success';
+  if (STATUS_COLOR_GROUPS.info.includes(value)) return 'info';
+  if (STATUS_COLOR_GROUPS.primary.includes(value)) return 'primary';
+  if (STATUS_COLOR_GROUPS.warning.includes(value)) return 'warning';
+  if (STATUS_COLOR_GROUPS.error.includes(value)) return 'error';
   return 'default';
 };
 

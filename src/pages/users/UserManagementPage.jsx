@@ -3,26 +3,19 @@ import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, Dia
 import { Add, AutoAwesome, ContentCopy, Delete, Edit, EmailOutlined, LockReset } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
-import { createUser, deleteUser, generateUserPassword, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
+import { createUser, deleteUser, generateUserPassword, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
+import { ACCESS_PERMISSION, ACCESS_PERMISSION_LABEL, ROLE, USER_ACCESS_PERMISSIONS, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
+import { APP_MESSAGES, createDeleteUserConfirmMessage } from '../../constants/appMessages';
 
-const ACCESS = ['SALES','BARCODE_OPERATOR','ASSIGN_BARCODE','WEIGHT_CHECK','PRINT_ROOM','VIEW_SYSTEM'];
-const ACCESS_LABEL = {
-  SALES: 'Sales',
-  BARCODE_OPERATOR: 'Barcode Operator',
-  ASSIGN_BARCODE: 'Packing / Assign Barcode',
-  WEIGHT_CHECK: 'Weight Check',
-  PRINT_ROOM: 'Print Room',
-  VIEW_SYSTEM: 'View Only'
-};
-const BUYERS = ['LULULEMON','ENGELBERT_STRAUSS'];
 
 export default function UserManagementPage() {
-  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: 25, loading: false });
+  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: DEFAULT_TABLE_PAGE_SIZE, loading: false });
   const [filters, setFilters] = useState({ username: '', email: '', phone: '', role: '', departmentId: '', enabled: '' });
   const [dialog, setDialog] = useState(null);
   const [reset, setReset] = useState(null);
   const [error, setError] = useState('');
   const [departments, setDepartments] = useState([]);
+  const [buyers, setBuyers] = useState([]);
 
   const load = async (page = state.page, size = state.size) => {
     setState((s) => ({ ...s, loading: true }));
@@ -37,6 +30,7 @@ export default function UserManagementPage() {
 
   useEffect(() => { load(0, state.size); }, [filters]);
   useEffect(() => { listDepartments({ page: 0, size: 200 }).then((r) => setDepartments(r.content || [])).catch(() => {}); }, []);
+  useEffect(() => { listBuyersAdmin({ active: true, page: 0, size: 200 }).then((r) => setBuyers(r.content || [])).catch(() => {}); }, []);
 
   const save = async (body) => {
     try {
@@ -49,7 +43,7 @@ export default function UserManagementPage() {
   };
 
   const remove = async (row) => {
-    if (!row || !confirm(`Delete user ${row.username}?`)) return;
+    if (!row || !confirm(createDeleteUserConfirmMessage(row.username))) return;
     try {
       await deleteUser(row.id);
       load(state.page, state.size);
@@ -72,7 +66,7 @@ export default function UserManagementPage() {
     try {
       const result = await generateUserPassword(reset.id);
       const generated = String(result?.password || '');
-      if (!generated) throw new Error('Server did not return the generated password');
+      if (!generated) throw new Error(APP_MESSAGES.GENERATED_PASSWORD_MISSING);
       return generated;
     } catch (e) {
       setError(e?.response?.data?.message || e.message);
@@ -86,7 +80,7 @@ export default function UserManagementPage() {
     { key: 'role', label: 'Role' },
     { key: 'enabled', label: 'Status', render: (r) => r.enabled ? 'Enabled' : 'Disabled' },
     { key: 'buyerPermissions', label: 'Buyers', render: (r) => (r.buyerPermissions || []).join(', ') || '—' },
-    { key: 'accessPermissions', label: 'Permissions', render: (r) => (r.accessPermissions || []).map((v) => ACCESS_LABEL[v] || v).join(', ') || '—' },
+    { key: 'accessPermissions', label: 'Permissions', render: (r) => (r.accessPermissions || []).map((v) => ACCESS_PERMISSION_LABEL[v] || v).join(', ') || '—' },
     { key: 'departmentId', label: 'Department', render: (r) => { const d = departments.find((x) => x.id === r.departmentId); return d ? `${d.factory || '—'} · ${d.departmentName}` : (r.departmentId || '—'); } },
     {
       key: 'actions',
@@ -125,14 +119,14 @@ export default function UserManagementPage() {
           disabled={state.loading}
         />
         <ManagementTable {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
-        {dialog ? <UserDialog row={dialog} departments={departments} onClose={() => setDialog(null)} onSave={save} /> : null}
+        {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers} onClose={() => setDialog(null)} onSave={save} /> : null}
         {reset ? <PasswordDialog user={reset} onClose={() => setReset(null)} onSave={doReset} onGenerateReset={doGenerateReset} /> : null}
       </Stack>
     </Box>
   );
 }
 
-function UserDialog({ row, departments, onClose, onSave }) {
+function UserDialog({ row, departments, buyers, onClose, onSave }) {
   const editing = Boolean(row.id);
   const [f, setF] = useState({
     username: row.username || '',
@@ -140,10 +134,10 @@ function UserDialog({ row, departments, onClose, onSave }) {
     password: '',
     address: row.address || '',
     phone: row.phone || '',
-    role: row.role || 'USER',
+    role: row.role || ROLE.USER,
     enabled: row.enabled !== false,
     departmentId: row.departmentId || '',
-    accessPermissions: row.accessPermissions || ['VIEW_SYSTEM'],
+    accessPermissions: row.accessPermissions || [ACCESS_PERMISSION.VIEW_SYSTEM],
     buyerPermissions: row.buyerPermissions || [],
     factoryPermissions: row.factoryPermissions || []
   });
@@ -151,10 +145,10 @@ function UserDialog({ row, departments, onClose, onSave }) {
   const toggle = (key, v) => setF((s) => {
     if (key === 'accessPermissions') {
       const current = Array.isArray(s[key]) ? s[key] : [];
-      if (v === 'VIEW_SYSTEM') {
-        return { ...s, [key]: current.includes(v) ? [] : ['VIEW_SYSTEM'] };
+      if (v === ACCESS_PERMISSION.VIEW_SYSTEM) {
+        return { ...s, [key]: current.includes(v) ? [] : [ACCESS_PERMISSION.VIEW_SYSTEM] };
       }
-      const withoutView = current.filter((x) => x !== 'VIEW_SYSTEM');
+      const withoutView = current.filter((x) => x !== ACCESS_PERMISSION.VIEW_SYSTEM);
       return { ...s, [key]: withoutView.includes(v) ? withoutView.filter((x) => x !== v) : [...withoutView, v] };
     }
     return { ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] };
@@ -191,9 +185,9 @@ function UserDialog({ row, departments, onClose, onSave }) {
           </Stack>
           <FormControlLabel control={<Checkbox checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />} label="Enabled" />
           <Typography fontWeight={800}>Buyer permissions</Typography>
-          <Stack direction="row" flexWrap="wrap">{BUYERS.map((v) => <FormControlLabel key={v} control={<Checkbox checked={f.buyerPermissions.includes(v)} onChange={() => toggle('buyerPermissions', v)} />} label={v} />)}</Stack>
+          <Stack direction="row" flexWrap="wrap">{buyers.map((buyer) => { const v = buyer.buyerKey; return <FormControlLabel key={buyer.id || v} control={<Checkbox checked={f.buyerPermissions.includes(v)} onChange={() => toggle('buyerPermissions', v)} />} label={buyer.buyerName || v} />; })}</Stack>
           <Typography fontWeight={800}>Access permissions</Typography>
-          <Stack direction="row" flexWrap="wrap">{ACCESS.map((v) => <FormControlLabel key={v} control={<Checkbox checked={f.accessPermissions.includes(v)} onChange={() => toggle('accessPermissions', v)} />} label={ACCESS_LABEL[v] || v} />)}</Stack>
+          <Stack direction="row" flexWrap="wrap">{USER_ACCESS_PERMISSIONS.map((v) => <FormControlLabel key={v} control={<Checkbox checked={f.accessPermissions.includes(v)} onChange={() => toggle('accessPermissions', v)} />} label={ACCESS_PERMISSION_LABEL[v] || v} />)}</Stack>
           <TextField label="Factory permissions (comma-separated, e.g. F1,F2)" value={Array.isArray(f.factoryPermissions) ? f.factoryPermissions.join(',') : f.factoryPermissions} onChange={(e) => setF({ ...f, factoryPermissions: e.target.value })} />
         </Stack>
       </DialogContent>

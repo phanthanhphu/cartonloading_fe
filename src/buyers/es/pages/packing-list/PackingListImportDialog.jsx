@@ -14,15 +14,17 @@ import {
   Typography
 } from '@mui/material';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
+import { APP_MESSAGES } from '../../../../constants/appMessages';
+import { IMPORT_MODE } from '../../../../constants/appConstants';
 
 export default function PackingListImportDialog({ open, importing, result, onClose, onImport }) {
   const [file, setFile] = useState(null);
-  const [mode, setMode] = useState('CREATE_ONLY');
+  const [mode, setMode] = useState(IMPORT_MODE.CREATE_ONLY);
 
   useEffect(() => {
     if (open) {
       setFile(null);
-      setMode('CREATE_ONLY');
+      setMode(IMPORT_MODE.CREATE_ONLY);
     }
   }, [open]);
 
@@ -41,16 +43,16 @@ export default function PackingListImportDialog({ open, importing, result, onClo
           <FormControl>
             <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Import mode</Typography>
             <RadioGroup value={mode} onChange={(event) => setMode(event.target.value)}>
-              <FormControlLabel value="CREATE_ONLY" control={<Radio />} label="Append rows to the existing Packing List" />
-              <FormControlLabel value="UPSERT" control={<Radio />} label="Update matching carton/product rows and add new rows" />
-              <FormControlLabel value="REPLACE_ALL" control={<Radio />} label="Delete the current Packing List and import the file again" />
+              <FormControlLabel value={IMPORT_MODE.CREATE_ONLY} control={<Radio />} label="Append rows to the existing Packing List" />
+              <FormControlLabel value={IMPORT_MODE.UPSERT} control={<Radio />} label="Update matching carton/product rows and add new rows" />
+              <FormControlLabel value={IMPORT_MODE.REPLACE_ALL} control={<Radio />} label="Delete the current Packing List and import the file again" />
             </RadioGroup>
           </FormControl>
           {result && (
             <Alert severity={result.applied ? 'success' : 'error'}>
               {result.applied
                 ? `Import completed: ${result.created || 0} created and ${result.updated || 0} updated.`
-                : `Import failed. ${result.errors?.[0]?.message || 'Please check the file.'}`}
+                : `Import failed. ${result.errors?.[0]?.message || APP_MESSAGES.PLEASE_CHECK_FILE}`}
             </Alert>
           )}
         </Stack>

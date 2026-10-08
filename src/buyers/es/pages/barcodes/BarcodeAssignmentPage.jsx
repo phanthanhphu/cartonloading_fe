@@ -1,3 +1,4 @@
+import { DEFAULT_TABLE_PAGE_SIZE, OPERATION_ROUTE, BARCODE_CARTON_STATUS, COMMON_FILTER, PROGRESS_STATUS } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { quantityMatchesPlan } from 'buyers/es/domain/workflow';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +35,7 @@ import {
   QrCodeScannerOutlined,
   RefreshOutlined
 } from '@mui/icons-material';
+import { APP_MESSAGES, createFactoryBarcodeAssignedMessage, createFactoryBarcodeAssignedNextMessage, createFactoryBarcodeAvailableMessage, createFactoryBarcodeReleasedMessage, createQuantityMismatchMessage, createUnassignFactoryBarcodeConfirmMessage } from '../../../../constants/appMessages';
 
 import {
   assignFactoryBarcodeToCarton,
@@ -46,7 +48,7 @@ import { getPackingOrder } from 'buyers/es/services/packingListService';
 import { getBuyerBySlug } from 'utils/buyerAccess';
 import TableFilterBar from 'components/TableFilterBar';
 
-const DEFAULT_PAGE_SIZE = 25;
+
 
 const getErrorMessage = (error, fallback) => (
   error?.response?.data?.message
@@ -59,13 +61,13 @@ const valueText = (value) => value === null || value === undefined || value === 
 
 const numberText = (value) => Number(value || 0).toLocaleString('en-US');
 
-const statusLabel = (value) => String(value || 'NOT_STARTED').replaceAll('_', ' ');
+const statusLabel = (value) => String(value || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ');
 
 const statusChip = (value) => {
   switch (String(value || '').toUpperCase()) {
-    case 'COMPLETED': return { color: 'success', variant: 'filled' };
-    case 'IN_PROGRESS': return { color: 'warning', variant: 'filled' };
-    case 'PLAN_MISMATCH': return { color: 'error', variant: 'filled' };
+    case PROGRESS_STATUS.COMPLETED: return { color: 'success', variant: 'filled' };
+    case PROGRESS_STATUS.IN_PROGRESS: return { color: 'warning', variant: 'filled' };
+    case BARCODE_CARTON_STATUS.PLAN_MISMATCH: return { color: 'error', variant: 'filled' };
     default: return { color: 'default', variant: 'outlined' };
   }
 };
@@ -85,7 +87,7 @@ export default function BarcodeAssignmentPage() {
   const [filters, setFilters] = useState({ poNumber: '', articleNumber: '', styleNumber: '', style: '', assignmentStatus: '' });
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [totalElements, setTotalElements] = useState(0);
   const [summary, setSummary] = useState({ expected: 0, generated: 0, assigned: 0 });
   const [loadingOrder, setLoadingOrder] = useState(true);
@@ -109,7 +111,7 @@ export default function BarcodeAssignmentPage() {
   const eligibleCartons = useMemo(() => cartons.filter((carton) => (
     !carton.factoryBarcode
     && !carton.shipmentId
-    && carton.status === 'PLANNED'
+    && carton.status === BARCODE_CARTON_STATUS.PLANNED
   )), [cartons]);
 
   const plannedQuantity = plannedQuantityOf(selectedCarton);
@@ -140,7 +142,7 @@ export default function BarcodeAssignmentPage() {
     try {
       setOrder(await getPackingOrder(buyer.code, orderId));
     } catch (error) {
-      setPageError(getErrorMessage(error, 'Unable to load Order information.'));
+      setPageError(getErrorMessage(error, APP_MESSAGES.LOAD_ORDER_INFO_FAILED));
     } finally {
       setLoadingOrder(false);
     }
@@ -158,7 +160,7 @@ export default function BarcodeAssignmentPage() {
         articleNumber: debouncedFilters.articleNumber || undefined,
         styleNumber: debouncedFilters.styleNumber || undefined,
         style: debouncedFilters.style || undefined,
-        assignmentStatus: debouncedFilters.assignmentStatus || 'ALL',
+        assignmentStatus: debouncedFilters.assignmentStatus || COMMON_FILTER.ALL,
         page,
         size: pageSize
       });
@@ -175,7 +177,7 @@ export default function BarcodeAssignmentPage() {
       if (requestId !== requestRef.current) return;
       setRows([]);
       setTotalElements(0);
-      setPageError(getErrorMessage(error, 'Unable to load Master rows for Barcode Assignment.'));
+      setPageError(getErrorMessage(error, APP_MESSAGES.LOAD_MASTER_ROWS_FAILED));
     } finally {
       if (requestId === requestRef.current) setLoadingRows(false);
     }
@@ -193,7 +195,7 @@ export default function BarcodeAssignmentPage() {
       if (resetEntry) resetCartonEntry();
     } catch (error) {
       setCartons([]);
-      setDetailError(getErrorMessage(error, 'Unable to load physical cartons for the selected Master row.'));
+      setDetailError(getErrorMessage(error, APP_MESSAGES.LOAD_PHYSICAL_CARTONS_FAILED));
     } finally {
       setLoadingCartons(false);
     }
@@ -247,9 +249,9 @@ export default function BarcodeAssignmentPage() {
       setBarcode(result?.barcode || code);
       setSelectedCarton(null);
       setActualQuantity('');
-        setDetailNotice(`Factory Barcode ${result?.barcode || code} is available. Select a physical carton below.`);
+        setDetailNotice(createFactoryBarcodeAvailableMessage(result?.barcode || code));
     } catch (error) {
-      setDetailError(getErrorMessage(error, 'Factory Barcode cannot be used for assignment.'));
+      setDetailError(getErrorMessage(error, APP_MESSAGES.BARCODE_ASSIGNMENT_UNAVAILABLE));
       focusBarcode();
     } finally {
       setCheckingBarcode(false);
@@ -259,7 +261,7 @@ export default function BarcodeAssignmentPage() {
   const assignCurrentCarton = async () => {
     if (!buyer?.code || !selectedMaster || !selectedCarton || !checkedBarcode?.barcode || assigning) return;
     if (!quantityValid) {
-      setDetailError(`Quantity Mismatch. Planned: ${valueText(plannedQuantity)} pcs. Enter the exact actual quantity before continuing.`);
+      setDetailError(createQuantityMismatchMessage(valueText(plannedQuantity)));
       focusActualQuantity();
       return;
     }
@@ -275,16 +277,16 @@ export default function BarcodeAssignmentPage() {
         productionLine: productionLine.trim() || null
       });
 
-      const successMessage = `${assigned.cartonCode || `Carton ${assigned.cartonSequence}`} assigned to Factory Barcode ${checkedBarcode.barcode}.`;
+      const successMessage = createFactoryBarcodeAssignedMessage(assigned.cartonCode || `Carton ${assigned.cartonSequence}`, checkedBarcode.barcode);
       setPageNotice(successMessage);
       await Promise.all([
         loadMasterRows(),
         loadMasterCartons(selectedMaster)
       ]);
       resetCartonEntry();
-      setDetailNotice(`${successMessage} Scan the next Factory Barcode when you are ready.`);
+      setDetailNotice(createFactoryBarcodeAssignedNextMessage(successMessage));
     } catch (error) {
-      setDetailError(getErrorMessage(error, 'Unable to pack and assign the selected physical carton.'));
+      setDetailError(getErrorMessage(error, APP_MESSAGES.PACK_ASSIGN_CARTON_FAILED));
     } finally {
       setAssigning(false);
     }
@@ -292,18 +294,18 @@ export default function BarcodeAssignmentPage() {
 
   const unassign = async (carton) => {
     if (!buyer?.code || !selectedMaster || !carton?.factoryBarcode || assigning) return;
-    if (!window.confirm(`Unassign Factory Barcode ${carton.factoryBarcode} from ${carton.cartonCode || 'this physical carton'}?`)) return;
+    if (!window.confirm(createUnassignFactoryBarcodeConfirmMessage(carton.factoryBarcode, carton.cartonCode || 'this physical carton'))) return;
     setAssigning(true);
     setDetailError('');
     try {
       await unassignFactoryBarcodeFromCarton(buyer.code, orderId, carton.id);
-      setDetailNotice(`Factory Barcode ${carton.factoryBarcode} was released. This carton is available for packing again.`);
+      setDetailNotice(createFactoryBarcodeReleasedMessage(carton.factoryBarcode));
       await Promise.all([
         loadMasterRows(),
         loadMasterCartons(selectedMaster)
       ]);
     } catch (error) {
-      setDetailError(getErrorMessage(error, 'Unable to unassign Factory Barcode.'));
+      setDetailError(getErrorMessage(error, APP_MESSAGES.UNASSIGN_FACTORY_BARCODE_FAILED));
     } finally {
       setAssigning(false);
     }
@@ -314,13 +316,13 @@ export default function BarcodeAssignmentPage() {
     if (selectedMaster) await loadMasterCartons(selectedMaster, { resetEntry: false });
   };
 
-  if (!buyer) return <Alert severity="warning">Buyer could not be identified.</Alert>;
+  if (!buyer) return <Alert severity="warning">{APP_MESSAGES.BUYER_NOT_IDENTIFIED}</Alert>;
 
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 }, width: '100%' }}>
       <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ lg: 'center' }} spacing={0.9} sx={{ mb: 0.9 }}>
         <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate('/assign-barcode')}>Back</Button>
+          <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate(OPERATION_ROUTE.ASSIGN_BARCODE)}>Back</Button>
           <Box>
             <Typography sx={{ fontWeight: 850, color: '#103B5C', fontSize: '1.05rem' }}>Assign Barcode for Carton</Typography>
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
@@ -355,10 +357,10 @@ export default function BarcodeAssignmentPage() {
                 { key: 'styleNumber', label: 'STYLE#' },
                 { key: 'style', label: 'STYLE' },
                 { key: 'assignmentStatus', label: 'Assignment Status', options: [
-                  { value: 'NOT_STARTED', label: 'Not Started' },
-                  { value: 'IN_PROGRESS', label: 'In Progress' },
-                  { value: 'COMPLETED', label: 'Completed' },
-                  { value: 'PLAN_MISMATCH', label: 'Plan Mismatch' }
+                  { value: PROGRESS_STATUS.NOT_STARTED, label: 'Not Started' },
+                  { value: PROGRESS_STATUS.IN_PROGRESS, label: 'In Progress' },
+                  { value: PROGRESS_STATUS.COMPLETED, label: 'Completed' },
+                  { value: BARCODE_CARTON_STATUS.PLAN_MISMATCH, label: 'Plan Mismatch' }
                 ] }
               ]}
               values={filters}
@@ -385,8 +387,8 @@ export default function BarcodeAssignmentPage() {
                 <TableRow><TableCell colSpan={14} align="center" sx={{ py: 8 }}><CircularProgress /></TableCell></TableRow>
               ) : rows.length ? rows.map((row, index) => {
                 const chip = statusChip(row.assignmentStatus);
-                const completed = row.assignmentStatus === 'COMPLETED';
-                const mismatch = row.assignmentStatus === 'PLAN_MISMATCH' || !row.cartonCountMatches;
+                const completed = row.assignmentStatus === PROGRESS_STATUS.COMPLETED;
+                const mismatch = row.assignmentStatus === BARCODE_CARTON_STATUS.PLAN_MISMATCH || !row.cartonCountMatches;
                 return (
                   <TableRow key={row.masterLineId} hover sx={{ cursor: mismatch ? 'default' : 'pointer' }} onDoubleClick={() => !mismatch && openMaster(row)}>
                     <TableCell sx={{ fontWeight: 750 }}>{page * pageSize + index + 1}</TableCell>
@@ -505,7 +507,7 @@ export default function BarcodeAssignmentPage() {
                           }}
                           disabled={assigning || checkingBarcode}
                           placeholder="Scan or enter Factory Barcode"
-                          helperText="Validate the barcode first. Physical cartons will then be enabled for selection."
+                          helperText={APP_MESSAGES.BARCODE_VALIDATE_FIRST_HELPER}
                           sx={{ '& .MuiInputBase-root': { minHeight: 58, fontSize: '1.05rem', fontWeight: 850, letterSpacing: 0.5 } }}
                         />
                         <Button
@@ -580,10 +582,10 @@ export default function BarcodeAssignmentPage() {
                       <TableBody>
                         {cartons.map((carton) => {
                           const assigned = Boolean(carton.factoryBarcode);
-                          const eligible = !assigned && !carton.shipmentId && carton.status === 'PLANNED';
+                          const eligible = !assigned && !carton.shipmentId && carton.status === BARCODE_CARTON_STATUS.PLANNED;
                           const isSelected = selectedCarton?.id === carton.id;
                           const canSelect = eligible && Boolean(checkedBarcode) && !assigning;
-                          const canUnassign = assigned && carton.status === 'PLANNED' && !carton.shipmentId && !carton.weightKg && !carton.jobId;
+                          const canUnassign = assigned && carton.status === BARCODE_CARTON_STATUS.PLANNED && !carton.shipmentId && !carton.weightKg && !carton.jobId;
                           return (
                             <TableRow
                               key={carton.id}
@@ -659,7 +661,7 @@ export default function BarcodeAssignmentPage() {
                 </Paper>
 
                 {checkedBarcode && !selectedCarton && eligibleCartons.length > 0 && (
-                  <Alert severity="info">Factory Barcode is ready. Select one physical carton above to continue.</Alert>
+                  <Alert severity="info">{APP_MESSAGES.FACTORY_BARCODE_READY_SELECT_CARTON}</Alert>
                 )}
 
                 {checkedBarcode && selectedCarton && (
@@ -753,7 +755,7 @@ export default function BarcodeAssignmentPage() {
                 )}
               </>
             ) : (
-              <Alert severity="warning">No physical cartons are available for this Master row.</Alert>
+              <Alert severity="warning">{APP_MESSAGES.NO_PHYSICAL_CARTONS_FOR_MASTER}</Alert>
             )}
           </Stack>
         </DialogContent>

@@ -1,319 +1,535 @@
-import SortableTable from 'components/SortableTable';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
   Chip,
-  Divider,
+  InputAdornment,
+  MenuItem,
   Paper,
   Stack,
-  
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
+  TablePagination,
   TextField,
-  Tooltip,
   Typography
 } from '@mui/material';
 import {
-  ArrowBackRounded,
-  CalendarMonthRounded,
-  CheckRounded,
+  ArrowForwardRounded,
   ClearRounded,
+  FactCheckOutlined,
+  LocalShippingOutlined,
   Refresh,
-  UploadFile
+  Search
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import SortableTable from 'components/SortableTable';
+import LululemonTableViewport from '../components/LululemonTableViewport';
+import OperationWorkspaceDialog from '../components/OperationWorkspaceDialog';
 import { CompactPageHeader } from 'components/CompactPageHeader';
-import TableFilterBar from 'components/TableFilterBar';
-import { importLululemonShipping, listAllLululemonPos, updateLululemonExFty } from '../services/lululemonService';
-import LululemonStatusChip from '../components/LululemonStatusChip';
-import LululemonOrderScope from '../components/LululemonOrderScope';
+import { canManageSales } from 'utils/accessControl';
+import OrderScope from '../components/OrderScope';
+import { createShippingSchedule, listAllPos, listShippingSchedules } from '../services/service';
+import { FACTORY_CODES } from '../../../constants/appConstants';
 
-const normalize = (value) => String(value || '').trim().toLowerCase();
+const errorText = (error) => error?.response?.data?.message || error?.message || 'Operation failed.';
+const value = (v) => (v == null || v === '' ? '—' : v);
+const normalize = (v) => String(v ?? '').trim();
+
+const FILTER_CONFIG = Object.freeze([
+  { key: 'poNumber', label: 'PO' },
+  { key: 'masterPo', label: 'Master PO' },
+  { key: 'dcDestination', label: 'DC / Destination' },
+  { key: 'packingPlan', label: 'Packing Plan' },
+  { key: 'salesOrderPts', label: 'SO (PTS)' },
+  { key: 'styleColor', label: 'Style / Color' },
+  { key: 'size', label: 'Size' }
+]);
+
+const emptyPoFilters = () => Object.fromEntries(FILTER_CONFIG.map(({ key }) => [key, []]));
+
+const uniqueSorted = (rows, key) => [...new Set(
+  rows.map((row) => normalize(row?.[key])).filter(Boolean)
+)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+const pairValue = (first, second) => [normalize(first), normalize(second)].filter(Boolean).join(' · ');
+
+const uniquePairOptions = (rows, firstKey, secondKey) => [...new Set(
+  rows.map((row) => pairValue(row?.[firstKey], row?.[secondKey])).filter(Boolean)
+)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+function MultiValueFilter({ label, options, value: selectedValues, onChange, disabled }) {
+  return (
+    <Autocomplete
+      multiple
+      disableCloseOnSelect
+      filterSelectedOptions
+      limitTags={1}
+      size="small"
+      options={options}
+      value={selectedValues}
+      onChange={(_, next) => onChange(next)}
+      disabled={disabled}
+      isOptionEqualToValue={(option, selected) => option === selected}
+      renderOption={(props, option, { selected }) => (
+        <li {...props}>
+          <Checkbox size="small" checked={selected} sx={{ mr: 0.5, p: 0.25 }} />
+          <Typography variant="body2" noWrap>{option}</Typography>
+        </li>
+      )}
+      renderInput={(params) => <TextField {...params} label={label} placeholder={selectedValues.length ? '' : 'All'} />}
+      sx={{ minWidth: 0 }}
+    />
+  );
+}
+
+function SectionHeading({ tag, title, subtitle, action }) {
+  return (
+    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={1}>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
+        <Chip size="small" color="primary" variant="outlined" label={tag} sx={{ mt: 0.15, fontWeight: 900 }} />
+        <Box>
+          <Typography fontWeight={950}>{title}</Typography>
+          <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
+        </Box>
+      </Stack>
+      {action || null}
+    </Stack>
+  );
+}
 
 export default function ShippingPage() {
+  const sales = canManageSales();
   const navigate = useNavigate();
+  const { buyerSlug } = useParams();
   const [orderId, setOrderId] = useState('');
-  const [rows, setRows] = useState([]);
+  const [pos, setPos] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [selectedPoIds, setSelectedPoIds] = useState(() => new Set());
+  const [poSearch, setPoSearch] = useState('');
+  const [poFilters, setPoFilters] = useState(() => emptyPoFilters());
+  const [factoryCode, setFactoryCode] = useState('');
+  const [shippingDate, setShippingDate] = useState('');
   const [busy, setBusy] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [notice, setNotice] = useState(null);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [filters, setFilters] = useState({ poNumber: '', factoryCode: '', styleNumber: '', sku: '', exFtyDate: '', status: '' });
-  const [exFtyDate, setExFtyDate] = useState('');
-  const [selected, setSelected] = useState(() => new Set());
-  const fileRef = useRef(null);
+  const [poPage, setPoPage] = useState(0);
+  const [poRowsPerPage, setPoRowsPerPage] = useState(25);
 
-  const load = useCallback(async () => {
+  const loadBase = useCallback(async () => {
     if (!orderId) {
-      setRows([]);
+      setPos([]);
+      setSchedules([]);
       return;
     }
+    setBusy(true);
     try {
-      setRows(await listAllLululemonPos(orderId));
+      const [poRows, scheduleRows] = await Promise.all([listAllPos(orderId), listShippingSchedules(orderId)]);
+      setPos(Array.isArray(poRows) ? poRows : []);
+      setSchedules(Array.isArray(scheduleRows) ? scheduleRows : []);
     } catch (error) {
-      setNotice({ severity: 'error', text: error?.response?.data?.message || error.message });
+      setNotice({ severity: 'error', text: errorText(error) });
+    } finally {
+      setBusy(false);
     }
   }, [orderId]);
 
   useEffect(() => {
-    setSelected(new Set());
-    setFilters({ poNumber: '', factoryCode: '', styleNumber: '', sku: '', exFtyDate: '', status: '' });
-    setPage(0);
-    load();
-  }, [load]);
+    setSelectedPoIds(new Set());
+    setFactoryCode('');
+    setShippingDate('');
+    setPoSearch('');
+    setPoFilters(emptyPoFilters());
+    setPoPage(0);
+    setCreateOpen(false);
+    loadBase();
+  }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredRows = useMemo(() => rows.filter((row) => (
-    (!filters.poNumber || normalize(row.poNumber).includes(normalize(filters.poNumber))) &&
-    (!filters.factoryCode || normalize(row.factoryCode).includes(normalize(filters.factoryCode))) &&
-    (!filters.styleNumber || normalize(row.styleNumber).includes(normalize(filters.styleNumber))) &&
-    (!filters.sku || normalize(row.sku).includes(normalize(filters.sku))) &&
-    (!filters.exFtyDate || String(row.exFtyDate || '').slice(0, 10) === filters.exFtyDate) &&
-    (!filters.status || normalize(row.status) === normalize(filters.status))
-  )), [rows, filters]);
+  const assignedOpenPoIds = useMemo(() => {
+    const ids = new Set();
+    schedules.forEach((row) => {
+      if (row?.schedule?.status === 'COMPLETED') return;
+      (row?.schedule?.poIds || []).forEach((id) => ids.add(id));
+    });
+    return ids;
+  }, [schedules]);
 
-  const pageRows = useMemo(
-    () => filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [filteredRows, page, rowsPerPage]
+  const filterOptions = useMemo(() => ({
+    poNumber: uniqueSorted(pos, 'poNumber'),
+    masterPo: uniqueSorted(pos, 'masterPo'),
+    dcDestination: uniquePairOptions(pos, 'dcCode', 'destination'),
+    packingPlan: uniqueSorted(pos, 'packingPlan'),
+    salesOrderPts: uniqueSorted(pos, 'salesOrderPts'),
+    styleColor: uniquePairOptions(pos, 'style', 'color'),
+    size: uniqueSorted(pos, 'size')
+  }), [pos]);
+
+  const activeFilterCount = useMemo(
+    () => FILTER_CONFIG.filter(({ key }) => (poFilters[key] || []).length > 0).length,
+    [poFilters]
   );
 
-  const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.id)), [rows, selected]);
-  const allPageSelected = pageRows.length > 0 && pageRows.every((row) => selected.has(row.id));
-  const somePageSelected = pageRows.some((row) => selected.has(row.id));
-
-  const toggleOne = (id) => {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const togglePage = () => {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (allPageSelected) pageRows.forEach((row) => next.delete(row.id));
-      else pageRows.forEach((row) => next.add(row.id));
-      return next;
-    });
-  };
-
-  const upload = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !orderId) return;
-    setBusy(true);
-    try {
-      const result = await importLululemonShipping(orderId, file);
-      const warnings = Array.isArray(result.warnings) ? result.warnings : [];
-      setNotice({
-        severity: warnings.length ? 'warning' : 'success',
-        text: `Shipping List imported. ${result.updatedPos || 0} PO updated.${warnings.length ? ` ${warnings.length} note(s): ${warnings.join(' | ')}` : ''}`
-      });
-      await load();
-    } catch (error) {
-      setNotice({ severity: 'error', text: error?.response?.data?.message || error.message || 'Shipping List import failed.' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const applyDate = async () => {
-    if (!orderId || !exFtyDate || !selectedRows.length || busy) return;
-    setBusy(true);
-    try {
-      let updated = 0;
-      const failed = [];
-      const chunkSize = 8;
-      for (let index = 0; index < selectedRows.length; index += chunkSize) {
-        const chunk = selectedRows.slice(index, index + chunkSize);
-        const results = await Promise.allSettled(
-          chunk.map((row) => updateLululemonExFty(orderId, row.poNumber, exFtyDate))
-        );
-        results.forEach((result, resultIndex) => {
-          if (result.status === 'fulfilled') updated += 1;
-          else failed.push(chunk[resultIndex].poNumber);
-        });
+  const filteredPos = useMemo(() => {
+    const tokens = poSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return pos.filter((po) => {
+      if (tokens.length) {
+        const haystack = [
+          po.poNumber,
+          po.sku,
+          po.masterPo,
+          po.dcCode,
+          po.destination,
+          po.channel,
+          po.packingPlan,
+          po.salesOrderPts,
+          po.style,
+          po.description,
+          po.color,
+          po.size,
+          po.factoryCode
+        ].filter((item) => item != null && item !== '').join(' ').toLowerCase();
+        if (!tokens.every((token) => haystack.includes(token))) return false;
       }
-      await load();
-      setSelected(new Set());
-      setNotice({
-        severity: failed.length ? 'warning' : 'success',
-        text: failed.length
-          ? `${updated} PO updated to ${exFtyDate}. Failed: ${failed.join(', ')}`
-          : `${updated} PO updated to Ex-Factory Date ${exFtyDate}.`
+
+      for (const key of ['poNumber', 'masterPo', 'packingPlan', 'salesOrderPts']) {
+        const selected = poFilters[key] || [];
+        if (selected.length && !selected.includes(normalize(po?.[key]))) return false;
+      }
+
+      if (poFilters.dcDestination.length && !poFilters.dcDestination.includes(pairValue(po?.dcCode, po?.destination))) return false;
+      if (poFilters.styleColor.length && !poFilters.styleColor.includes(pairValue(po?.style, po?.color))) return false;
+      if (poFilters.size.length && !poFilters.size.includes(normalize(po?.size))) return false;
+      return true;
+    });
+  }, [pos, poSearch, poFilters]);
+
+  const selectableFilteredPos = useMemo(
+    () => filteredPos.filter((po) => !assignedOpenPoIds.has(po.id)),
+    [filteredPos, assignedOpenPoIds]
+  );
+
+  const pagedPos = useMemo(() => {
+    const start = poPage * poRowsPerPage;
+    return filteredPos.slice(start, start + poRowsPerPage);
+  }, [filteredPos, poPage, poRowsPerPage]);
+
+  const selectablePagePos = useMemo(
+    () => pagedPos.filter((po) => !assignedOpenPoIds.has(po.id)),
+    [pagedPos, assignedOpenPoIds]
+  );
+
+  const selectedVisibleCount = useMemo(
+    () => filteredPos.filter((po) => selectedPoIds.has(po.id)).length,
+    [filteredPos, selectedPoIds]
+  );
+  const selectedHiddenCount = Math.max(0, selectedPoIds.size - selectedVisibleCount);
+  const allFilteredSelected = selectableFilteredPos.length > 0 && selectableFilteredPos.every((po) => selectedPoIds.has(po.id));
+  const allPageSelected = selectablePagePos.length > 0 && selectablePagePos.every((po) => selectedPoIds.has(po.id));
+  const somePageSelected = selectablePagePos.some((po) => selectedPoIds.has(po.id));
+
+  useEffect(() => {
+    setPoPage(0);
+  }, [poSearch, poFilters]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(filteredPos.length / poRowsPerPage) - 1);
+    if (poPage > maxPage) setPoPage(maxPage);
+  }, [filteredPos.length, poPage, poRowsPerPage]);
+
+  const activeFilterChips = useMemo(() => FILTER_CONFIG.flatMap(({ key, label }) => {
+    const values = poFilters[key] || [];
+    if (!values.length) return [];
+    const summary = `${values.slice(0, 2).join(', ')}${values.length > 2 ? ` +${values.length - 2}` : ''}`;
+    return [{ key, label: `${label}: ${summary}` }];
+  }), [poFilters]);
+
+  const updatePoFilter = (key, values) => setPoFilters((current) => ({ ...current, [key]: values }));
+  const clearAllFilters = () => {
+    setPoSearch('');
+    setPoFilters(emptyPoFilters());
+  };
+
+  const toggleFilteredPos = () => {
+    setSelectedPoIds((current) => {
+      const next = new Set(current);
+      if (allFilteredSelected) selectableFilteredPos.forEach((po) => next.delete(po.id));
+      else selectableFilteredPos.forEach((po) => next.add(po.id));
+      return next;
+    });
+  };
+
+  const togglePagePos = () => {
+    setSelectedPoIds((current) => {
+      const next = new Set(current);
+      if (allPageSelected) selectablePagePos.forEach((po) => next.delete(po.id));
+      else selectablePagePos.forEach((po) => next.add(po.id));
+      return next;
+    });
+  };
+
+  const togglePo = (id) => {
+    if (assignedOpenPoIds.has(id)) return;
+    setSelectedPoIds((current) => {
+      const next = new Set(current);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const createSchedule = async () => {
+    if (!sales || !orderId || !factoryCode || !shippingDate || !selectedPoIds.size || busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await createShippingSchedule(orderId, {
+        factoryCode,
+        exFtyDate: shippingDate,
+        poIds: Array.from(selectedPoIds)
       });
+      setSelectedPoIds(new Set());
+      setNotice({ severity: 'success', text: `${result?.schedule?.scheduleNo || 'Shipping Schedule'} created for Factory ${factoryCode}. Open Schedule Review to monitor it.` });
+      setCreateOpen(false);
+      await loadBase();
     } catch (error) {
-      setNotice({ severity: 'error', text: error?.response?.data?.message || error.message });
+      setNotice({ severity: 'error', text: errorText(error) });
     } finally {
       setBusy(false);
     }
+  };
+
+  const openScheduleReview = () => {
+    const query = orderId ? `?orderId=${encodeURIComponent(orderId)}` : '';
+    navigate(`/buyers/${buyerSlug}/shipping/review${query}`);
   };
 
   return (
-    <Stack spacing={1.25}>
+    <Stack spacing={0.9} sx={{ p: { xs: 0.25, md: 0.5 } }}>
       <CompactPageHeader
-        title="Shipping & Ex-Factory"
-        subtitle="Choose one Order, set the Ex-Factory Date once, then select the POs that should receive it."
-        meta={<Chip size="small" label="LULULEMON" variant="outlined" sx={{ fontWeight: 700 }} />}
-        actions={(
-          <>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<ArrowBackRounded />}
-              onClick={() => navigate(orderId ? `/buyers/lululemon/orders/${orderId}` : '/buyers/lululemon/orders')}
-            >
-              Back
-            </Button>
-            <Tooltip title="Reload Purchase Orders">
-              <span><Button size="small" startIcon={<Refresh />} onClick={load} disabled={busy || !orderId}>Refresh</Button></span>
-            </Tooltip>
-            <Button size="small" startIcon={<UploadFile />} onClick={() => fileRef.current?.click()} disabled={busy || !orderId}>
-              Import Shipping List
-            </Button>
-            <input ref={fileRef} hidden type="file" accept=".xlsx,.xls" onChange={upload} />
-          </>
-        )}
+        dense
+        title="Shipping Schedule"
+        subtitle="Sales creates shipment schedules. Packing reviews assigned schedules on a separate operational page."
+        actions={<Button size="small" startIcon={<Refresh />} onClick={loadBase} disabled={!orderId || busy}>Refresh</Button>}
       />
 
-      <Paper
-        variant="outlined"
-        sx={{ borderRadius: 2.5, borderColor: '#DDE6EF', overflow: 'hidden', boxShadow: '0 3px 14px rgba(30, 55, 80, 0.04)' }}
-      >
-        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.25} sx={{ p: 1.25, bgcolor: '#FBFCFE' }}>
-          <Box sx={{ flex: 1.35, minWidth: 0 }}>
-            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 0.65 }}>
-              <Box sx={{ width: 24, height: 24, borderRadius: '8px', display: 'grid', placeItems: 'center', bgcolor: '#EAF1FF', color: '#2F6FED', fontSize: '0.72rem', fontWeight: 900 }}>1</Box>
-              <Box>
-                <Typography variant="caption" sx={{ display: 'block', fontWeight: 850, letterSpacing: '.04em', color: '#38506A', lineHeight: 1.1 }}>ORDER</Typography>
-                <Typography variant="caption" color="text.secondary">Choose the Order that contains the Purchase Orders</Typography>
-              </Box>
-            </Stack>
-            <LululemonOrderScope value={orderId} onChange={setOrderId} disabled={busy} embedded compact />
-          </Box>
+      <OrderScope value={orderId} onChange={setOrderId} disabled={busy} />
+      {notice && !createOpen ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert> : null}
 
-          <Box sx={{ width: { xs: '100%', lg: 260 }, flexShrink: 0 }}>
-            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 0.65 }}>
-              <Box sx={{ width: 24, height: 24, borderRadius: '8px', display: 'grid', placeItems: 'center', bgcolor: '#EAF1FF', color: '#2F6FED', fontSize: '0.72rem', fontWeight: 900 }}>2</Box>
-              <Box>
-                <Typography variant="caption" sx={{ display: 'block', fontWeight: 850, letterSpacing: '.04em', color: '#38506A', lineHeight: 1.1 }}>EX-FACTORY DATE</Typography>
-                <Typography variant="caption" color="text.secondary">Set the date once for selected POs</Typography>
-              </Box>
+      {!sales ? (
+        <Stack direction="row" justifyContent="flex-end">
+          <Button
+            variant="outlined"
+            startIcon={<FactCheckOutlined />}
+            endIcon={<ArrowForwardRounded />}
+            onClick={openScheduleReview}
+            disabled={!orderId}
+            sx={{ fontWeight: 850 }}
+          >
+            Open Schedule Review
+          </Button>
+        </Stack>
+      ) : null}
+
+      {sales ? (
+        <Paper variant="outlined" sx={{ p: 0.9, borderRadius: 2.2 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.8} alignItems={{ md: 'center' }} justifyContent="space-between">
+            <Box>
+              <Typography fontWeight={950}>Shipping Schedule</Typography>
+              <Typography variant="caption" color="text.secondary">Create a Shipping Schedule in a focused window, or open the Packing review list.</Typography>
+            </Box>
+            <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap">
+              <Button variant="contained" startIcon={<LocalShippingOutlined />} onClick={() => setCreateOpen(true)} disabled={!orderId || busy}>
+                Create Shipping Schedule
+              </Button>
+              <Button variant="outlined" startIcon={<FactCheckOutlined />} endIcon={<ArrowForwardRounded />} onClick={openScheduleReview} disabled={!orderId}>
+                Open Schedule Review
+              </Button>
             </Stack>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              value={exFtyDate}
-              onChange={(event) => setExFtyDate(event.target.value)}
-              disabled={busy || !orderId}
-              InputProps={{ startAdornment: <CalendarMonthRounded sx={{ mr: 0.8, fontSize: 18, color: '#6B7F93' }} /> }}
+          </Stack>
+        </Paper>
+      ) : null}
+
+      <OperationWorkspaceDialog
+        open={Boolean(sales && createOpen)}
+        onClose={() => setCreateOpen(false)}
+        disableClose={busy}
+        title="Create Shipping Schedule"
+        subtitle={orderId ? 'Choose Factory, Shipping Date and logical POs for this Shipping List.' : 'Select an Order first.'}
+      >
+        <Stack spacing={0.8}>
+          {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert> : null}
+        <Paper variant="outlined" sx={{ borderRadius: 2.5, overflow: 'hidden' }}>
+          <Box sx={{ p: 0.95, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <SectionHeading
+              tag="SALES"
+              title="Create Shipping Schedule"
+              subtitle="Choose Factory and shipping date, then select the exact logical PO records to assign."
             />
           </Box>
-        </Stack>
 
-        <Divider />
+          <Stack spacing={0.8} sx={{ p: 0.95 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.8} alignItems={{ md: 'center' }}>
+              <TextField select size="small" label="Factory" value={factoryCode} onChange={(e) => setFactoryCode(e.target.value)} sx={{ minWidth: 180 }} disabled={!orderId || busy}>
+                {FACTORY_CODES.map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
+              </TextField>
+              <TextField size="small" type="date" label="Shipping Date" InputLabelProps={{ shrink: true }} value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} disabled={!orderId || busy} sx={{ minWidth: 200 }} />
+              <Box sx={{ flex: 1 }} />
+              <Chip size="small" variant="outlined" label={`${selectedPoIds.size} PO selected`} color={selectedPoIds.size ? 'primary' : 'default'} />
+              <Button
+                variant="contained"
+                startIcon={<LocalShippingOutlined />}
+                onClick={createSchedule}
+                disabled={!orderId || !factoryCode || !shippingDate || !selectedPoIds.size || busy}
+                sx={{ minWidth: 190 }}
+              >
+                Create Schedule
+              </Button>
+            </Stack>
 
-        <Stack spacing={0.8} sx={{ p: 1.1 }}>
-          <TableFilterBar
-            fields={[
-              { key: 'poNumber', label: 'PO No.' },
-              { key: 'factoryCode', label: 'Factory' },
-              { key: 'styleNumber', label: 'Style' },
-              { key: 'sku', label: 'SKU' },
-              { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' },
-              { key: 'status', label: 'Status', options: ['NOT_STARTED', 'PACKING', 'WAITING_EX_FTY', 'WAITING_LABEL', 'WAITING_SSCC', 'READY_TO_SHIP'] }
-            ]}
-            values={filters}
-            onChange={(key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(0); }}
-            onClear={() => { setFilters({ poNumber: '', factoryCode: '', styleNumber: '', sku: '', exFtyDate: '', status: '' }); setPage(0); }}
-            disabled={!orderId}
-          />
-          <Stack direction="row" spacing={0.8} justifyContent="flex-end" alignItems="center">
-          <Chip size="small" label={`${selected.size} selected`} sx={{ fontWeight: 750 }} />
-          <Button
-            size="small"
-            startIcon={<ClearRounded />}
-            onClick={() => setSelected(new Set())}
-            disabled={!selected.size || busy}
-          >
-            Clear
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<CheckRounded />}
-            onClick={applyDate}
-            disabled={busy || !orderId || !exFtyDate || !selected.size}
-            sx={{ minWidth: 170 }}
-          >
-            Apply Date to POs
-          </Button>
+            <Stack direction="row" justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                startIcon={<FactCheckOutlined />}
+                endIcon={<ArrowForwardRounded />}
+                onClick={openScheduleReview}
+                disabled={!orderId}
+                sx={{ fontWeight: 850 }}
+              >
+                Open Schedule Review
+              </Button>
+            </Stack>
+
+            <Paper variant="outlined" sx={{ p: 0.8, borderRadius: 1.8, bgcolor: 'background.default' }}>
+              <Stack spacing={1}>
+                <Stack direction={{ xs: 'column', xl: 'row' }} spacing={0.8} alignItems={{ xl: 'center' }}>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Quick search PO, SKU, Master PO, DC, Destination, Packing Plan, SO, Style, Color or Size..."
+                    value={poSearch}
+                    onChange={(e) => setPoSearch(e.target.value)}
+                    disabled={!orderId || busy}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search fontSize="small" />
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                  <Stack direction="row" spacing={0.6} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Chip size="small" variant="outlined" label={`${filteredPos.length} / ${pos.length} shown`} />
+                    <Chip size="small" color={selectedPoIds.size ? 'primary' : 'default'} variant={selectedPoIds.size ? 'filled' : 'outlined'} label={`${selectedPoIds.size} selected`} />
+                    <Button variant="outlined" size="small" onClick={toggleFilteredPos} disabled={!selectableFilteredPos.length || busy} sx={{ whiteSpace: 'nowrap' }}>
+                      {allFilteredSelected ? 'Unselect Results' : `Select Results (${selectableFilteredPos.length})`}
+                    </Button>
+                    {selectedPoIds.size ? <Button size="small" onClick={() => setSelectedPoIds(new Set())} disabled={busy} sx={{ whiteSpace: 'nowrap' }}>Clear Selection</Button> : null}
+                  </Stack>
+                </Stack>
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', xl: 'repeat(6, minmax(150px,1fr))' }, gap: 0.75 }}>
+                  {FILTER_CONFIG.map(({ key, label }) => (
+                    <MultiValueFilter
+                      key={key}
+                      label={label}
+                      options={filterOptions[key] || []}
+                      value={poFilters[key] || []}
+                      onChange={(next) => updatePoFilter(key, next)}
+                      disabled={!orderId || busy}
+                    />
+                  ))}
+                </Box>
+
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={0.6} alignItems={{ md: 'center' }}>
+                  <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" alignItems="center">
+                    {poSearch ? <Chip size="small" label={`Search: ${poSearch}`} onDelete={() => setPoSearch('')} /> : null}
+                    {activeFilterChips.map((chip) => <Chip key={chip.key} size="small" variant="outlined" label={chip.label} onDelete={() => updatePoFilter(chip.key, [])} />)}
+                    {!poSearch && !activeFilterChips.length ? <Typography variant="caption" color="text.secondary">Multiple values in the same filter are OR. Different filters are combined as AND.</Typography> : null}
+                  </Stack>
+                  <Button size="small" startIcon={<ClearRounded />} onClick={clearAllFilters} disabled={!poSearch && !activeFilterCount}>Clear Filters</Button>
+                </Stack>
+
+                {selectedHiddenCount > 0 ? (
+                  <Typography variant="caption" color="primary.main" fontWeight={800}>
+                    {selectedHiddenCount} selected PO{selectedHiddenCount === 1 ? '' : 's'} are outside the current filters and remain selected.
+                  </Typography>
+                ) : null}
+              </Stack>
+            </Paper>
+
+            <LululemonTableViewport sx={{ maxHeight: 410, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+              <SortableTable size="small" stickyHeader>
+                <TableHead><TableRow>
+                  <TableCell padding="checkbox" data-sortable={false}>
+                    <Checkbox
+                      size="small"
+                      checked={allPageSelected}
+                      indeterminate={!allPageSelected && somePageSelected}
+                      disabled={!selectablePagePos.length || busy}
+                      onChange={togglePagePos}
+                      inputProps={{ 'aria-label': 'Select all POs on this page' }}
+                    />
+                  </TableCell>
+                  <TableCell>PO</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell>Master PO</TableCell>
+                  <TableCell>DC / Destination</TableCell>
+                  <TableCell>Channel</TableCell>
+                  <TableCell>Packing Plan</TableCell>
+                  <TableCell>SO (PTS)</TableCell>
+                  <TableCell>Style / Color / Size</TableCell>
+                  <TableCell data-sortable={false}>Availability</TableCell>
+                </TableRow></TableHead>
+                <TableBody>
+                  {pagedPos.map((po) => {
+                    const locked = assignedOpenPoIds.has(po.id);
+                    return (
+                      <TableRow key={po.id} hover selected={selectedPoIds.has(po.id)} sx={{ opacity: locked ? 0.62 : 1, '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}>
+                        <TableCell padding="checkbox"><Checkbox size="small" checked={selectedPoIds.has(po.id)} disabled={locked || busy} onChange={() => togglePo(po.id)} /></TableCell>
+                        <TableCell sx={{ fontWeight: 900, whiteSpace: 'nowrap' }}>{po.poNumber}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{po.sku || <Chip size="small" label="Not scanned" color="warning" variant="outlined" />}</TableCell>
+                        <TableCell>{value(po.masterPo)}</TableCell>
+                        <TableCell sx={{ minWidth: 190 }}><Typography variant="body2" fontWeight={800}>{value(po.dcCode)}</Typography><Typography variant="caption" color="text.secondary">{value(po.destination)}</Typography></TableCell>
+                        <TableCell>{value(po.channel)}</TableCell>
+                        <TableCell>{value(po.packingPlan)}</TableCell>
+                        <TableCell>{value(po.salesOrderPts)}</TableCell>
+                        <TableCell sx={{ minWidth: 190 }}><Typography variant="body2" fontWeight={800}>{value(po.style)}</Typography><Typography variant="caption" color="text.secondary">{value(po.color)} · Size {value(po.size)}</Typography></TableCell>
+                        <TableCell><Chip size="small" label={locked ? 'Assigned' : 'Available'} color={locked ? 'default' : 'success'} variant={locked ? 'outlined' : 'filled'} /></TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!filteredPos.length ? (
+                    <TableRow><TableCell colSpan={10} align="center" sx={{ py: 5 }}>
+                      <Typography fontWeight={850}>{orderId ? 'No PO matches the current filters.' : 'Select an Order first.'}</Typography>
+                      {orderId ? <Typography variant="caption" color="text.secondary">Clear one or more filters to broaden the results.</Typography> : null}
+                    </TableCell></TableRow>
+                  ) : null}
+                </TableBody>
+              </SortableTable>
+            </LululemonTableViewport>
+            <TablePagination
+              component="div"
+              count={filteredPos.length}
+              page={poPage}
+              onPageChange={(_, nextPage) => setPoPage(nextPage)}
+              rowsPerPage={poRowsPerPage}
+              onRowsPerPageChange={(event) => {
+                setPoRowsPerPage(Number(event.target.value));
+                setPoPage(0);
+              }}
+              rowsPerPageOptions={[25, 50, 100]}
+              labelRowsPerPage="Rows per page"
+              showFirstButton
+              showLastButton
+              sx={{ borderTop: '1px solid', borderColor: 'divider' }}
+            />
           </Stack>
+        </Paper>
         </Stack>
-      </Paper>
-
-      {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}
-
-      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2.5, borderColor: '#DDE6EF' }}>
-        <SortableTable size="small" rowNumberStart={page * rowsPerPage}>
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  size="small"
-                  checked={allPageSelected}
-                  indeterminate={!allPageSelected && somePageSelected}
-                  onChange={togglePage}
-                  disabled={!pageRows.length || busy}
-                  inputProps={{ 'aria-label': 'Select visible POs' }}
-                />
-              </TableCell>
-              {['Purchase Order', 'Factory', 'Style', 'SKU', 'Current Ex-Factory', 'Status'].map((heading) => (
-                <TableCell key={heading} sx={{ fontWeight: 800 }}>{heading}</TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {pageRows.map((row) => {
-              const checked = selected.has(row.id);
-              return (
-                <TableRow key={row.id} hover selected={checked} onClick={() => !busy && toggleOne(row.id)} sx={{ cursor: busy ? 'default' : 'pointer' }}>
-                  <TableCell padding="checkbox" onClick={(event) => event.stopPropagation()}>
-                    <Checkbox size="small" checked={checked} onChange={() => toggleOne(row.id)} disabled={busy} />
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: '#20364D' }}>{row.poNumber}</TableCell>
-                  <TableCell>{row.factoryCode || '—'}</TableCell>
-                  <TableCell>{row.styleNumber || '—'}</TableCell>
-                  <TableCell>{row.sku || 'Not assigned'}</TableCell>
-                  <TableCell>
-                    {row.exFtyDate ? <Chip size="small" label={row.exFtyDate} variant="outlined" /> : <Typography variant="caption" color="text.secondary">Not set</Typography>}
-                  </TableCell>
-                  <TableCell><LululemonStatusChip status={row.status} /></TableCell>
-                </TableRow>
-              );
-            })}
-            {!orderId && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}>Select an Order first.</TableCell></TableRow>}
-            {orderId && !filteredRows.length && <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}>{rows.length ? 'No PO matches your search.' : 'No Purchase Order found in this Order.'}</TableCell></TableRow>}
-          </TableBody>
-        </SortableTable>
-        <TablePagination
-          component="div"
-          count={filteredRows.length}
-          page={Math.min(page, Math.max(0, Math.ceil(filteredRows.length / rowsPerPage) - 1))}
-          rowsPerPage={rowsPerPage}
-          onPageChange={(_, next) => setPage(next)}
-          onRowsPerPageChange={(event) => { setRowsPerPage(Number(event.target.value)); setPage(0); }}
-          rowsPerPageOptions={[10, 25, 50, 100]}
-        />
-      </TableContainer>
+      </OperationWorkspaceDialog>
     </Stack>
   );
 }
