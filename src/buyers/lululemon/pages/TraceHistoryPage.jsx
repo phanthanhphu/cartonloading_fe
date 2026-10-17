@@ -6,7 +6,7 @@ import {
 import { Refresh, Search, Undo, LinkOff, RestartAlt } from '@mui/icons-material';
 import SortableTable from 'components/SortableTable';
 import LululemonTableViewport from '../components/LululemonTableViewport';
-import { CompactPageHeader } from 'components/CompactPageHeader';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
 import StatusChip from 'components/StatusChip';
 import { isAdmin } from 'utils/accessControl';
 import OrderScope from '../components/OrderScope';
@@ -73,18 +73,20 @@ export default function TraceHistoryPage() {
   }), [rows]);
 
   return (
-    <Stack spacing={0.85} sx={{ p: { xs: 0.25, md: 0.5 } }}>
+    <Stack spacing={0.85} className="lululemon-compact-v16" sx={{ p: { xs: 0.25, md: 0.5 } }}>
       <CompactPageHeader
         dense
         title="Trace & History"
-        subtitle="Search by PO, SKU, Carton ID or SSCC and trace the carton back to every product scan and exception event."
         meta={<Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap><Chip size="small" label={`${totals.cartons} cartons`} /><Chip size="small" label={`${totals.items} items`} /><Chip size="small" label={`${totals.events} scan events`} /><Chip size="small" label={`${totals.weights} weight events`} /></Stack>}
       />
-      <OrderScope value={orderId} onChange={(value) => { setOrderId(value); setRows([]); setSelected(null); }} />
       {notice ? <Alert severity={notice.severity}>{notice.text}</Alert> : null}
 
-      <Paper variant="outlined" sx={{ p: 0.8, borderRadius: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.8}>
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ p: 0.8, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#FBFCFE' }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.8} alignItems={{ md: 'center' }}>
+          <Box sx={{ width: { xs: '100%', md: '36%' }, flexShrink: 0 }}>
+            <OrderScope embedded compact value={orderId} onChange={(value) => { setOrderId(value); setRows([]); setSelected(null); }} />
+          </Box>
           <TextField
             size="small" fullWidth label="PO / SKU / Carton ID / SSCC"
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -94,11 +96,9 @@ export default function TraceHistoryPage() {
           <Button variant="contained" startIcon={<Search />} disabled={busy || !orderId || !keyword.trim()} onClick={runSearch} sx={{ minHeight: { xs: 48, sm: 'auto' } }}>Search</Button>
           <Button variant="outlined" startIcon={<Refresh />} disabled={busy || !orderId || !keyword.trim()} onClick={runSearch} sx={{ minHeight: { xs: 48, sm: 'auto' } }}>Refresh</Button>
         </Stack>
-      </Paper>
-
-      <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 2 }}>
+        </Box>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport sx={{ maxHeight: 430 }}>
+          <LululemonTableViewport paginate sx={{ border: 0, borderRadius: 0 }}>
             <SortableTable stickyHeader size="small">
               <TableHead><TableRow>
                 <TableCell>PO</TableCell><TableCell>Factory</TableCell><TableCell>SKU</TableCell><TableCell>Carton</TableCell>
@@ -163,7 +163,7 @@ export default function TraceHistoryPage() {
 
         <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.5 }}>Item Assignment / Scan History</Typography>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Item</TableCell><TableCell>Status</TableCell><TableCell>Assigned SKU</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.items || []).map((item) => <TableRow key={item.id}><TableCell>{item.itemNo}</TableCell><TableCell><StatusChip status={item.status} /></TableCell><TableCell>{item.expectedSku || item.scannedSku || '—'}</TableCell><TableCell>{item.scannedBy || '—'}</TableCell><TableCell>{item.scannedAt || '—'}</TableCell></TableRow>)}{!selected.items?.length ? <TableRow><TableCell colSpan={5} align="center">No generated/scanned items.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
+          <LululemonTableViewport paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Item</TableCell><TableCell>Status</TableCell><TableCell>Assigned SKU</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.items || []).map((item) => <TableRow key={item.id}><TableCell>{item.itemNo}</TableCell><TableCell><StatusChip status={item.status} /></TableCell><TableCell>{item.expectedSku || item.scannedSku || '—'}</TableCell><TableCell>{item.scannedBy || '—'}</TableCell><TableCell>{item.scannedAt || '—'}</TableCell></TableRow>)}{!selected.items?.length ? <TableRow><TableCell colSpan={5} align="center">No generated/scanned items.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
         </Box>
         <Stack spacing={0.55} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {(selected.items || []).map((item) => <Paper key={item.id} variant="outlined" sx={{ p: 0.75, borderRadius: 1.4 }}><Stack direction="row" justifyContent="space-between"><Box><Typography fontWeight={900}>Item {item.itemNo}</Typography><Typography variant="body2">SKU {item.expectedSku || item.scannedSku || '—'}</Typography></Box><StatusChip status={item.status} /></Stack><Typography variant="caption" color="text.secondary">{item.scannedBy || '—'} · {item.scannedAt || '—'}</Typography></Paper>)}
@@ -172,7 +172,7 @@ export default function TraceHistoryPage() {
 
         <Typography variant="subtitle2" fontWeight={750} sx={{ mt: 1.4, mb: 0.5 }}>Scan / Exception Events</Typography>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Type</TableCell><TableCell>Result</TableCell><TableCell>Raw</TableCell><TableCell>Message</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.events || []).map((event) => <TableRow key={event.id}><TableCell>{event.scanType || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.rawValue || event.raw || '—'}</TableCell><TableCell>{event.message || '—'}</TableCell><TableCell>{event.actor || '—'}</TableCell><TableCell>{event.createdAt || '—'}</TableCell></TableRow>)}{!selected.events?.length ? <TableRow><TableCell colSpan={6} align="center">No scan events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
+          <LululemonTableViewport paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Type</TableCell><TableCell>Result</TableCell><TableCell>Raw</TableCell><TableCell>Message</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.events || []).map((event) => <TableRow key={event.id}><TableCell>{event.scanType || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.rawValue || event.raw || '—'}</TableCell><TableCell>{event.message || '—'}</TableCell><TableCell>{event.actor || '—'}</TableCell><TableCell>{event.createdAt || '—'}</TableCell></TableRow>)}{!selected.events?.length ? <TableRow><TableCell colSpan={6} align="center">No scan events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
         </Box>
         <Stack spacing={0.55} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {(selected.events || []).map((event) => <Paper key={event.id} variant="outlined" sx={{ p: 0.75, borderRadius: 1.4 }}><Stack direction="row" justifyContent="space-between" spacing={1}><Typography fontWeight={900}>{event.scanType || 'EVENT'}</Typography>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : null}</Stack><Typography variant="body2" sx={{ mt: 0.25 }}>{event.message || '—'}</Typography><Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>{event.rawValue || event.raw || '—'} · {event.actor || '—'} · {event.createdAt || '—'}</Typography></Paper>)}
@@ -181,7 +181,7 @@ export default function TraceHistoryPage() {
 
         <Typography variant="subtitle2" fontWeight={750} sx={{ mt: 1.4, mb: 0.5 }}>Weighing History</Typography>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Action</TableCell><TableCell>Result</TableCell><TableCell>Expected kg</TableCell><TableCell>Actual kg</TableCell><TableCell>Difference kg</TableCell><TableCell>Tolerance kg</TableCell><TableCell>Station</TableCell><TableCell>Source</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.weightEvents || []).map((event) => <TableRow key={event.id}><TableCell>{event.action || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.expectedWeightKg ?? '—'}</TableCell><TableCell>{event.actualWeightKg ?? '—'}</TableCell><TableCell>{event.differenceKg ?? '—'}</TableCell><TableCell>{event.toleranceKg ?? '—'}</TableCell><TableCell>{event.stationCode || '—'}</TableCell><TableCell>{event.source || '—'}</TableCell><TableCell>{event.userId || '—'}</TableCell><TableCell>{event.createdAt || '—'}</TableCell></TableRow>)}{!selected.weightEvents?.length ? <TableRow><TableCell colSpan={10} align="center">No weighing events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
+          <LululemonTableViewport paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Action</TableCell><TableCell>Result</TableCell><TableCell>Expected kg</TableCell><TableCell>Actual kg</TableCell><TableCell>Difference kg</TableCell><TableCell>Tolerance kg</TableCell><TableCell>Station</TableCell><TableCell>Source</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.weightEvents || []).map((event) => <TableRow key={event.id}><TableCell>{event.action || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.expectedWeightKg ?? '—'}</TableCell><TableCell>{event.actualWeightKg ?? '—'}</TableCell><TableCell>{event.differenceKg ?? '—'}</TableCell><TableCell>{event.toleranceKg ?? '—'}</TableCell><TableCell>{event.stationCode || '—'}</TableCell><TableCell>{event.source || '—'}</TableCell><TableCell>{event.userId || '—'}</TableCell><TableCell>{event.createdAt || '—'}</TableCell></TableRow>)}{!selected.weightEvents?.length ? <TableRow><TableCell colSpan={10} align="center">No weighing events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
         </Box>
         <Stack spacing={0.55} sx={{ display: { xs: 'flex', md: 'none' } }}>
           {(selected.weightEvents || []).map((event) => <Paper key={event.id} variant="outlined" sx={{ p: 0.75, borderRadius: 1.4 }}><Stack direction="row" justifyContent="space-between"><Typography fontWeight={900}>{event.action || 'WEIGHT'}</Typography>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : null}</Stack><Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 0.5, mt: 0.5 }}><Box><Typography variant="caption" color="text.secondary">Expected</Typography><Typography fontWeight={850}>{event.expectedWeightKg ?? '—'}</Typography></Box><Box><Typography variant="caption" color="text.secondary">Actual</Typography><Typography fontWeight={850}>{event.actualWeightKg ?? '—'}</Typography></Box><Box><Typography variant="caption" color="text.secondary">Diff</Typography><Typography fontWeight={850}>{event.differenceKg ?? '—'}</Typography></Box></Box><Typography variant="caption" color="text.secondary">Station {event.stationCode || '—'} · {event.userId || '—'} · {event.createdAt || '—'}</Typography></Paper>)}

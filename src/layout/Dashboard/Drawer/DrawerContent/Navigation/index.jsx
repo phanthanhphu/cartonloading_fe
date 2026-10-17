@@ -7,6 +7,7 @@ import NavGroup from './NavGroup';
 import NavItem from './NavItem';
 import { useGetMenuMaster } from 'api/menu';
 import { getDashboardMenu } from 'menu-items/dashboard';
+import { getActiveMenuItemId } from './activeMenu';
 import { listAccessibleBuyers } from 'services/buyerService';
 import { setBuyerCatalog } from 'utils/buyerAccess';
 
@@ -39,6 +40,7 @@ export default function Navigation() {
   }, [refreshBuyers]);
 
   const menuItems = useMemo(() => getDashboardMenu(), [catalogVersion, pathname]);
+  const activeMenuItemId = useMemo(() => getActiveMenuItemId(menuItems.items, pathname), [menuItems, pathname]);
   const [selectedID, setSelectedID] = useState('');
   const [selectedItems, setSelectedItems] = useState('');
   const [selectedLevel, setSelectedLevel] = useState(0);
@@ -66,7 +68,7 @@ export default function Navigation() {
           return (
             <Fragment key={item.id}>
               <Divider sx={{ my: 0.75, borderColor: '#E8EEF5' }} />
-              <NavItem item={item} level={1} isParents setSelectedID={setSelectedID} pathname={pathname} />
+              <NavItem item={item} level={1} isParents setSelectedID={setSelectedID} pathname={pathname} activeMenuItemId={activeMenuItemId} />
             </Fragment>
           );
         }
@@ -84,6 +86,7 @@ export default function Navigation() {
             lastItemId={lastItemId}
             item={item}
             pathname={pathname}
+            activeMenuItemId={activeMenuItemId}
           />
         );
       default:

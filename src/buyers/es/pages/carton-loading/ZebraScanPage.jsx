@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import { BARCODE_CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, LOOKUP_PAGE_SIZE, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -794,7 +795,7 @@ export default function ZebraScanPage() {
             </Box>
           ) : (
             <>
-            <TableContainer>
+            <StandardTableViewport>
               <SortableTable disableRowNumber size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
@@ -823,7 +824,7 @@ export default function ZebraScanPage() {
                   ))}
                 </TableBody>
               </SortableTable>
-            </TableContainer>
+            </StandardTableViewport>
             <TablePagination component="div" count={recent.length} page={Math.min(recentPage, Math.max(0, Math.ceil(recent.length / recentRowsPerPage) - 1))} rowsPerPage={recentRowsPerPage}
               onPageChange={(_, next) => setRecentPage(next)} onRowsPerPageChange={(e) => { setRecentRowsPerPage(Number(e.target.value)); setRecentPage(0); }} rowsPerPageOptions={[10,20]} />
             </>

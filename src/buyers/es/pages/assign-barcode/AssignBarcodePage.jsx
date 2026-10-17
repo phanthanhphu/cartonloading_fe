@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {   Alert, Box, Button, Chip, CircularProgress, MenuItem, Pagination, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
@@ -132,7 +133,7 @@ export default function AssignBarcodePage() {
           ))}
         </Box>
 
-        <TableContainer sx={{ maxHeight: 'calc(100vh - 245px)', minHeight: 360 }}>
+        <StandardTableViewport paginate sx={{ maxHeight: 'calc(100vh - 245px)', minHeight: 360 }}>
           <SortableTable stickyHeader size="small" sx={{ minWidth: 980 }}>
             <TableHead>
               <TableRow>
@@ -174,7 +175,7 @@ export default function AssignBarcodePage() {
               ))}
             </TableBody>
           </SortableTable>
-        </TableContainer>
+        </StandardTableViewport>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1} sx={{ px: 1, py: 0.75, borderTop: '1px solid #DCE4EC' }}>
           <Stack direction="row" spacing={1.2} alignItems="center">

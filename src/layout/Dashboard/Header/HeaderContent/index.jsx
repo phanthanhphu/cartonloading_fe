@@ -1,12 +1,10 @@
 import { useMemo } from 'react';
 import { matchPath, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { alpha } from '@mui/material/styles';
 import SwapHorizOutlined from '@mui/icons-material/SwapHorizOutlined';
 
 import Profile from './Profile';
@@ -16,42 +14,55 @@ import {
   readSelectedBuyer,
   saveSelectedBuyer
 } from 'utils/buyerAccess';
-import { BUYER_CODE, BUYER_LABEL } from '../../../../constants/appConstants';
 import { readStoredUser } from 'utils/accessControl';
 import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
 
+// Every real route gets an explicit page name. Keep specific routes above generic ones.
+// The app bar owns the page title; page bodies display only functional controls.
 const PAGE_MAP = [
-  { path: '/', title: 'Buyer Workspace', section: 'Workspace' },
-  { path: '/dashboard', title: 'Dashboard', section: 'Workspace' },
-  { path: '/orders-management', title: 'Orders', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Sales` },
-  { path: '/users', title: 'Users', section: 'Administration' },
-  { path: '/departments', title: 'Departments', section: 'Administration' },
-  { path: '/buyers', title: 'Buyers', section: 'Administration' },
-  { path: '/audit-logs', title: 'Audit Logs', section: 'Administration' },  { path: '/scale-stations', title: 'Scale Stations', section: 'Factory Tools' },
+  { path: '/', title: 'Buyer Workspaces', section: 'Supply Chain' },
+  { path: '/workflow', title: 'Buyer Workspaces', section: 'Supply Chain' },
+  { path: '/dashboard', title: 'Carton Loading Dashboard', section: 'Supply Chain' },
+  { path: '/orders-management', title: 'Orders', section: 'Supply Chain' },
+  { path: '/users', title: 'User Management', section: 'Administration' },
+  { path: '/departments', title: 'Department Management', section: 'Administration' },
+  { path: '/buyers', title: 'Buyer Management', section: 'Administration' },
+  { path: '/audit-logs', title: 'Audit Trail', section: 'Administration' },
+  { path: '/scale-stations', title: 'Scale Stations', section: 'Factory Tools' },
   { path: '/barcode-management', title: 'Barcode Inventory', section: 'Factory Tools' },
-  { path: '/assign-barcode', title: 'Assign Barcode for Carton', section: 'Buyer Workspace' },
-  { path: '/assign-barcode/:buyerSlug/:orderId', title: 'Assign Barcode for Carton', section: 'Buyer Workspace' },
-  { path: '/sales/shipment-planning', title: 'Sales Shipment Planning', section: 'Buyer Workspace' },
-  { path: '/sales/shipment-plans', title: 'Sales Shipment Planning', section: 'Buyer Workspace' },
-  { path: '/packing/shipments', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
-  { path: '/packing/shipments/:buyerSlug/:shipmentId', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
-  { path: '/shipment-management', title: 'Carton & Shipment Tracking', section: 'Buyer Workspace' },
-  { path: '/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
-  { path: '/buyers/:buyerSlug/orders/:orderId/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
-  { path: '/buyers/:buyerSlug/orders/:orderId/scan', title: 'Packing Weight Check & Dispatch', section: 'Buyer Workspace' },
-  { path: '/buyers/:buyerSlug/po', title: 'Master Data / PO', section: BUYER_LABEL[BUYER_CODE.LULULEMON] },
-  { path: '/buyers/:buyerSlug/print-requests', title: 'Print Request', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
-  { path: '/buyers/:buyerSlug/packing', title: 'Packing', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
-  { path: '/buyers/:buyerSlug/shipping', title: 'Shipping Schedule', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Sales / Packing` },
-  { path: '/buyers/:buyerSlug/carton-loading', title: 'Carton Label / SSCC', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
-  { path: '/buyers/:buyerSlug/weighing', title: 'Weight Management', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
-  { path: '/buyers/:buyerSlug/weight-history', title: 'Weight Management', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Operations` },
-  { path: '/buyers/:buyerSlug/orders/:orderId/items/:masterLineId', title: 'Carton Item Detail', section: 'Buyer Workspace' },
+  { path: '/assign-barcode/:buyerSlug/:orderId', title: 'Assign Barcode for Carton', section: 'Factory Tools' },
+  { path: '/assign-barcode', title: 'Assign Barcode for Carton', section: 'Factory Tools' },
+  { path: '/sales/shipment-planning', title: 'Sales Shipment Planning', section: 'Supply Chain' },
+  { path: '/sales/shipment-plans', title: 'Sales Shipment Planning', section: 'Supply Chain' },
+  { path: '/packing/shipments/:buyerSlug/:shipmentId', title: 'Packing Weight Check & Dispatch', section: 'Operations' },
+  { path: '/packing/shipments', title: 'Packing Weight Check & Dispatch', section: 'Operations' },
+  { path: '/shipment-management', title: 'Carton & Shipment Tracking', section: 'Supply Chain' },
+  { path: '/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Operations' },
+
+  // LULULEMON operation pages: do not fall back to "Workspace / Supply Chain".
+  { path: '/buyers/:buyerSlug/checking', title: 'Checking Management', section: 'QC Checking' },
+  { path: '/buyers/:buyerSlug/packing', title: 'Packing Operations', section: 'Packing' },
+  { path: '/buyers/:buyerSlug/carton-loading', title: 'Carton Identification & SSCC', section: 'Packing' },
+  { path: '/buyers/:buyerSlug/shipping/review/:scheduleId', title: 'Shipment Details', section: 'Shipment Management' },
+  { path: '/buyers/:buyerSlug/shipping/review', title: 'Shipment Management', section: 'Shipment Management' },
+  { path: '/buyers/:buyerSlug/shipping', title: 'Shipment Management', section: 'Shipment Management' },
+  { path: '/buyers/:buyerSlug/weighing', title: 'Carton Weight', section: 'Weight Management' },
+  { path: '/buyers/:buyerSlug/weight-history', title: 'Weight History', section: 'Weight Management' },
+  { path: '/buyers/:buyerSlug/trace-history', title: 'Trace & History', section: 'Operations' },
+  { path: '/buyers/:buyerSlug/po', title: 'PO Master Data', section: 'Orders' },
+
+  // Shared Buyer and ES routes, from most detailed to the root.
+  { path: '/buyers/:buyerSlug/orders/:orderId/pos/:poKey/cartons/:cartonId', title: 'Carton Items', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/pos/:poKey', title: 'PO Cartons', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/data-management', title: 'Order Data Management', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/barcode-assign', title: 'Barcode Assignment', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/items/:masterLineId', title: 'Carton Items', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/weight-check', title: 'Weight Check', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/scan', title: 'Scan Cartons', section: 'Order Management' },
   { path: '/buyers/:buyerSlug/orders/:orderId', title: 'Order Workspace', section: 'Order Management' },
-  { path: '/buyers/:buyerSlug/orders', title: 'Orders', section: `${BUYER_LABEL[BUYER_CODE.LULULEMON]} · Sales` },
-  { path: '/buyers/:buyerSlug/packing-list/:orderId', title: 'Packing List', section: 'Buyer Workspace' },
-  { path: '/buyers/:buyerSlug/packing-list', title: 'Packing List', section: 'Buyer Workspace' },
-  { path: '/workflow', title: 'Buyer Workspace', section: 'Workspace' }
+  { path: '/buyers/:buyerSlug/orders', title: 'Orders', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/packing-list/:orderId', title: 'Packing List Detail', section: 'Orders' },
+  { path: '/buyers/:buyerSlug/packing-list', title: 'Packing List', section: 'Orders' }
 ];
 
 const resolvePage = (pathname) => {
@@ -59,9 +70,17 @@ const resolvePage = (pathname) => {
     const matched = matchPath({ path: page.path, end: true }, pathname);
     if (!matched) continue;
     const buyer = matched.params?.buyerSlug ? getBuyerBySlug(matched.params.buyerSlug) : null;
-    return { ...page, buyerLabel: buyer?.label || '' };
+    return {
+      ...page,
+      section: buyer ? `${buyer.label} · ${page.section}` : page.section
+    };
   }
-  return { title: 'Workspace', section: 'Supply Chain', buyerLabel: '' };
+  // Unknown extensions still show a meaningful title rather than an unrelated generic label.
+  const lastSegment = pathname.split('/').filter(Boolean).pop() || 'workspace';
+  return {
+    title: decodeURIComponent(lastSegment).replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    section: 'Supply Chain'
+  };
 };
 
 const buyerSwitchTarget = (_pathname, buyer) => {
@@ -92,35 +111,21 @@ export default function HeaderContent() {
   return (
     <Box sx={{ width: 1, display: 'flex', alignItems: 'center', minWidth: 0, gap: 1.2 }}>
       <Stack spacing={0.05} sx={{ flex: 1, minWidth: 0 }}>
-        <Stack direction="row" spacing={0.7} alignItems="center" sx={{ minWidth: 0 }}>
-          <Typography
-            sx={{
-              color: '#183658',
-              fontSize: '0.98rem',
-              fontWeight: 750,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {page.title}
-          </Typography>
-          {page.buyerLabel ? (
-            <Chip
-              size="small"
-              label={page.buyerLabel}
-              sx={{
-                height: 22,
-                borderRadius: 999,
-                color: '#0A6ED1',
-                bgcolor: alpha('#0A6ED1', 0.08),
-                border: `1px solid ${alpha('#0A6ED1', 0.14)}`,
-                fontSize: '0.67rem',
-                fontWeight: 700
-              }}
-            />
-          ) : null}
-        </Stack>
+        <Typography
+          component="h1"
+          title={page.title}
+          sx={{
+            color: '#183658',
+            fontSize: { xs: '0.9rem', sm: '0.98rem' },
+            lineHeight: 1.2,
+            fontWeight: 750,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {page.title}
+        </Typography>
         <Typography sx={{ color: '#7A8CA0', fontSize: '0.69rem', fontWeight: 550, whiteSpace: 'nowrap' }}>
           {page.section}
         </Typography>

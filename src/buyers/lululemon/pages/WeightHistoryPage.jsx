@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
   Chip,
+  Collapse,
   InputAdornment,
   Paper,
   Stack,
@@ -16,7 +18,7 @@ import {
 } from '@mui/material';
 import { Refresh, Search } from '@mui/icons-material';
 import SortableTable from 'components/SortableTable';
-import { CompactPageHeader } from 'components/CompactPageHeader';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
 import LululemonTableViewport from '../components/LululemonTableViewport';
 import { listCartonWeightHistoryAll } from '../services/service';
 
@@ -25,10 +27,13 @@ const lower = (value) => String(value ?? '').trim().toLowerCase();
 const normalizeResult = (value) => value === 'HOLD' ? 'FAILED' : value;
 
 export default function WeightHistoryPage() {
+  const { search } = useLocation();
+  const selectedFactory = new URLSearchParams(search).get('factory')?.toUpperCase() || '';
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ keyword: '', orderNo: '', factory: '', shippingList: '', date: '', sscc: '' });
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,6 +51,7 @@ export default function WeightHistoryPage() {
   useEffect(() => { load(); }, [load]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
+    if (selectedFactory && String(row.factoryCode || "").toUpperCase() !== selectedFactory) return false;
     const event = row?.result || {};
     if (filters.orderNo && !lower(row.orderNo).includes(lower(filters.orderNo))) return false;
     if (filters.factory && !lower(row.factoryCode).includes(lower(filters.factory))) return false;
@@ -58,22 +64,22 @@ export default function WeightHistoryPage() {
       if (!haystack.includes(lower(filters.keyword))) return false;
     }
     return true;
-  }), [rows, filters]);
+  }), [rows, filters, selectedFactory]);
 
   const clear = () => setFilters({ keyword: '', orderNo: '', factory: '', shippingList: '', date: '', sscc: '' });
 
   return (
-    <Stack spacing={0.85} sx={{ p: { xs: 0.25, md: 0.5 } }}>
+    <Stack className="lululemon-compact-v16" spacing={0.85} sx={{ p: { xs: 0.25, md: 0.5 } }}>
       <CompactPageHeader
         dense
         title="Weight History"
-        subtitle="Manage and search weighing history across Shipping Lists, Orders, factories and dates."
         actions={<Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading}>Refresh</Button>}
       />
 
       {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert> : null}
 
-      <Paper variant="outlined" sx={{ p: 0.85, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ p: 0.85, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#FBFCFE' }}>
         <Stack spacing={0.65}>
           <TextField
             size="small"
@@ -84,22 +90,27 @@ export default function WeightHistoryPage() {
             onChange={(e) => setFilters((current) => ({ ...current, keyword: e.target.value }))}
             InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
           />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2,minmax(0,1fr))', xl: 'repeat(5,minmax(140px,1fr))' }, gap: 0.75 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
+            <Chip size="small" variant="outlined" label={`${filteredRows.length} / ${rows.length} record(s)`} />
+            <Stack direction="row" gap={0.5}>
+              <Button size="small" variant="text" aria-expanded={moreFiltersOpen} onClick={() => setMoreFiltersOpen((open) => !open)}>
+                {moreFiltersOpen ? 'Less Filters' : 'More Filters'}
+              </Button>
+              <Button size="small" onClick={clear} disabled={!Object.values(filters).some(Boolean)}>Clear Filters</Button>
+            </Stack>
+          </Stack>
+          <Collapse in={moreFiltersOpen} unmountOnExit>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2,minmax(0,1fr))', xl: 'repeat(5,minmax(140px,1fr))' }, gap: 0.75, pt: 0.5 }}>
             <TextField size="small" label="Order No." value={filters.orderNo} onChange={(e) => setFilters((current) => ({ ...current, orderNo: e.target.value }))} />
             <TextField size="small" label="Factory" value={filters.factory} onChange={(e) => setFilters((current) => ({ ...current, factory: e.target.value }))} />
             <TextField size="small" label="Shipping List" value={filters.shippingList} onChange={(e) => setFilters((current) => ({ ...current, shippingList: e.target.value }))} />
             <TextField size="small" type="date" label="Shipping Date" InputLabelProps={{ shrink: true }} value={filters.date} onChange={(e) => setFilters((current) => ({ ...current, date: e.target.value }))} />
             <TextField size="small" label="SSCC-18" value={filters.sscc} onChange={(e) => setFilters((current) => ({ ...current, sscc: e.target.value }))} />
           </Box>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Chip size="small" variant="outlined" label={`${filteredRows.length} / ${rows.length} record(s)`} />
-            <Button size="small" onClick={clear}>Clear Filters</Button>
-          </Stack>
+          </Collapse>
         </Stack>
-      </Paper>
-
-      <Paper variant="outlined" sx={{ borderRadius: 2.4, overflow: 'hidden' }}>
-        <LululemonTableViewport sx={{ maxHeight: 'calc(100vh - 310px)', minHeight: 360 }}>
+        </Box>
+        <LululemonTableViewport paginate sx={{ maxHeight: 'calc(100vh - 310px)', minHeight: 360, border: 0, borderRadius: 0 }}>
           <SortableTable stickyHeader size="small">
             <TableHead><TableRow>
               <TableCell>Time</TableCell>

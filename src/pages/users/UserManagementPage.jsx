@@ -99,12 +99,13 @@ export default function UserManagementPage() {
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={1}>
-          <Typography variant="h5" fontWeight={850}>User Management</Typography>
+        <Stack direction="row" justifyContent="flex-end" gap={1}>
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add User</Button>
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
-        <TableFilterBar
+        
+        <ManagementTable
+          filterBar={<TableFilterBar
           fields={[
             { key: 'username', label: 'Username' },
             { key: 'email', label: 'Email' },
@@ -117,8 +118,7 @@ export default function UserManagementPage() {
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onClear={() => setFilters({ username: '', email: '', phone: '', role: '', departmentId: '', enabled: '' })}
           disabled={state.loading}
-        />
-        <ManagementTable {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
+        />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
         {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers} onClose={() => setDialog(null)} onSave={save} /> : null}
         {reset ? <PasswordDialog user={reset} onClose={() => setReset(null)} onSave={doReset} onGenerateReset={doGenerateReset} /> : null}
       </Stack>
@@ -139,7 +139,8 @@ function UserDialog({ row, departments, buyers, onClose, onSave }) {
     departmentId: row.departmentId || '',
     accessPermissions: row.accessPermissions || [ACCESS_PERMISSION.VIEW_SYSTEM],
     buyerPermissions: row.buyerPermissions || [],
-    factoryPermissions: row.factoryPermissions || []
+    factoryPermissions: row.factoryPermissions || [],
+    weighingFactoryPermissions: row.weighingFactoryPermissions || []
   });
 
   const toggle = (key, v) => setF((s) => {
@@ -188,7 +189,15 @@ function UserDialog({ row, departments, buyers, onClose, onSave }) {
           <Stack direction="row" flexWrap="wrap">{buyers.map((buyer) => { const v = buyer.buyerKey; return <FormControlLabel key={buyer.id || v} control={<Checkbox checked={f.buyerPermissions.includes(v)} onChange={() => toggle('buyerPermissions', v)} />} label={buyer.buyerName || v} />; })}</Stack>
           <Typography fontWeight={800}>Access permissions</Typography>
           <Stack direction="row" flexWrap="wrap">{USER_ACCESS_PERMISSIONS.map((v) => <FormControlLabel key={v} control={<Checkbox checked={f.accessPermissions.includes(v)} onChange={() => toggle('accessPermissions', v)} />} label={ACCESS_PERMISSION_LABEL[v] || v} />)}</Stack>
-          <TextField label="Factory permissions (comma-separated, e.g. F1,F2)" value={Array.isArray(f.factoryPermissions) ? f.factoryPermissions.join(',') : f.factoryPermissions} onChange={(e) => setF({ ...f, factoryPermissions: e.target.value })} />
+          <Typography fontWeight={800}>Lululemon – Weighing Factories (F1–F7)</Typography>
+          <Stack direction="row" flexWrap="wrap" gap={0.6}>
+            {Array.from({ length: 7 }, (_, i) => `F${i + 1}`).map((factory) => (
+              <FormControlLabel key={factory}
+                control={<Checkbox checked={f.weighingFactoryPermissions.includes(factory)} onChange={() => toggle('weighingFactoryPermissions', factory)} />}
+                label={factory} />
+            ))}
+          </Stack>
+          <TextField label="Packing / general factory permissions (comma-separated, e.g. F1)" value={Array.isArray(f.factoryPermissions) ? f.factoryPermissions.join(',') : f.factoryPermissions} onChange={(e) => setF({ ...f, factoryPermissions: e.target.value })} />
         </Stack>
       </DialogContent>
       <DialogActions>

@@ -27,8 +27,12 @@ const HOVER = '#F5F8FC';
 const SELECTED = '#F4F8FD';
 const SELECTED_BORDER = '#E2EBF5';
 
-const isItemSelected = (menuItem, pathname) => {
+const isItemSelected = (menuItem, pathname, activeMenuItemId) => {
   if (!menuItem) return false;
+  if (activeMenuItemId !== undefined) {
+    if (menuItem.id === activeMenuItemId) return true;
+    return Array.isArray(menuItem.children) && menuItem.children.some((child) => isItemSelected(child, pathname, activeMenuItemId));
+  }
 
   if (menuItem.url) {
     return Boolean(
@@ -42,15 +46,15 @@ const isItemSelected = (menuItem, pathname) => {
     );
   }
 
-  return Array.isArray(menuItem.children) && menuItem.children.some((child) => isItemSelected(child, pathname));
+  return Array.isArray(menuItem.children) && menuItem.children.some((child) => isItemSelected(child, pathname, activeMenuItemId));
 };
 
-function NavCollapse({ item, level = 1, pathname }) {
+function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
   const [open, setOpen] = useState(false);
 
-  const selected = isItemSelected(item, pathname);
+  const selected = isItemSelected(item, pathname, activeMenuItemId);
   const ConfiguredIcon = item.icon;
   const SemanticIcon = getNavigationIcon(item);
   const itemIcon = SemanticIcon ? (
@@ -163,11 +167,11 @@ function NavCollapse({ item, level = 1, pathname }) {
         <List component="div" disablePadding sx={{ py: 0.2 }}>
           {(item.children || []).map((child) => {
             if (child.type === 'collapse') {
-              return <NavCollapse key={child.id} item={child} level={level + 1} pathname={pathname} />;
+              return <NavCollapse key={child.id} item={child} level={level + 1} pathname={pathname} activeMenuItemId={activeMenuItemId} />;
             }
 
             if (child.type === 'item') {
-              return <NavItem key={child.id} item={child} level={level + 1} pathname={pathname} />;
+              return <NavItem key={child.id} item={child} level={level + 1} pathname={pathname} activeMenuItemId={activeMenuItemId} />;
             }
 
             return (
@@ -185,10 +189,11 @@ function NavCollapse({ item, level = 1, pathname }) {
 NavCollapse.propTypes = {
   item: PropTypes.any,
   level: PropTypes.number,
-  pathname: PropTypes.string
+  pathname: PropTypes.string,
+  activeMenuItemId: PropTypes.string
 };
 
-export default function NavGroup({ item, lastItem, remItems, lastItemId, setSelectedID, pathname }) {
+export default function NavGroup({ item, lastItem, remItems, lastItemId, setSelectedID, pathname, activeMenuItemId }) {
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
@@ -229,18 +234,22 @@ export default function NavGroup({ item, lastItem, remItems, lastItemId, setSele
   };
 
   useEffect(() => {
-    checkSelectedOnload(currentItem);
+    if (activeMenuItemId !== undefined) {
+      if (isItemSelected(currentItem, pathname, activeMenuItemId)) setSelectedID(currentItem.id);
+    } else {
+      checkSelectedOnload(currentItem);
+    }
     if (openMini) setAnchorEl(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, currentItem]);
+  }, [pathname, currentItem, activeMenuItemId]);
 
   const navCollapse = currentItem.children?.map((menuItem, index) => {
     if (menuItem.type === 'collapse') {
-      return <NavCollapse key={menuItem.id} item={menuItem} level={1} pathname={pathname} />;
+      return <NavCollapse key={menuItem.id} item={menuItem} level={1} pathname={pathname} activeMenuItemId={activeMenuItemId} />;
     }
 
     if (menuItem.type === 'item') {
-      return <NavItem key={menuItem.id} item={menuItem} level={1} pathname={pathname} />;
+      return <NavItem key={menuItem.id} item={menuItem} level={1} pathname={pathname} activeMenuItemId={activeMenuItemId} />;
     }
 
     return (
@@ -297,5 +306,6 @@ NavGroup.propTypes = {
   selectedItems: PropTypes.oneOfType([PropTypes.string, PropTypes.any]),
   setSelectedLevel: PropTypes.object,
   selectedLevel: PropTypes.number,
-  pathname: PropTypes.string
+  pathname: PropTypes.string,
+  activeMenuItemId: PropTypes.string
 };

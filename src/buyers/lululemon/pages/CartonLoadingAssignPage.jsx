@@ -6,21 +6,12 @@ import {
   Alert, Box, Button, Chip, Divider, InputAdornment, Paper, Stack, TableBody, TableCell,
   TableHead, TablePagination, TableRow, TextField, Typography
 } from '@mui/material';
-import { CheckCircleOutline, QrCodeScanner, QrCodeScannerOutlined } from '@mui/icons-material';
-import { CompactPageHeader } from 'components/CompactPageHeader';
+import { ArrowForwardRounded, CheckCircleOutline, QrCodeScanner, QrCodeScannerOutlined } from '@mui/icons-material';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
 import { assignSscc, confirmCartonLabel, lookupCartonLabel } from '../services/service';
 import OrderScope from '../components/OrderScope';
 import { APP_MESSAGES, createSsccAssignedMessage } from '../../../constants/appMessages';
 import { BUYER_CODE, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../../constants/appConstants';
-
-function StepBadge({ number, label, active, done }) {
-  return (
-    <Stack direction="row" spacing={0.7} alignItems="center" sx={{ color: done ? 'success.main' : active ? 'primary.main' : 'text.secondary' }}>
-      <Box sx={{ width: 24, height: 24, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, bgcolor: done ? 'success.lighter' : active ? 'primary.lighter' : '#F1F4F7', border: '1px solid', borderColor: done ? 'success.light' : active ? 'primary.light' : '#E1E8EF' }}>{done ? '✓' : number}</Box>
-      <Typography variant="caption" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</Typography>
-    </Stack>
-  );
-}
 
 export default function CartonLoadingAssignPage() {
   const [orderId, setOrderId] = useState('');
@@ -33,6 +24,7 @@ export default function CartonLoadingAssignPage() {
   const [sscc, setSscc] = useState('');
   const [busy, setBusy] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [assignmentDone, setAssignmentDone] = useState(false);
   const [notice, setNotice] = useState(null);
   const [candidatePage, setCandidatePage] = useState(0);
   const [candidateRowsPerPage, setCandidateRowsPerPage] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
@@ -45,6 +37,7 @@ export default function CartonLoadingAssignPage() {
     setSelected(null);
     setConfirmed(false);
     setSscc('');
+    setAssignmentDone(false);
     setCandidatePage(0);
     setAssignOpen(false);
   };
@@ -72,6 +65,7 @@ export default function CartonLoadingAssignPage() {
       setAssignOpen(nextCandidates.length === 1);
       setConfirmed(false);
       setSscc('');
+      setAssignmentDone(false);
       setNotice({
         severity: 'info',
         text: result.message || `Found ${nextCandidates.length} carton(s). Select the Carton No. shown on the physical label and confirm the system Unit Qty.`
@@ -88,6 +82,7 @@ export default function CartonLoadingAssignPage() {
     setSelected(candidate);
     setConfirmed(Boolean(candidate?.carton?.labelConfirmedAt));
     setSscc('');
+    setAssignmentDone(false);
     setAssignOpen(true);
   };
 
@@ -124,12 +119,16 @@ export default function CartonLoadingAssignPage() {
       setNotice({
         severity: 'success',
         text: `${createSsccAssignedMessage(carton.sscc18, assignedPo.poNumber, selected.carton.cartonNo)} ${waitingForProductVerification
-          ? 'Carton identity is saved. Product verification / RFID count is still required before Shipping.'
-          : 'Carton is ready for the Shipping Schedule flow.'}`
+          ? 'Carton identity is saved. Weight and RFID verification will be performed at Carton Weight; they are not required to assign this carton.'
+          : 'Carton is ready for Carton Weight; weight and RFID will be checked there.'}`
       });
-      setPoNumber('');
-      setSku('');
-      resetLookup();
+      // Keep this PO/SKU and the dialog open for the next unassigned carton.
+      // Do not mark a carton assigned locally until the backend confirms success.
+      setSelected((current) => current ? { ...current, carton: { ...current.carton, ...carton } } : current);
+      setCandidates((current) => current.map((candidate) => candidate.carton.id === carton.id
+        ? { ...candidate, carton: { ...candidate.carton, ...carton } }
+        : candidate));
+      setAssignmentDone(true);
     } catch (error) {
       setNotice({ severity: 'error', text: error?.response?.data?.message || error.message || APP_MESSAGES.SSCC_ASSIGNMENT_FAILED });
     } finally {
@@ -143,6 +142,55 @@ export default function CartonLoadingAssignPage() {
     return Number(a?.carton?.cartonNo || 0) - Number(b?.carton?.cartonNo || 0);
   }), [candidates]);
 
+  // Carton numbers determine the next unassigned carton within this exact PO.
+  // A repeated PO number in another logical PO must never leak into this queue.
+  const samePo = (candidate, current) => Boolean(current) && (
+    candidate?.po?.id && current?.po?.id
+      ? candidate.po.id === current.po.id
+      : candidate?.po?.poNumber === current?.po?.poNumber
+  );
+  const remainingInPo = orderedCandidates.filter((candidate) =>
+    samePo(candidate, selected) && !(candidate.carton.sscc18 || candidate.carton.sscc)
+  );
+  const currentCartonNo = Number(selected?.carton?.cartonNo || 0);
+  const nextCandidate = remainingInPo.find((candidate) => Number(candidate.carton.cartonNo || 0) > currentCartonNo)
+    || remainingInPo[0]
+    || null;
+
+  const goToNextCarton = async () => {
+    if (!assignmentDone || !selected || !nextCandidate || busy) return;
+    setBusy(true);
+    try {
+      // Read a fresh queue so a carton assigned from another station is not reopened.
+      const result = await lookupCartonLabel(orderId, poNumber.trim(), sku.trim());
+      const fresh = Array.isArray(result.candidates) && result.candidates.length
+        ? result.candidates
+        : (result.cartons || []).map((carton) => ({ po: result.po, carton }));
+      setCandidates(fresh);
+      const pending = fresh
+        .filter((candidate) => samePo(candidate, selected) && !(candidate.carton.sscc18 || candidate.carton.sscc))
+        .sort((a, b) => Number(a.carton.cartonNo || 0) - Number(b.carton.cartonNo || 0));
+      const next = pending.find((candidate) => Number(candidate.carton.cartonNo || 0) > currentCartonNo)
+        || pending[0];
+      if (!next) {
+        setNotice({ severity: 'info', text: 'All cartons in this PO have been assigned. You can close this window.' });
+        return;
+      }
+      setSelected(next);
+      setConfirmed(Boolean(next.carton.labelConfirmedAt));
+      setSscc('');
+      setAssignmentDone(false);
+      setNotice(null);
+      const index = fresh.findIndex((candidate) => candidate.carton.id === next.carton.id);
+      if (index >= 0) setCandidatePage(Math.floor(index / candidateRowsPerPage));
+      if (next.carton.labelConfirmedAt) setTimeout(() => ssccRef.current?.focus(), 50);
+    } catch (error) {
+      setNotice({ severity: 'warning', text: error?.response?.data?.message || error.message || 'Cannot load the next carton. Refresh this PO.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const visibleCandidates = orderedCandidates.slice(
     candidatePage * candidateRowsPerPage,
     candidatePage * candidateRowsPerPage + candidateRowsPerPage
@@ -152,29 +200,25 @@ export default function CartonLoadingAssignPage() {
   const step = confirmed ? 4 : selected ? 3 : candidates.length ? 2 : 1;
 
   return (
-    <Stack spacing={0.9}>
+    <Stack spacing={0.9} className="lululemon-compact-v16">
       <CompactPageHeader
         dense
         title="Carton Identification & SSCC"
-        subtitle="Scan PO + SKU from the carton label, confirm the system Unit Qty, then assign SSCC-18."
-        meta={<Chip size="small" label={BUYER_CODE.LULULEMON} variant="outlined" sx={{ fontWeight: 700 }} />}
+        meta={<Stack direction="row" spacing={0.5} alignItems="center">
+          <Chip size="small" color="primary" variant="outlined" label={['', 'PO / SKU', 'Carton', 'Quantity', 'SSCC'][step]} />
+        </Stack>}
       />
-      <OrderScope value={orderId} onChange={setOrderId} disabled={busy} />
+
       {notice && !assignOpen && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}
 
       <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-        <Box sx={{ px: 1.2, py: 1.1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E7EDF3', display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', md: 'repeat(4, max-content)' }, gap: { xs: 1, md: 2.5 }, alignItems: 'center' }}>
-          <StepBadge number="1" label="Scan PO" active={step === 1} done={step > 1} />
-          <StepBadge number="2" label="Scan SKU / Carton" active={step === 2} done={step > 2} />
-          <StepBadge number="3" label="Confirm Qty" active={step === 3} done={step > 3} />
-          <StepBadge number="4" label="Assign SSCC" active={step === 4} done={false} />
-        </Box>
-
         <Box sx={{ p: { xs: 0.9, md: 1.05 } }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 750 }}>Scan the physical carton label</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            PO and SKU identify the logical PO. Unit Qty comes from the imported system plan and cannot be edited here.
-          </Typography>
+          <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ lg: 'center' }} gap={0.75} sx={{ mb: 0.75 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Find Carton</Typography>
+            <Box sx={{ width: { xs: '100%', lg: 390 }, maxWidth: '100%' }}>
+              <OrderScope value={orderId} onChange={setOrderId} disabled={busy} embedded compact />
+            </Box>
+          </Stack>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
             <TextField
               fullWidth
@@ -219,18 +263,13 @@ export default function CartonLoadingAssignPage() {
           <Divider />
           <Box sx={{ p: { xs: 0.9, md: 1.05 } }}>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={1} sx={{ mb: 1 }}>
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 750 }}>Choose the carton shown on the physical label</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Match Carton No. and check the system Unit Qty. Do not type Unit Qty manually.
-                </Typography>
-              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Matching Cartons</Typography>
               <Chip size="small" label={`${candidates.length} candidate${candidates.length === 1 ? '' : 's'}`} />
             </Stack>
 
             <Box sx={{ border: '1px solid #E7EDF3', borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                <LululemonTableViewport viewportHeight="clamp(240px, 34vh, 350px)" sx={{ border: 0, borderRadius: 0 }}>
+                <LululemonTableViewport viewportHeight="clamp(280px, calc(100dvh - 410px), 780px)" sx={{ border: 0, borderRadius: 0 }}>
                   <SortableTable disableRowNumber size="small">
                     <TableHead><TableRow>
                       <TableCell>Factory</TableCell><TableCell>PO</TableCell><TableCell>Style</TableCell><TableCell>Color</TableCell><TableCell>Size</TableCell>
@@ -300,7 +339,7 @@ export default function CartonLoadingAssignPage() {
         onClose={() => setAssignOpen(false)}
         disableClose={busy}
         title={selected ? `Identify Carton ${selected.carton.cartonNo}` : 'Identify Carton'}
-        subtitle={selected ? `PO ${selected.po?.poNumber || '—'} · SKU ${selected.po?.sku || lookupSku || '—'}` : 'Carton identification workspace'}
+        subtitle={selected ? `PO ${selected.po?.poNumber || '—'} · SKU ${selected.po?.sku || lookupSku || '—'}` : ''}
         maxWidth="md"
       >
         {selected ? (
@@ -320,13 +359,7 @@ export default function CartonLoadingAssignPage() {
                 <Box sx={{ mt: 1.2, p: 1.4, textAlign: 'center', borderRadius: 2, bgcolor: 'primary.lighter', border: '1px solid', borderColor: 'primary.light' }}>
                   <Typography variant="caption" color="text.secondary">SYSTEM UNIT QTY · READ ONLY</Typography>
                   <Typography variant="h2" sx={{ fontWeight: 950, lineHeight: 1.05 }}>{expectedQty || '—'}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4 }}>Check this value against the physical carton label.</Typography>
                 </Box>
-                <Alert severity={confirmed ? 'success' : 'info'} sx={{ mt: 1 }}>
-                  {confirmed
-                    ? `SKU ${selected.po?.sku || lookupSku} is assigned to all ${expectedQty} logical item slots. Items are still PENDING until the later RFID verification step.`
-                    : `Confirming will automatically apply SKU ${selected.po?.sku || lookupSku} to all ${expectedQty || '—'} logical item slots. It will not mark the items as PASS.`}
-                </Alert>
                 <Button
                   fullWidth
                   variant="contained"
@@ -342,27 +375,41 @@ export default function CartonLoadingAssignPage() {
 
               <Box sx={{ p: 1.1, border: '1px solid #E7EDF3', borderRadius: 2, opacity: confirmed ? 1 : 0.55 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Assign SSCC-18</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.3, mb: 1 }}>
-                  SSCC scanning is unlocked only after the system Unit Qty is confirmed.
-                </Typography>
                 <TextField
                   inputRef={ssccRef}
                   fullWidth
-                  placeholder="Scan SSCC-18"
+                  placeholder="Scan GS1 (00) barcode (20 digits) or SSCC-18"
                   value={sscc}
                   onChange={(e) => setSscc(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); assign(); } }}
-                  disabled={!confirmed || busy}
+                  disabled={!confirmed || busy || assignmentDone || Boolean(selected.carton.sscc18 || selected.carton.sscc)}
                   InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeScannerOutlined color={confirmed ? 'primary' : 'disabled'} /></InputAdornment> }}
                 />
-                <Button fullWidth variant="contained" onClick={assign} disabled={!confirmed || busy || !sscc.trim()} sx={{ mt: 1, minHeight: { xs: 52, md: 'auto' } }}>
-                  Save Carton Identity
+                <Button fullWidth variant="contained" onClick={assign} disabled={!confirmed || busy || !sscc.trim() || assignmentDone || Boolean(selected.carton.sscc18 || selected.carton.sscc)} sx={{ mt: 1, minHeight: { xs: 52, md: 'auto' } }}>
+                  {assignmentDone ? 'Identity Saved' : 'Save Carton Identity'}
                 </Button>
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  Assigning SSCC here identifies the carton only. If Packing/RFID verification is not complete, the carton is not released to Shipping yet.
-                </Alert>
               </Box>
             </Box>
+            {assignmentDone ? (
+              <Box sx={{ mx: { xs: 1.5, md: 2 }, mb: 1.5, p: 1.2, border: '1px solid', borderColor: 'success.light', borderRadius: 2, bgcolor: 'background.paper' }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+                  <Box>
+                    <Typography fontWeight={850} color="success.main">Carton {selected.carton.cartonNo} assigned successfully</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {nextCandidate ? `${remainingInPo.length} carton(s) left in this PO.` : 'All cartons in this PO have been assigned.'}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={0.7}>
+                    {nextCandidate ? (
+                      <Button variant="contained" color="primary" endIcon={<ArrowForwardRounded />} disabled={busy} onClick={goToNextCarton}>
+                        Next Carton {nextCandidate.carton.cartonNo}
+                      </Button>
+                    ) : null}
+                    <Button variant="outlined" onClick={() => setAssignOpen(false)} disabled={busy}>Done</Button>
+                  </Stack>
+                </Stack>
+              </Box>
+            ) : null}
           </Stack>
         ) : null}
       </OperationWorkspaceDialog>

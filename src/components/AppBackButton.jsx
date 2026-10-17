@@ -1,74 +1,28 @@
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { fallbackBackPath, recordCurrentAppRoute, useSafeAppBack } from 'utils/appBackNavigation';
 
 const HOME_PATHS = new Set(['/', '/workflow']);
 
 
-const hasLocalBackButton = (pathname = '/') => {
-  const path = pathname.replace(/\/+$/, '') || '/';
-  return [
-    /^\/buyers\/[^/]+\/orders\/[^/]+$/,
-    /^\/buyers\/[^/]+\/orders\/[^/]+\/(?:data-management|scan|weight-check|barcode-assign)$/,
-    /^\/buyers\/[^/]+\/orders\/[^/]+\/items\/[^/]+$/,
-    /^\/buyers\/[^/]+\/packing-list\/[^/]+$/,
-    /^\/buyers\/[^/]+\/(?:packing|print-requests|shipping)$/,
-    /^\/assign-barcode\/[^/]+\/[^/]+$/
-  ].some((pattern) => pattern.test(path));
-};
+// Packing has its own local Back button which uses the same safe history helper.
+const hasLocalBackButton = (pathname = '/') => /^\/buyers\/[^/]+\/packing(?:\/pos\/[^/]+\/[^/]+)?\/?$/.test(pathname);
 
-const decodeSegment = (value = '') => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
-
-export function resolveBackPath(pathname = '/') {
-  const path = pathname.replace(/\/+$/, '') || '/';
-
-  let match = path.match(/^\/buyers\/([^/]+)\/orders\/([^/]+)\/pos\/([^/]+)\/cartons\/([^/]+)$/);
-  if (match) return `/buyers/${match[1]}/orders/${match[2]}/pos/${encodeURIComponent(decodeSegment(match[3]))}`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/orders\/([^/]+)\/pos\/([^/]+)$/);
-  if (match) return `/buyers/${match[1]}/orders/${match[2]}`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/orders\/([^/]+)\/(?:data-management|scan|weight-check|barcode-assign)$/);
-  if (match) return `/buyers/${match[1]}/orders/${match[2]}`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/orders\/([^/]+)\/items\/[^/]+$/);
-  if (match) return `/buyers/${match[1]}/orders/${match[2]}`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/orders\/([^/]+)$/);
-  if (match) return `/buyers/${match[1]}/orders`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/packing-list\/([^/]+)$/);
-  if (match) return `/buyers/${match[1]}/packing-list`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/(?:packing-list|packing|print-requests|shipping|carton-loading)$/);
-  if (match) return `/buyers/${match[1]}/orders`;
-
-  match = path.match(/^\/buyers\/([^/]+)\/orders$/);
-  if (match) return '/workflow';
-
-  match = path.match(/^\/packing\/shipments\/[^/]+\/[^/]+$/);
-  if (match) return '/packing/shipments';
-
-  match = path.match(/^\/assign-barcode\/[^/]+\/[^/]+$/);
-  if (match) return '/assign-barcode';
-
-  return '/workflow';
+// Kept for modules which import this path helper. Safe deep-link fallback only.
+export function resolveBackPath(pathname = '/', search = '') {
+  return fallbackBackPath(pathname, search);
 }
 
 export default function AppBackButton() {
   const location = useLocation();
-  const navigate = useNavigate();
+  const goBack = useSafeAppBack();
+  // Track every dashboard route, including screens with their own local Back button.
+  useEffect(() => { recordCurrentAppRoute(location); }, [location.key, location.pathname, location.search, location.hash]);
 
   if (HOME_PATHS.has(location.pathname) || hasLocalBackButton(location.pathname)) return null;
-
-  const backPath = resolveBackPath(location.pathname);
 
   return (
     <Tooltip title="Back to previous page">
@@ -77,7 +31,7 @@ export default function AppBackButton() {
         size="small"
         variant="outlined"
         startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 18 }} />}
-        onClick={() => navigate(backPath)}
+        onClick={goBack}
         aria-label="Back"
         sx={{
           minWidth: 76,

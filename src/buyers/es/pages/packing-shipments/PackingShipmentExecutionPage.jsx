@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -87,7 +88,7 @@ export default function PackingShipmentExecutionPage() {
   const result = weightResult(transaction);
   return <Stack spacing={2}>
     <Button component={Link} to={OPERATION_ROUTE.PACKING_SHIPMENTS} sx={{ alignSelf: 'flex-start' }}>← Shipment Plans</Button>
-    <Typography variant="h4">Packing · {plan?.shipmentNo || 'Shipment Weight Check'}</Typography>
+    {plan?.shipmentNo ? <Chip size="small" variant="outlined" label={`Shipment ${plan.shipmentNo}`} sx={{ alignSelf: 'flex-start' }} /> : null}
     <Typography color="text.secondary">{plan ? `${plan.plannedDate} · ${plan.destination} · ${buyer?.label}` : 'Loading shipment plan…'}</Typography>
     {(error || pollError) && <Alert severity="error">{error || pollError}</Alert>}
     {plan && plan.status !== SHIPMENT_STATUS.PLANNED && <Alert severity="info">{createShipmentReadOnlyMessage(plan.status)}</Alert>}
@@ -109,7 +110,7 @@ export default function PackingShipmentExecutionPage() {
       {result.label === INSPECTION_RESULT.FAIL && <Alert severity="error">{APP_MESSAGES.CARTON_WEIGHT_CHECK_FAILED}</Alert>}
     </Stack></Paper>}
     <Typography variant="h5">Physical Cartons in this Shipment</Typography>
-    <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE}><TableHead><TableRow>
+    <StandardTableViewport component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE}><TableHead><TableRow>
       {['Barcode', 'PO / Product', 'Color / Size', 'Quantity', 'Expected / Actual (kg)', 'Result', 'Completion'].map((label) => <TableCell key={label}>{label}</TableCell>)}
     </TableRow></TableHead><TableBody>
       {!loading && !data.content.length && <TableRow><TableCell colSpan={7}>No physical cartons are included in this shipment.</TableCell></TableRow>}
@@ -118,7 +119,7 @@ export default function PackingShipmentExecutionPage() {
         <TableCell>{row.assignedQuantity}</TableCell><TableCell>{row.expectedWeightKg ?? '—'} / {row.weightKg ?? '—'}</TableCell><TableCell><Chip size="small" label={outcome.label} color={outcome.color} /></TableCell>
         <TableCell>{row.completedAt ? 'Completed' : row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button disabled={busy || loading || Boolean(pollError) || plan?.status !== SHIPMENT_STATUS.PLANNED} onClick={() => complete(row)}>Complete Carton</Button>}</TableCell>
       </TableRow>; })}
-    </TableBody></SortableTable></TableContainer>
+    </TableBody></SortableTable></StandardTableViewport>
     <TablePagination component="div" count={data.totalElements} page={page} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => setPage(next)} />
   </Stack>;
 }

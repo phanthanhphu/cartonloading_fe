@@ -68,12 +68,13 @@ export default function DepartmentManagement() {
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
-        <Stack direction="row" justifyContent="space-between">
-          <Typography variant="h5" fontWeight={850}>Department Management</Typography>
+        <Stack direction="row" justifyContent="flex-end">
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add Department</Button>
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
-        <TableFilterBar
+        
+        <ManagementTable
+          filterBar={<TableFilterBar
           fields={[
             { key: 'factory', label: 'Factory', options: FACTORY_CODES.map((v) => ({ value: v, label: v })) },
             { key: 'division', label: 'Division' },
@@ -83,8 +84,7 @@ export default function DepartmentManagement() {
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onClear={() => setFilters({ factory: '', division: '', departmentName: '' })}
           disabled={state.loading}
-        />
-        <ManagementTable {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
+        />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
         {dialog ? <DepartmentDialog row={dialog} onClose={() => setDialog(null)} onSave={save} /> : null}
       </Stack>
     </Box>

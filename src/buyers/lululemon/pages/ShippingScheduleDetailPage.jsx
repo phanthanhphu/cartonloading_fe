@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -17,21 +20,17 @@ import {
 } from '@mui/material';
 import {
   ArrowBackRounded,
+  ExpandMoreRounded,
   CheckCircleOutline,
-  FactCheckOutlined,
-  Refresh,
-  ScaleOutlined
+  Refresh
 } from '@mui/icons-material';
 import SortableTable from 'components/SortableTable';
 import LululemonTableViewport from '../components/LululemonTableViewport';
 import OperationWorkspaceDialog from '../components/OperationWorkspaceDialog';
-import { CompactPageHeader } from 'components/CompactPageHeader';
-import { canAssignBarcode, canManageSales } from 'utils/accessControl';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
 import {
-  checkShippingSchedule,
   getShippingSchedule,
-  listShippingScheduleWeightHistory,
-  sendShippingScheduleToWeight
+  listShippingScheduleWeightHistory
 } from '../services/service';
 
 const errorText = (error) => error?.response?.data?.message || error?.message || 'Operation failed.';
@@ -40,7 +39,7 @@ const pairValue = (first, second) => [String(first ?? '').trim(), String(second 
 
 const readinessState = (row = {}) => {
   if (!row.skuAssigned) return { label: 'SKU REQUIRED', color: 'error' };
-  if ((row.finishedCartons || 0) < (row.totalCartons || 0)) return { label: 'PACKING', color: 'warning' };
+  if ((row.finishedCartons || 0) < (row.totalCartons || 0)) return { label: 'IDENTITY', color: 'warning' };
   if ((row.ssccAssignedCartons || 0) < (row.totalCartons || 0)) return { label: 'SSCC', color: 'warning' };
   return { label: 'READY', color: 'success' };
 };
@@ -50,7 +49,6 @@ export default function ShippingScheduleDetailPage() {
   const { buyerSlug, scheduleId } = useParams();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId') || '';
-  const packing = canAssignBarcode() || canManageSales();
   const [detail, setDetail] = useState(null);
   const [weightHistory, setWeightHistory] = useState([]);
   const [selectedPoDetail, setSelectedPoDetail] = useState(null);
@@ -78,60 +76,29 @@ export default function ShippingScheduleDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const checkSchedule = async () => {
-    if (!packing || !orderId || !scheduleId || busy) return;
-    setBusy(true);
-    try {
-      const result = await checkShippingSchedule(orderId, scheduleId);
-      setDetail(result);
-      setNotice({
-        severity: result.readyToSendToWeight ? 'success' : 'warning',
-        text: result.readyToSendToWeight
-          ? 'All POs have SKU and all cartons have SSCC. This schedule is ready for Carton Weight.'
-          : 'Check completed. Review the PO Status column below to see what is still missing.'
-      });
-    } catch (error) {
-      setNotice({ severity: 'error', text: errorText(error) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const sendToWeight = async () => {
-    if (!packing || !detail?.readyToSendToWeight || !scheduleId || busy) return;
-    setBusy(true);
-    try {
-      const result = await sendShippingScheduleToWeight(orderId, scheduleId);
-      setDetail(result);
-      setNotice({ severity: 'success', text: `${result?.schedule?.scheduleNo}: Packing confirmed cartons were moved to the Carton Weight area.` });
-    } catch (error) {
-      setNotice({ severity: 'error', text: errorText(error) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const summary = useMemo(() => detail ? [
-    ['Schedule', detail.schedule?.scheduleNo, detail.schedule?.status],
-    ['Factory / Date', `${value(detail.schedule?.factoryCode)} · ${value(detail.schedule?.exFtyDate)}`, 'Assigned by Sales'],
+    ['Shipping', detail.schedule?.shippingName || detail.schedule?.scheduleNo, detail.schedule?.status === 'COMPLETED' && detail.schedule?.rfidReviewStatus
+      ? `WEIGHT COMPLETE · RFID ${detail.schedule.rfidReviewStatus === 'PASS' ? 'VERIFIED' : detail.schedule.rfidReviewStatus}`
+      : detail.schedule?.status],
+    ['Factory / Date', `${value(detail.schedule?.factoryCode)} · ${value(detail.schedule?.exFtyDate)}`, 'Packing shipment'],
     ['PO Ready', `${detail.readyPos}/${detail.totalPos}`, detail.readyToSendToWeight ? 'Ready for Carton Weight' : 'Action required'],
     ['SSCC', `${detail.ssccAssignedCartons}/${detail.totalCartons}`, 'Assigned cartons'],
     ['Weight', `${detail.passCartons} PASS · ${detail.failedCartons} FAILED`, `${detail.remainingWeightCartons} remaining`]
   ] : [], [detail]);
 
   if (!orderId) {
-    return <Alert severity="error">Order context is missing. Please return to Schedule Review and open the schedule again.</Alert>;
+    return <Alert severity="error">Order context is missing. Please return to Shipment Management and open the shipment again.</Alert>;
   }
 
   return (
-    <Stack spacing={0.85} sx={{ p: { xs: 0.5, md: 1 } }}>
+    <Stack className="lululemon-compact-v16" spacing={0.85} sx={{ p: { xs: 0.5, md: 1 } }}>
       <CompactPageHeader
         dense
-        title="Shipping Schedule Detail"
-        subtitle={detail?.schedule?.scheduleNo || 'Review PO readiness for this Shipping Schedule.'}
+        title="Shipment Details"
+        subtitle={detail?.schedule?.shippingName || detail?.schedule?.scheduleNo || ''}
         actions={(
           <Stack direction="row" spacing={0.6}>
-            <Button size="small" variant="outlined" startIcon={<ArrowBackRounded />} onClick={() => navigate(`/buyers/${buyerSlug}/shipping/review?orderId=${encodeURIComponent(orderId)}`)}>Schedule List</Button>
+            <Button size="small" variant="outlined" startIcon={<ArrowBackRounded />} onClick={() => navigate(`/buyers/${buyerSlug}/shipping?orderId=${encodeURIComponent(orderId)}`)}>Back to Shipments</Button>
             <Button size="small" startIcon={<Refresh />} onClick={load} disabled={busy}>Refresh</Button>
           </Stack>
         )}
@@ -141,19 +108,6 @@ export default function ShippingScheduleDetailPage() {
 
       {detail ? (
         <>
-          <Paper variant="outlined" sx={{ p: 0.9, borderRadius: 2 }}>
-            <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ lg: 'center' }}>
-              <Box>
-                <Typography fontWeight={950}>PO Readiness</Typography>
-                <Typography variant="caption" color="text.secondary">Packing receives this Shipping List first. Verify mapped scan data, then confirm the cartons were moved to the Carton Weight area.</Typography>
-              </Box>
-              <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap">
-                <Button variant="outlined" startIcon={<FactCheckOutlined />} onClick={checkSchedule} disabled={!packing || busy} sx={{ minHeight: { xs: 48, md: 'auto' }, flex: { xs: 1, md: 'initial' } }}>CHECK</Button>
-                <Button variant="contained" color="success" startIcon={<ScaleOutlined />} onClick={sendToWeight} disabled={!packing || !detail.readyToSendToWeight || Boolean(detail.schedule?.weighingOrderId) || busy} sx={{ minHeight: { xs: 48, md: 'auto' }, flex: { xs: 1, md: 'initial' } }}>CONFIRM SENT TO WEIGHING AREA</Button>
-              </Stack>
-            </Stack>
-          </Paper>
-
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', xl: 'repeat(5,1fr)' }, gap: 0.8 }}>
             {summary.map(([label, main, secondary]) => (
               <Paper key={label} variant="outlined" sx={{ p: 0.75, borderRadius: 1.7 }}>
@@ -169,13 +123,12 @@ export default function ShippingScheduleDetailPage() {
               <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={0.8} alignItems={{ md: 'center' }}>
                 <Box>
                   <Typography fontWeight={950}>PO List</Typography>
-                  <Typography variant="caption" color="text.secondary">Operational view only. Use Details when full logical PO information is needed.</Typography>
                 </Box>
-                <Chip label={detail.readyToSendToWeight ? 'READY FOR CARTON WEIGHT' : 'ACTION REQUIRED'} color={detail.readyToSendToWeight ? 'success' : 'warning'} icon={detail.readyToSendToWeight ? <CheckCircleOutline /> : undefined} />
+                <Chip label={detail.readyToSendToWeight ? 'READY FOR CARTON WEIGHT' : 'PACKING REQUIRED'} color={detail.readyToSendToWeight ? 'success' : 'warning'} icon={detail.readyToSendToWeight ? <CheckCircleOutline /> : undefined} />
               </Stack>
             </Box>
             <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-              <LululemonTableViewport>
+              <LululemonTableViewport paginate>
                 <SortableTable size="small">
                   <TableHead><TableRow>
                     <TableCell>PO</TableCell>
@@ -226,7 +179,7 @@ export default function ShippingScheduleDetailPage() {
                       <Chip size="small" color={state.color} label={state.label} />
                     </Stack>
                     <Box sx={{ mt: 0.9 }}>
-                      <Stack direction="row" justifyContent="space-between"><Typography variant="caption" fontWeight={850}>Packing {row.finishedCartons}/{row.totalCartons}</Typography><Typography variant="caption" color="text.secondary">{packingPercent}%</Typography></Stack>
+                      <Stack direction="row" justifyContent="space-between"><Typography variant="caption" fontWeight={850}>Identified {row.finishedCartons}/{row.totalCartons}</Typography><Typography variant="caption" color="text.secondary">{packingPercent}%</Typography></Stack>
                       <LinearProgress variant="determinate" value={packingPercent} color={packingPercent === 100 ? 'success' : 'primary'} sx={{ mt: 0.35, height: 7, borderRadius: 6 }} />
                     </Box>
                     <Box sx={{ mt: 0.8 }}>
@@ -271,7 +224,7 @@ export default function ShippingScheduleDetailPage() {
                 </Box>
                 <Paper variant="outlined" sx={{ p: 0.9, borderRadius: 1.5 }}>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
-                    <Box><Typography variant="caption" color="text.secondary">Packing</Typography><Typography fontWeight={900}>{selectedPoDetail.finishedCartons}/{selectedPoDetail.totalCartons} cartons</Typography></Box>
+                    <Box><Typography variant="caption" color="text.secondary">Identified</Typography><Typography fontWeight={900}>{selectedPoDetail.finishedCartons}/{selectedPoDetail.totalCartons} cartons</Typography></Box>
                     <Box><Typography variant="caption" color="text.secondary">SSCC</Typography><Typography fontWeight={900}>{selectedPoDetail.ssccAssignedCartons}/{selectedPoDetail.totalCartons} assigned</Typography></Box>
                     <Box><Typography variant="caption" color="text.secondary">Weight</Typography><Typography fontWeight={900}>{selectedPoDetail.passCartons} PASS · {selectedPoDetail.failedCartons} FAILED</Typography></Box>
                   </Stack>
@@ -282,8 +235,11 @@ export default function ShippingScheduleDetailPage() {
           </OperationWorkspaceDialog>
 
           {detail.schedule?.history?.length ? (
-            <Paper variant="outlined" sx={{ p: 0.9, borderRadius: 2 }}>
-              <Typography fontWeight={950} sx={{ mb: 0.7 }}>Schedule History</Typography>
+            <Accordion variant="outlined" disableGutters sx={{ borderRadius: '8px !important', '&::before': { display: 'none' } }}>
+              <AccordionSummary expandIcon={<ExpandMoreRounded />} sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.7 } }}>
+                <Typography fontWeight={850}>Schedule History ({detail.schedule.history.length})</Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ pt: 0, pb: 1.1 }}>
               <Stack spacing={0.5}>
                 {[...detail.schedule.history].reverse().map((event, index) => (
                   <Stack key={`${event.createdAt}-${index}`} direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ py: 0.55, borderBottom: index < detail.schedule.history.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
@@ -294,14 +250,15 @@ export default function ShippingScheduleDetailPage() {
                   </Stack>
                 ))}
               </Stack>
-            </Paper>
+              </AccordionDetails>
+            </Accordion>
           ) : null}
 
           <Paper variant="outlined" sx={{ borderRadius: 2.5, overflow: 'hidden' }}>
-            <Box sx={{ p: 1.2, bgcolor: 'background.default' }}><Typography fontWeight={950}>Carton Weight History</Typography><Typography variant="caption" color="text.secondary">All weighing results retained against this Shipping Schedule.</Typography></Box>
+            <Box sx={{ p: 0.85, bgcolor: 'background.default' }}><Typography fontWeight={950}>Carton Weight History</Typography></Box>
             <Divider />
             <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-              <LululemonTableViewport>
+              <LululemonTableViewport paginate>
                 <SortableTable size="small">
                   <TableHead><TableRow><TableCell>Time</TableCell><TableCell>PO</TableCell><TableCell>Carton</TableCell><TableCell>SSCC</TableCell><TableCell>Qty</TableCell><TableCell>Target</TableCell><TableCell>Actual</TableCell><TableCell>Result</TableCell><TableCell>Station</TableCell><TableCell>User</TableCell></TableRow></TableHead>
                   <TableBody>

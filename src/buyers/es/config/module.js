@@ -41,7 +41,7 @@ const moduleConfig = {
     sscc18: false
   },
   menu: (buyer) => [
-    { id: 'orders', title: 'Order Management', icon: AssignmentOutlined, to: buyerPath(buyer, 'orders'), access: allowed.workspace },
+    { id: 'orders', title: 'Order Management', icon: AssignmentOutlined, to: buyerPath(buyer, 'orders'), activePaths: [buyerPath(buyer, 'packing-list/*')], access: allowed.workspace },
     { id: 'assign-barcode', title: 'Carton Barcode Assignment', icon: QrCode2Outlined, to: OPERATION_ROUTE.ASSIGN_BARCODE, access: allowed.packing },
     { id: 'shipment-planning', title: 'Shipment Planning', icon: LocalShippingOutlined, to: OPERATION_ROUTE.SHIPMENT_PLANNING, access: allowed.sales },
     { id: 'weight-check', title: 'Weight Check & Dispatch', icon: QrCodeScannerOutlined, to: OPERATION_ROUTE.PACKING_SHIPMENTS, access: allowed.weight },

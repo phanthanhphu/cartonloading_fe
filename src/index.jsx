@@ -1,3 +1,4 @@
+import './buyers/lululemon/styles/operations-compact-v16.css';
 import { createRoot } from 'react-dom/client';
 
 // styles

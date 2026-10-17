@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import Loadable from 'components/Loadable';
 import DashboardLayout from 'layout/Dashboard';
 import LoginPage from './LoginPage';
-import { BuyerHomeRedirect, BuyerWorkspaceRoute } from 'buyers/core/BuyerRouteGuards';
+import { BuyerHomeRedirect, BuyerWorkspaceRoute, BuyerOrdersAccessRoute } from 'buyers/core/BuyerRouteGuards';
 import { isAdmin } from 'utils/accessControl';
 import barcodePackingRoutes from 'buyers/es/routes/routes';
 import { AUTH_STORAGE_KEYS, BUYER_CODE, ROUTE_PATH, STORAGE_KEY } from '../constants/appConstants';
@@ -14,10 +14,10 @@ import ssccPackingRoutes from 'buyers/lululemon/routes/routes';
 
 const WorkflowHomePage = Loadable(lazy(() => import('pages/workflow/WorkflowHomePage')));
 const DashboardPage = Loadable(lazy(() => import('pages/dashboard/DashboardPage')));
-const BuyerOrdersPage = Loadable(lazy(() => import('pages/buyer-orders/BuyerOrdersPage')));
-const BuyerOrderWorkspacePage = Loadable(lazy(() => import('pages/buyer-orders/BuyerOrderWorkspacePage')));
-const BuyerPoCartonsPage = Loadable(lazy(() => import('pages/buyer-orders/BuyerPoCartonsPage')));
-const BuyerCartonItemsPage = Loadable(lazy(() => import('pages/buyer-orders/BuyerCartonItemsPage')));
+const BuyerOrdersPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerOrdersPage')));
+const BuyerOrderWorkspacePage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerOrderWorkspacePage')));
+const BuyerPoCartonsPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerPoCartonsPage')));
+const BuyerCartonItemsPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerCartonItemsPage')));
 const UserManagementPage = Loadable(lazy(() => import('pages/users/UserManagementPage')));
 const DepartmentManagementPage = Loadable(lazy(() => import('pages/department/DepartmentManagement')));
 const BuyerManagementPage = Loadable(lazy(() => import('pages/buyers/BuyerManagementPage')));
@@ -97,10 +97,10 @@ const MainRoutes = {
           { path: 'audit-logs', element: <AdminRoute><AuditLogPage /></AdminRoute> },
 
           // Unified Buyer hierarchy: Buyer → Order → PO → Carton → Item.
-          { path: 'buyers/:buyerSlug/orders', element: <BuyerWorkspaceRoute><BuyerOrdersPage /></BuyerWorkspaceRoute> },
-          { path: 'buyers/:buyerSlug/orders/:orderId', element: <BuyerWorkspaceRoute><BuyerOrderWorkspacePage /></BuyerWorkspaceRoute> },
-          { path: 'buyers/:buyerSlug/orders/:orderId/pos/:poKey', element: <BuyerWorkspaceRoute><BuyerPoCartonsPage /></BuyerWorkspaceRoute> },
-          { path: 'buyers/:buyerSlug/orders/:orderId/pos/:poKey/cartons/:cartonId', element: <BuyerWorkspaceRoute><BuyerCartonItemsPage /></BuyerWorkspaceRoute> },
+          { path: 'buyers/:buyerSlug/orders', element: <BuyerWorkspaceRoute><BuyerOrdersAccessRoute><BuyerOrdersPage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute> },
+          { path: 'buyers/:buyerSlug/orders/:orderId', element: <BuyerWorkspaceRoute><BuyerOrdersAccessRoute><BuyerOrderWorkspacePage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute> },
+          { path: 'buyers/:buyerSlug/orders/:orderId/pos/:poKey', element: <BuyerWorkspaceRoute><BuyerOrdersAccessRoute><BuyerPoCartonsPage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute> },
+          { path: 'buyers/:buyerSlug/orders/:orderId/pos/:poKey/cartons/:cartonId', element: <BuyerWorkspaceRoute><BuyerOrdersAccessRoute><BuyerCartonItemsPage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute> },
 
           // Buyer-owned operational routes.
           ...barcodePackingRoutes,

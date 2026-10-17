@@ -3,8 +3,8 @@ export default function TableCell() {
     MuiTableCell: {
       styleOverrides: {
         root: {
-          borderBottom: '1px solid #E7EDF3',
-          borderRight: 0,
+          borderBottom: '1px solid #D6E0EA',
+          borderRight: '1px solid #D6E0EA',
           padding: '8px 10px',
           fontSize: '0.78rem',
           lineHeight: 1.4,
@@ -12,9 +12,9 @@ export default function TableCell() {
         },
         head: {
           backgroundColor: '#F7F9FC',
-          color: '#50667B',
-          fontSize: '0.72rem',
-          fontWeight: 750,
+          color: '#475569',
+          fontSize: '0.75rem',
+          fontWeight: 800,
           letterSpacing: '.02em',
           whiteSpace: 'nowrap'
         },
@@ -27,7 +27,7 @@ export default function TableCell() {
       styleOverrides: {
         root: {
           transition: 'background-color .12s ease',
-          '&:hover': { backgroundColor: '#F8FAFD' }
+          '&.MuiTableRow-hover:hover:not(.Mui-selected)': { backgroundColor: '#EEF4FC' }
         }
       }
     },

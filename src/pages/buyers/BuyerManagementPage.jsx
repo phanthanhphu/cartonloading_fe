@@ -88,13 +88,14 @@ export default function BuyerManagementPage() {
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
-        <Stack direction="row" justifyContent="space-between">
-          <Typography variant="h5" fontWeight={850}>Buyer Management</Typography>
+        <Stack direction="row" justifyContent="flex-end">
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add Buyer</Button>
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
         <Alert severity="info">{APP_MESSAGES.BUYER_CONFIGURATION_INFO}</Alert>
-        <TableFilterBar
+        
+        <ManagementTable
+          filterBar={<TableFilterBar
           fields={[
             { key: 'buyerKey', label: 'Buyer Key' },
             { key: 'buyerName', label: 'Buyer Name' },
@@ -105,8 +106,7 @@ export default function BuyerManagementPage() {
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onClear={() => setFilters({ buyerKey: '', buyerName: '', description: '', active: '' })}
           disabled={state.loading}
-        />
-        <ManagementTable {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
+        />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
         {dialog ? <BuyerDialog row={dialog} onClose={() => setDialog(null)} onSave={save} /> : null}
       </Stack>
     </Box>

@@ -1,11 +1,12 @@
+import { useSafeAppBack } from 'utils/appBackNavigation';
 import SortableTable from 'components/SortableTable';
 import LululemonTableViewport from '../components/LululemonTableViewport';
 import OperationWorkspaceDialog from '../components/OperationWorkspaceDialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Autocomplete, Box, Button, Chip, Divider, InputAdornment, Paper, Stack, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography } from '@mui/material';
-import { ArrowBackRounded, ArrowForwardRounded, CheckCircleOutline, LocalPrintshopOutlined, LocalShippingOutlined, QrCodeScanner, QrCodeScannerOutlined, Refresh, Search } from '@mui/icons-material';
-import { CompactPageHeader } from 'components/CompactPageHeader';
-import { useNavigate } from 'react-router-dom';
+import { Alert, Box, Button, Chip, Divider, InputAdornment, MenuItem, Paper, Stack, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography } from '@mui/material';
+import { ArrowBackRounded, ArrowForwardRounded, CheckCircleOutline, LocalShippingOutlined, QrCodeScanner, QrCodeScannerOutlined, Refresh, Search } from '@mui/icons-material';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
+import { useNavigate, useParams } from 'react-router-dom';
 import { buyerPath } from 'utils/buyerAccess';
 import StatusChip from '../components/StatusChip';
 import OrderScope from '../components/OrderScope';
@@ -33,9 +34,17 @@ function Metric({ label, value, hint }) {
 
 export default function PackingPage() {
   const navigate = useNavigate();
-  const [orderId, setOrderId] = useState('');
+  const goBack = useSafeAppBack();
+  const { orderId: routeOrderId, poId: routePoId } = useParams();
+  const isPoDetailPage = Boolean(routeOrderId && routePoId);
+  const [orderId, setOrderId] = useState(routeOrderId || '');
   const [pos, setPos] = useState([]);
-  const [poId, setPoId] = useState('');
+  const [poSearch, setPoSearch] = useState('');
+  const [poFactory, setPoFactory] = useState('ALL');
+  const [poStatus, setPoStatus] = useState('ALL');
+  const [poPage, setPoPage] = useState(0);
+  const [poRowsPerPage, setPoRowsPerPage] = useState(10);
+  const [poId, setPoId] = useState(routePoId || '');
   const [detail, setDetail] = useState(null);
   const [cartonId, setCartonId] = useState('');
   const [items, setItems] = useState([]);
@@ -78,11 +87,12 @@ export default function PackingPage() {
   }, [orderId, cartonId]);
 
   useEffect(() => {
-    setPoId(''); setDetail(null); setCartonId(''); setItems([]); setPackingOpen(false);
+    setPoId(isPoDetailPage ? routePoId : ''); setDetail(null); setCartonId(''); setItems([]); setPackingOpen(false);
     setIdentitySku(''); setQtyConfirmed(false); setIdentitySscc('');
     setCartonPage(0); setCartonKeyword(''); setCartonFilter(COMMON_FILTER.OPEN);
-    loadPos();
-  }, [orderId, loadPos]);
+    setPoSearch(''); setPoFactory('ALL'); setPoStatus('ALL'); setPoPage(0);
+    if (!isPoDetailPage) loadPos();
+  }, [orderId, loadPos, isPoDetailPage, routePoId]);
   useEffect(() => { loadDetail().catch((error) => setNotice({ severity: 'error', text: error?.response?.data?.message || error.message })); }, [poId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadItems(); }, [cartonId, loadItems]);
   useEffect(() => {
@@ -94,6 +104,39 @@ export default function PackingPage() {
 
   const carton = useMemo(() => detail?.cartons?.find((row) => row.id === cartonId) || null, [detail, cartonId]);
   const po = detail?.po;
+  // SSCC + confirmed carton-label SKU completes identity; RFID verification occurs later.
+  const isIdentified = (row) => Boolean(row?.labelConfirmedAt && (row?.sscc18 || row?.sscc));
+  const remainingIdentityCartons = useMemo(() => (detail?.cartons || [])
+    .filter((row) => !isIdentified(row))
+    .sort((a, b) => Number(a.cartonNo || 0) - Number(b.cartonNo || 0)), [detail]);
+  const nextIdentityCarton = remainingIdentityCartons.find((row) => Number(row.cartonNo || 0) > Number(carton?.cartonNo || 0))
+    || remainingIdentityCartons[0]
+    || null;
+
+  const poFactoryOptions = useMemo(() => [...new Set(pos.map((row) => row.factoryCode).filter(Boolean))].sort(), [pos]);
+  const poStatusOptions = useMemo(() => [...new Set(pos.map((row) => row.status).filter(Boolean))].sort(), [pos]);
+  const filteredPos = useMemo(() => {
+    const q = poSearch.trim().toLowerCase();
+    return pos.filter((row) => {
+      if (poFactory !== 'ALL' && row.factoryCode !== poFactory) return false;
+      if (poStatus !== 'ALL' && row.status !== poStatus) return false;
+      if (!q) return true;
+      return [row.poNumber, row.sku, row.masterPo, row.styleNumber, row.style,
+        row.color, row.size, row.factoryCode].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  }, [pos, poSearch, poFactory, poStatus]);
+  const pagedPos = useMemo(() => filteredPos.slice(poPage * poRowsPerPage, (poPage + 1) * poRowsPerPage),
+    [filteredPos, poPage, poRowsPerPage]);
+  useEffect(() => { setPoPage(0); }, [orderId, poSearch, poFactory, poStatus]);
+  useEffect(() => {
+    const lastPage = Math.max(0, Math.ceil(filteredPos.length / poRowsPerPage) - 1);
+    if (poPage > lastPage) setPoPage(lastPage);
+  }, [filteredPos.length, poRowsPerPage, poPage]);
+
+  const openPo = (id) => {
+    if (!orderId || !id) return;
+    navigate(buyerPath(BUYER_CODE.LULULEMON, `packing/pos/${encodeURIComponent(orderId)}/${encodeURIComponent(id)}`));
+  };
 
   const cartonStats = useMemo(() => {
     const rows = detail?.cartons || [];
@@ -198,129 +241,126 @@ export default function PackingPage() {
 
 
   return (
-    <Stack spacing={0.9}>
+    <Stack className="lululemon-compact-v16" spacing={0.9}>
       <CompactPageHeader
         dense
-        title="Packing Operations"
-        subtitle="Choose a PO and carton to review its carton identity. Item-by-item scanning is no longer part of this step."
-        meta={<Chip size="small" label={BUYER_CODE.LULULEMON} variant="outlined" sx={{ fontWeight: 700 }} />}
+        title={isPoDetailPage ? 'Purchase Order Packing' : 'Packing Operations'}
         actions={
           <Stack direction="row" spacing={0.5}>
             <Button
               size="small"
               variant="outlined"
               startIcon={<ArrowBackRounded />}
-              onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, orderId ? `orders/${orderId}` : 'orders'))}
+              onClick={goBack}
             >
               Back
             </Button>
-            <Button size="small" startIcon={<LocalPrintshopOutlined />} onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'print-requests'))}>Print Request</Button>
-            <Button size="small" startIcon={<LocalShippingOutlined />} onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'shipping/review'))}>Shipping</Button>
+            <Button size="small" startIcon={<LocalShippingOutlined />} onClick={() => navigate(`${buyerPath(BUYER_CODE.LULULEMON, 'shipping')}${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ''}`)}>Shipping</Button>
             <Tooltip title="Refresh current PO"><span><Button size="small" startIcon={<Refresh />} onClick={refresh} disabled={!poId}>Refresh</Button></span></Tooltip>
           </Stack>
         }
       />
 
-      <Paper
-        variant="outlined"
-        sx={{
-          overflow: 'hidden',
-          borderRadius: 2.5,
-          borderColor: '#DDE6EF',
-          boxShadow: '0 3px 14px rgba(30, 55, 80, 0.045)'
-        }}
-      >
-        <Stack
-          direction={{ xs: 'column', lg: 'row' }}
-          spacing={{ xs: 0.7, lg: 0.9 }}
-          alignItems={{ lg: 'stretch' }}
-          sx={{ px: 1, py: 0.75, bgcolor: '#FBFCFE' }}
-        >
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 0.35 }}>
-              <Box sx={{ width: 20, height: 20, borderRadius: '6px', display: 'grid', placeItems: 'center', bgcolor: '#EAF1FF', color: '#2F6FED', fontSize: '0.72rem', fontWeight: 900 }}>1</Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="caption" sx={{ display: 'block', fontWeight: 850, letterSpacing: '.04em', color: '#38506A', lineHeight: 1.1 }}>ORDER</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>Work order</Typography>
-              </Box>
-            </Stack>
-            <OrderScope value={orderId} onChange={setOrderId} embedded compact />
+      {!isPoDetailPage ? (
+      <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 2.5, borderColor: '#DDE6EF' }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={0.8}
+          alignItems={{ md: 'center' }} sx={{ px: 1, py: 0.85, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box>
+            <Typography fontWeight={950}>Purchase Orders for Packing</Typography>
+            <Typography variant="caption" color="text.secondary">Choose an Order, then Open a PO to identify its cartons.</Typography>
           </Box>
-
-          <Box sx={{ display: { xs: 'none', lg: 'grid' }, placeItems: 'center', px: 0.25, color: '#A0AEC0' }}>
-            <ArrowForwardRounded fontSize="small" />
-          </Box>
-
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 0.35 }}>
-              <Box sx={{ width: 20, height: 20, borderRadius: '6px', display: 'grid', placeItems: 'center', bgcolor: orderId ? '#EAF1FF' : '#F1F4F7', color: orderId ? '#2F6FED' : '#8B99A8', fontSize: '0.72rem', fontWeight: 900 }}>2</Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="caption" sx={{ display: 'block', fontWeight: 850, letterSpacing: '.04em', color: '#38506A', lineHeight: 1.1 }}>PURCHASE ORDER</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>Purchase order / carton queue</Typography>
-              </Box>
-            </Stack>
-            <Autocomplete
-              size="small"
-              fullWidth
-              disabled={!orderId}
-              options={pos}
-              value={pos.find((row) => row.id === poId) || null}
-              onChange={(_, row) => { setPoId(row?.id || ''); setCartonId(''); setPackingOpen(false); }}
-              getOptionLabel={(row) => [row.poNumber, row.factoryCode, row.styleNumber || row.style, row.color, row.size, row.sku].filter(Boolean).join(' ')}
-              isOptionEqualToValue={(option, selected) => option.id === selected.id}
-              autoHighlight
-              openOnFocus
-              clearOnEscape
-              noOptionsText="No matching Purchase Orders"
-              renderOption={(props, row) => (
-                <Box component="li" {...props} key={row.id} sx={{ alignItems: 'flex-start !important', py: '8px !important' }}>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={800}>PO {row.poNumber}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {row.factoryCode || 'No factory'} · Style {row.styleNumber || row.style || '—'} · Color {row.color || '—'} · Size {row.size || '—'} · {row.sku ? `SKU ${row.sku}` : 'SKU pending'}
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Search Purchase Order"
-                  sx={{
-                    bgcolor: '#FFFFFF',
-                    borderRadius: 1.8,
-                    '& .MuiOutlinedInput-root': { py: '1px !important' }
-                  }}
-                />
-              )}
-            />
-          </Box>
+          <Stack direction="row" spacing={0.7} alignItems="center">
+            <Chip size="small" variant="outlined" label={`${filteredPos.length} POs`} />
+            <Button size="small" startIcon={<Refresh />} onClick={loadPos} disabled={!orderId}>Refresh</Button>
+          </Stack>
         </Stack>
 
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={0.75} alignItems={{ lg: 'center' }} sx={{ p: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 200 }}>
+            <OrderScope value={orderId} onChange={setOrderId} embedded compact />
+          </Box>
+          <TextField size="small" placeholder="Search PO, SKU, style, color..." value={poSearch}
+            onChange={(event) => setPoSearch(event.target.value)} sx={{ flex: 1, minWidth: 190 }}
+            InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }} />
+          <TextField size="small" select label="Factory" value={poFactory} onChange={(event) => setPoFactory(event.target.value)} sx={{ minWidth: 140 }}>
+            <MenuItem value="ALL">All factories</MenuItem>
+            {poFactoryOptions.map((factory) => <MenuItem key={factory} value={factory}>{factory}</MenuItem>)}
+          </TextField>
+          <TextField size="small" select label="PO Status" value={poStatus} onChange={(event) => setPoStatus(event.target.value)} sx={{ minWidth: 140 }}>
+            <MenuItem value="ALL">All statuses</MenuItem>
+            {poStatusOptions.map((status) => <MenuItem key={status} value={status}>{status.replaceAll('_', ' ')}</MenuItem>)}
+          </TextField>
+          <Button size="small" color="inherit"
+            disabled={!poSearch && poFactory === 'ALL' && poStatus === 'ALL'}
+            onClick={() => { setPoSearch(''); setPoFactory('ALL'); setPoStatus('ALL'); }}>Clear</Button>
+        </Stack>
+
+        <LululemonTableViewport sx={{ border: 0, borderRadius: 0 }}>
+          <SortableTable size="small" stickyHeader rowNumberStart={poPage * poRowsPerPage}>
+            <TableHead><TableRow>
+              <TableCell>PO</TableCell>
+              <TableCell>Factory</TableCell>
+              <TableCell>SKU</TableCell>
+              <TableCell>Style / Color / Size</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell data-sortable={false} align="right">Action</TableCell>
+            </TableRow></TableHead>
+            <TableBody>
+              {pagedPos.map((row) => (
+                <TableRow key={row.id} hover selected={row.id === poId} sx={{ cursor: 'pointer' }} onDoubleClick={() => openPo(row.id)}>
+                  <TableCell sx={{ fontWeight: 900 }}>{row.poNumber || '—'}</TableCell>
+                  <TableCell>{row.factoryCode || '—'}</TableCell>
+                  <TableCell>{row.sku || 'Not identified'}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={750}>{row.styleNumber || row.style || '—'}</Typography>
+                    <Typography variant="caption" color="text.secondary">{row.color || '—'} · Size {row.size || '—'}</Typography>
+                  </TableCell>
+                  <TableCell><StatusChip status={row.status} /></TableCell>
+                  <TableCell align="right"><Button size="small" variant="outlined" onClick={() => openPo(row.id)}>Open</Button></TableCell>
+                </TableRow>
+              ))}
+              {!pagedPos.length ? <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                {orderId ? 'No Purchase Orders match the current filters.' : 'Select an Order to view its Purchase Orders.'}
+              </TableCell></TableRow> : null}
+            </TableBody>
+          </SortableTable>
+        </LululemonTableViewport>
+        <TablePagination component="div" count={filteredPos.length} page={poPage}
+          onPageChange={(_, next) => setPoPage(next)} rowsPerPage={poRowsPerPage}
+          onRowsPerPageChange={(event) => { setPoRowsPerPage(Number(event.target.value)); setPoPage(0); }}
+          rowsPerPageOptions={[10, 25, 50, 100]} showFirstButton showLastButton
+          sx={{ borderTop: '1px solid', borderColor: 'divider' }} />
+
         {po ? (
-          <Stack
-            direction="row"
-            spacing={1.05}
-            flexWrap="wrap"
-            useFlexGap
-            alignItems="center"
-            sx={{ px: 1, py: 0.5, borderTop: '1px solid #E7EDF3', bgcolor: '#FFFFFF' }}
-          >
+          <Stack direction="row" spacing={1.05} flexWrap="wrap" useFlexGap alignItems="center"
+            sx={{ px: 1, py: 0.65, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
+            <Typography fontWeight={900}>Selected PO {po.poNumber || '—'}</Typography>
             <Metric label="Factory" value={po.factoryCode || '—'} />
-            <Metric label="Style" value={po.styleNumber || po.style || '—'} />
-            <Metric label="Color" value={po.color || '—'} />
-            <Metric label="Size" value={po.size || '—'} />
-            <Metric label="PO SKU" value={po.sku || 'Not assigned'} />
+            <Metric label="SKU" value={po.sku || 'Not assigned'} />
             <Metric label="Cartons" value={cartonStats.total} hint={`${cartonStats.completed} completed`} />
             <Box sx={{ ml: { lg: 'auto' } }}><StatusChip status={po.status} /></Box>
           </Stack>
         ) : null}
       </Paper>
+      ) : (
+        <Paper variant="outlined" sx={{ px: 1.25, py: 1, borderRadius: 2.5, borderColor: '#DDE6EF' }}>
+          <Stack direction="row" spacing={1.05} flexWrap="wrap" useFlexGap alignItems="center">
+            <Typography fontWeight={900}>PO {po?.poNumber || 'Loading...'}</Typography>
+            {po ? (
+              <>
+                <Metric label="Factory" value={po.factoryCode || '—'} />
+                <Metric label="SKU" value={po.sku || 'Not assigned'} />
+                <Metric label="Cartons" value={cartonStats.total} hint={`${cartonStats.completed} completed`} />
+                <Box sx={{ ml: { lg: 'auto' } }}><StatusChip status={po.status} /></Box>
+              </>
+            ) : null}
+          </Stack>
+        </Paper>
+      )}
 
       {notice && !packingOpen && <Alert severity={notice.severity} onClose={() => setNotice(null)} sx={{ borderRadius: 2 }}>{notice.text}</Alert>}
-      {orderId && !poId && <Alert severity="info" sx={{ borderRadius: 2 }}>{APP_MESSAGES.SELECT_PO_TO_LOAD_CARTON_QUEUE}</Alert>}
 
-      {detail ? (
+      {isPoDetailPage && detail ? (
         <Box>
           <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
             <Box sx={{ px: 1, py: 0.8, borderBottom: '1px solid #E7EDF3', bgcolor: '#FBFCFE' }}>
@@ -347,7 +387,7 @@ export default function PackingPage() {
               </Stack>
             </Box>
 
-            <LululemonTableViewport viewportHeight="clamp(300px, 48vh, 520px)" sx={{ border: 0, borderRadius: 0 }}>
+            <LululemonTableViewport sx={{ border: 0, borderRadius: 0 }}>
               <SortableTable stickyHeader size="small" rowNumberStart={cartonPage * cartonRowsPerPage} sx={{ minWidth: 980 }}>
                 <TableHead>
                   <TableRow>
@@ -432,7 +472,7 @@ export default function PackingPage() {
         open={Boolean(carton && packingOpen)}
         onClose={() => setPackingOpen(false)}
         title={carton ? `Carton Identification · Carton ${carton.cartonNo}` : 'Carton Identification'}
-        subtitle={po ? `PO ${po.poNumber || '—'} · ${po.styleNumber || po.style || '—'} · Scan SSCC-18, confirm system Qty, then scan SKU` : 'Carton identification workspace'}
+        subtitle={po ? `PO ${po.poNumber || '—'} · ${po.styleNumber || po.style || '—'}` : ''}
         actions={carton ? <StatusChip status={carton.status} /> : null}
       >
         {carton ? (
@@ -440,16 +480,13 @@ export default function PackingPage() {
           {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)} sx={{ borderRadius: 2 }}>{notice.text}</Alert> : null}
               <Paper variant="outlined" sx={{ p: { xs: 1, md: 1.2 } }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 850 }}>Identify this carton</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Step 1 scan SSCC-18. Step 2 confirm the read-only system Unit Qty. Step 3 scan SKU to apply it to this carton and every logical item slot.
-                </Typography>
 
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
                   <TextField
                     inputRef={ssccRef}
                     fullWidth
                     label="1. SSCC-18"
-                    placeholder="Scan SSCC-18 barcode"
+                    placeholder="Scan GS1 (00) barcode (20 digits) or SSCC-18"
                     value={identitySscc}
                     onChange={(e) => setIdentitySscc(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); assignCartonSscc(); } }}
@@ -473,7 +510,6 @@ export default function PackingPage() {
                   <Box sx={{ minHeight: 56, px: 1.25, py: 0.7, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: '#F8FAFC' }}>
                     <Typography variant="caption" color="text.secondary">2. SYSTEM UNIT QTY</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1.1 }}>{Number(carton.plannedQty || 0)}</Typography>
-                    <Typography variant="caption" color="text.secondary">Read only from imported plan</Typography>
                   </Box>
                   <Stack spacing={0.75}>
                     <Button
@@ -487,9 +523,6 @@ export default function PackingPage() {
                     >
                       {qtyConfirmed ? `Qty ${Number(carton.plannedQty || 0)} Confirmed` : `Confirm Qty ${Number(carton.plannedQty || 0)}`}
                     </Button>
-                    <Typography variant="caption" color="text.secondary">
-                      Quantity comes from the imported plan; the user only confirms it after SSCC is assigned.
-                    </Typography>
                   </Stack>
                 </Box>
 
@@ -518,9 +551,21 @@ export default function PackingPage() {
                     {carton.labelConfirmedAt ? 'SKU Applied' : 'Apply SKU & Identify'}
                   </Button>
                 </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
-                  The final SKU step applies the SKU to the carton and all logical item slots. Items become IDENTIFIED; RFID remains WAITING RFID.
-                </Typography>
+                {isIdentified(carton) ? (
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mt: 1.2, p: 1, borderRadius: 1.5, bgcolor: 'success.lighter', border: '1px solid', borderColor: 'success.light' }}>
+                    <Box>
+                      <Typography fontWeight={850} color="success.main">Carton {carton.cartonNo} identified</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {nextIdentityCarton ? `${remainingIdentityCartons.length} carton(s) left to identify in this PO.` : 'All cartons in this PO have been identified.'}
+                      </Typography>
+                    </Box>
+                    {nextIdentityCarton ? (
+                      <Button variant="contained" disabled={identityBusy} endIcon={<ArrowForwardRounded />} onClick={() => openCarton(nextIdentityCarton)} sx={{ flexShrink: 0 }}>
+                        Next Carton {nextIdentityCarton.cartonNo}
+                      </Button>
+                    ) : null}
+                  </Stack>
+                ) : null}
               </Paper>
 
               <Paper variant="outlined" sx={{ p: { xs: 1, md: 1.15 } }}>
@@ -543,9 +588,6 @@ export default function PackingPage() {
 
                 <Divider sx={{ my: 0.9 }} />
 
-                <Alert severity="info">
-                  No item-by-item scan is required. After SSCC and Unit Qty are confirmed, scanning the carton SKU applies it automatically to every logical item slot. Item status becomes IDENTIFIED; RFID verification remains a separate WAITING RFID status.
-                </Alert>
               </Paper>
 
               <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
@@ -553,13 +595,12 @@ export default function PackingPage() {
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 750 }}>Item Assignment</Typography>
-                      <Typography variant="caption" color="text.secondary">Logical item slots with the SKU assigned from the carton label</Typography>
                     </Box>
                     <Chip size="small" label={`${items.length} rows`} />
                   </Stack>
                 </Box>
                 <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                  <LululemonTableViewport viewportHeight="clamp(190px, 28vh, 300px)" sx={{ border: 0, borderRadius: 0 }}>
+                  <LululemonTableViewport viewportHeight="clamp(240px, calc(100dvh - 490px), 560px)" sx={{ border: 0, borderRadius: 0 }}>
                     <SortableTable size="small" rowNumberStart={itemPage * itemRowsPerPage}>
                       <TableHead><TableRow><TableCell>#</TableCell><TableCell>Item Status</TableCell><TableCell>Expected SKU</TableCell><TableCell>RFID Status</TableCell></TableRow></TableHead>
                       <TableBody>

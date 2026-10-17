@@ -10,13 +10,14 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
   return (
     <Box
       sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', lg: `repeat(${Math.min(Math.max(fields.length, 1), 6)}, minmax(135px,1fr)) auto` },
+        display: 'flex',
+        flexWrap: 'wrap',
         gap: 0.75,
         alignItems: 'center',
         ...sx
       }}
     >
+      <Box sx={{ flex: '1 1 600px', minWidth: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' }, gap: 0.75 }}>
       {fields.map((field) => (
         <TextField
           key={field.key}
@@ -38,13 +39,14 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
           })] : null}
         </TextField>
       ))}
+      </Box>
       <Button
         size="small"
         variant="text"
         startIcon={active ? <ClearRounded /> : <FilterAltOutlined />}
         onClick={() => active && onClear?.()}
         disabled={disabled || !active}
-        sx={{ justifySelf: { xs: 'stretch', lg: 'end' }, whiteSpace: 'nowrap' }}
+        sx={{ ml: 'auto', whiteSpace: 'nowrap', minWidth: 96 }}
       >
         {active ? 'Clear filters' : 'Filters'}
       </Button>

@@ -1,14 +1,16 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Paper,
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, MenuItem, Paper,
   Stack, Tab, Tabs, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography
 } from '@mui/material';
 import { ArrowBack, Close, QrCodeScanner, Refresh, Search } from '@mui/icons-material';
-import { CompactPageHeader } from 'components/CompactPageHeader';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
 import TableFilterBar from 'components/TableFilterBar';
-import { checkingSearch, checkingPoCartons } from '../services/service';
+import { checkingSearch, checkingPoCartons, checkingHistory, saveCartonCheck } from '../services/service';
 import { listManagedItems } from 'services/managementService';
 import { BUYER_CODE } from '../../../constants/appConstants';
+import { canAssignBarcode } from 'utils/accessControl';
 import { APP_MESSAGES } from '../../../constants/appMessages';
 
 const SEARCH_MODES = {
@@ -23,6 +25,14 @@ const resultColor = (result) => result === 'PASS' ? 'success' : result === 'FAIL
 const errorMessage = (error) => error?.response?.data?.message || error?.message || APP_MESSAGES.CHECKING_OPERATION_FAILED;
 const ITEM_FILTER_DEFAULT = { itemNo: '', sku: '', style: '', color: '', sizeValue: '', status: '', scannedBy: '' };
 const fromPoIfMissing = (value, poValue) => (value == null || String(value).trim() === '' ? poValue ?? null : value);
+// Item barcode scans and carton-label identification are different events.
+// Show their actual source rather than claiming each logical item was scanned separately.
+const recordedSku = (item, carton) => item?.sku || (carton?.identified ? carton.sku : null);
+const recordedBy = (item, carton) => item?.scannedBy || (carton?.identified ? carton.labelConfirmedBy : null);
+const recordedAt = (item, carton) => item?.scannedAt || (carton?.identified ? carton.labelConfirmedAt : null);
+const matchesKnownCartonValue = (value, candidate) => Boolean(
+  value?.trim() && candidate && String(candidate).toLowerCase().includes(value.trim().toLowerCase())
+);
 
 export default function CheckingManagementPage() {
   const [mode, setMode] = useState('PO');
@@ -42,6 +52,11 @@ export default function CheckingManagementPage() {
   const [itemData, setItemData] = useState({ content: [], totalElements: 0 });
   const [itemBusy, setItemBusy] = useState(false);
   const [itemError, setItemError] = useState('');
+  const [qcResult, setQcResult] = useState('PASS');
+  const [qcNote, setQcNote] = useState('');
+  const [qcHistory, setQcHistory] = useState([]);
+  const [qcBusy, setQcBusy] = useState(false);
+  const [qcHistoryError, setQcHistoryError] = useState('');
   const [itemFilters, setItemFilters] = useState(ITEM_FILTER_DEFAULT);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -107,9 +122,29 @@ export default function CheckingManagementPage() {
   };
 
   const openCarton = (carton) => {
+    setQcResult('PASS'); setQcNote(''); setQcHistory([]); setQcHistoryError('');
+    checkingHistory(carton.id).then((history) => setQcHistory(Array.isArray(history) ? history : []))
+      .catch((error) => setQcHistoryError(errorMessage(error)));
     setSelectedId(carton.id); setItemPage(0); setNotice(null);
     setItemsOpen(true); setItemError(''); setItemData({ content: [], totalElements: 0 }); setItemFilters(ITEM_FILTER_DEFAULT);
     // The data still comes from Orders' actual CartonItem endpoint; no separate QC mock rows.
+  };
+
+  const submitQcResult = async () => {
+    if (!selected || qcBusy || !canAssignBarcode()) return;
+    if (qcResult === 'FAIL' && qcNote.trim().length < 3) {
+      setQcHistoryError('FAIL requires a reason (at least 3 characters).'); return;
+    }
+    if (qcNote.trim().length > 1000) { setQcHistoryError('QC note cannot exceed 1000 characters.'); return; }
+    setQcBusy(true); setQcHistoryError('');
+    try {
+      const record = await saveCartonCheck(selected.id, { result: qcResult, note: qcNote.trim() });
+      setQcHistory((old) => [record, ...old]);
+      setResult((old) => ({ ...old, cartons: old.cartons.map((c) => c.id === selected.id ? { ...c, lastCheck: qcResult } : c) }));
+      setPoCartons((old) => ({ ...old, content: old.content.map((c) => c.id === selected.id ? { ...c, lastCheck: qcResult } : c) }));
+      setQcNote(''); setNotice({ severity: 'success', text: `QC ${qcResult} recorded with audit trail.` });
+    } catch (error) { setQcHistoryError(errorMessage(error)); }
+    finally { setQcBusy(false); }
   };
 
   const closeCarton = () => {
@@ -154,7 +189,15 @@ export default function CheckingManagementPage() {
     if (!selected || !itemsOpen) { setItemBusy(false); return; }
     const token = ++itemRequestRef.current;
     setItemBusy(true); setItemError('');
-    listManagedItems(BUYER_CODE.LULULEMON, selected.orderId, selected.id, { ...itemFilters, page: itemPage, size: itemPageSize })
+    // The Orders item endpoint filters per-item barcode fields. When the carton has
+    // only been identified, allow SKU/operator filters to match its confirmed label
+    // without modifying shared APIs or filtering just the current pagination page.
+    const queryFilters = {
+      ...itemFilters,
+      sku: selected.identified && matchesKnownCartonValue(itemFilters.sku, selected.sku) ? '' : itemFilters.sku,
+      scannedBy: selected.identified && matchesKnownCartonValue(itemFilters.scannedBy, selected.labelConfirmedBy) ? '' : itemFilters.scannedBy
+    };
+    listManagedItems(BUYER_CODE.LULULEMON, selected.orderId, selected.id, { ...queryFilters, page: itemPage, size: itemPageSize })
       .then((data) => {
         if (token !== itemRequestRef.current) return;
         setItemData({ content: data?.content || [], totalElements: Number(data?.totalElements || 0) });
@@ -169,33 +212,29 @@ export default function CheckingManagementPage() {
   }, [selected?.id, selected?.orderId, itemsOpen, itemPage, itemPageSize, itemFilters]);
 
   return (
-    <Stack spacing={1} sx={{ p: { xs: 0.25, md: 0.5 } }}>
-      <CompactPageHeader dense title="Checking Management"
-        subtitle="Search PO / SKU / SSCC → open PO cartons → view carton Items in a popup. No Order selection."
-        meta={<Chip size="small" variant="outlined" label="LULULEMON · QC Checking" />}
-      />
-      <Alert severity="info" sx={{ py: 0.2 }}>Click a PO to view its cartons, then View Items to open the item list in a popup. No Order selection is needed.</Alert>
+    <Stack spacing={1} className="lululemon-compact-v16" sx={{ p: { xs: 0.25, md: 0.5 } }}>
       {notice && !itemsOpen && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}
 
       <Paper variant="outlined" sx={{ borderRadius: 2, p: 1.2 }}>
+        <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ lg: 'center' }}>
         <Tabs value={mode} onChange={changeMode} variant="scrollable" scrollButtons="auto"
-          sx={{ mb: 1, minHeight: 41, '& .MuiTab-root': { minHeight: 41, textTransform: 'none', fontWeight: 750 } }}>
+          sx={{ minHeight: 38, flexShrink: 0, '& .MuiTab-root': { minHeight: 38, textTransform: 'none', fontWeight: 750 } }}>
           <Tab value="PO" label="Search PO" icon={<Search fontSize="small" />} iconPosition="start" />
           <Tab value="SKU" label="Scan SKU" icon={<QrCodeScanner fontSize="small" />} iconPosition="start" />
           <Tab value="SSCC" label="Scan SSCC" icon={<QrCodeScanner fontSize="small" />} iconPosition="start" />
         </Tabs>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.8} sx={{ flex: 1, minWidth: 0 }}>
           <TextField
             inputRef={scannerInputRef} autoFocus fullWidth size="small" label={SEARCH_MODES[mode].label}
             value={query} onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); search(); } }}
             placeholder={SEARCH_MODES[mode].placeholder} inputProps={{ autoComplete: 'off' }}
-            helperText={mode === 'PO' ? 'Exact PO number across all LULULEMON Orders. Click a matching PO below to view its complete, paginated carton list.' : 'Scan directly with a USB/Bluetooth scanner (Enter suffix); no Order selection needed.'}
           />
           <Button variant="contained" startIcon={<Search />} disabled={!query.trim() || loading} onClick={() => search()} sx={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>
             {loading ? 'Searching...' : 'Search / Check'}
           </Button>
           <Button variant="outlined" startIcon={<Refresh />} disabled={!query.trim() || loading} onClick={() => activePo ? loadPoCartons(activePo, poPage, poPageSize) : search(true)} sx={{ alignSelf: 'flex-start' }}>Refresh</Button>
+        </Stack>
         </Stack>
       </Paper>
 
@@ -219,8 +258,8 @@ export default function CheckingManagementPage() {
         {result.truncated && !activePo && <Alert severity="warning">Search results show up to 200 cartons. Click a PO to browse every carton with pagination.</Alert>}
 
         {!activePo && result.pos.length > 0 && <Paper variant="outlined" sx={{ p: 1.1, borderRadius: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 0.6 }}>Purchase Orders — select a PO to see its cartons</Typography>
-          <TableContainer sx={{ maxHeight: 300 }}><Table size="small" stickyHeader><TableHead><TableRow>
+          <Typography variant="subtitle2" sx={{ mb: 0.6, fontWeight: 800 }}>Purchase Orders</Typography>
+          <StandardTableViewport paginate><Table size="small" stickyHeader><TableHead><TableRow>
             {['Order', 'PO', 'Style', 'Color', 'Size', 'Assigned SKU', 'Planned cartons', 'Open'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
           </TableRow></TableHead><TableBody>{result.pos.map((po) => <TableRow key={po.id} hover sx={{ cursor: 'pointer' }} onClick={() => openPo(po)}>
             <TableCell>{show(po.orderName || po.orderId)}</TableCell>
@@ -228,8 +267,7 @@ export default function CheckingManagementPage() {
             <TableCell>{show(po.style)}</TableCell><TableCell>{show(po.color)}</TableCell>
             <TableCell>{show(po.size)}</TableCell><TableCell>{show(po.sku)}</TableCell><TableCell>{show(po.plannedCartons)}</TableCell>
             <TableCell><Button size="small" onClick={(e) => { e.stopPropagation(); openPo(po); }}>View Cartons</Button></TableCell>
-          </TableRow>)}</TableBody></Table></TableContainer>
-          {!rows.length && <Alert severity="info" sx={{ mt: 1 }}>PO found. Open it to view existing cartons. Checking does not create cartons.</Alert>}
+          </TableRow>)}</TableBody></Table></StandardTableViewport>
         </Paper>}
 
         {activePo && <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
@@ -243,8 +281,8 @@ export default function CheckingManagementPage() {
           </Stack>
           {poError && <Alert severity="error">{poError}</Alert>}
           {poBusy && <Typography color="text.secondary" variant="body2" sx={{ px: 1.2 }}>Loading cartons...</Typography>}
-          {!poBusy && !poError && poCartons.totalElements === 0 && <Alert severity="info">This PO has no generated cartons yet. Open it in Packing / Orders to generate cartons. Checking only reads existing cartons.</Alert>}
-          <TableContainer><Table size="small"><TableHead><TableRow>
+          {!poBusy && !poError && poCartons.totalElements === 0 && <Alert severity="info">No cartons generated for this PO.</Alert>}
+          <StandardTableViewport><Table size="small"><TableHead><TableRow>
             {['Carton', 'SSCC-18', 'SKU', 'Target Qty', 'Packing', 'QC result', 'Action'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
           </TableRow></TableHead><TableBody>
             {poCartons.content.map((carton) => <TableRow key={carton.id} selected={selectedId === carton.id} hover
@@ -256,7 +294,7 @@ export default function CheckingManagementPage() {
               <TableCell><Chip size="small" color={resultColor(carton.lastCheck)} label={carton.lastCheck || 'Not checked'} variant={carton.lastCheck ? 'filled' : 'outlined'} /></TableCell>
               <TableCell><Button size="small" variant={selectedId === carton.id ? 'contained' : 'outlined'} onClick={(e) => { e.stopPropagation(); openCarton(carton); }}>View Items</Button></TableCell>
             </TableRow>)}
-          </TableBody></Table></TableContainer>
+          </TableBody></Table></StandardTableViewport>
           <TablePagination component="div" count={poCartons.totalElements} page={poPage}
             onPageChange={(_, value) => { setSelectedId(''); setItemsOpen(false); loadPoCartons(activePo, value, poPageSize); }} rowsPerPage={poPageSize}
             onRowsPerPageChange={(event) => { setSelectedId(''); setItemsOpen(false); loadPoCartons(activePo, 0, Number(event.target.value)); }} rowsPerPageOptions={[10, 25, 50, 100]} />
@@ -264,7 +302,7 @@ export default function CheckingManagementPage() {
 
         {!activePo && mode !== 'PO' && rows.length > 0 && <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
           <Box sx={{ p: 1.1 }}><Typography variant="subtitle2">Matching Cartons — click to view Items</Typography></Box>
-          <TableContainer><Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
+          <StandardTableViewport><Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
             <TableHead><TableRow>
               {['Order', 'PO', 'Carton', 'SSCC-18', 'SKU', 'Qty', 'Packing', 'QC result', 'Action'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
             </TableRow></TableHead><TableBody>
@@ -282,7 +320,7 @@ export default function CheckingManagementPage() {
                     {selectedId === carton.id ? 'Viewing' : 'View Items'}
                   </Button></TableCell>
                 </TableRow>)}
-            </TableBody></Table></TableContainer>
+            </TableBody></Table></StandardTableViewport>
             <TablePagination component="div" count={rows.length} page={page} onPageChange={(_, value) => { setPage(value); setSelectedId(''); setItemsOpen(false); }} rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(event) => { setRowsPerPage(Number(event.target.value)); setPage(0); setSelectedId(''); setItemsOpen(false); }} rowsPerPageOptions={[10, 25, 50]} />
         </Paper>}
@@ -320,16 +358,47 @@ export default function CheckingManagementPage() {
         <DialogContent dividers sx={{ p: { xs: 1, md: 1.5 } }}>
         <Stack spacing={1.5}>
         {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+          <Typography variant="subtitle1" fontWeight={750}>Carton QC Result</Typography>
+          <Typography variant="caption" color="text.secondary">QC is independent from Weight PASS and RFID Verification. Results are recorded with user and time.</Typography>
+          {qcHistoryError && <Alert severity="error" sx={{ mt: 1 }}>{qcHistoryError}</Alert>}
+          {canAssignBarcode() ? (
+            <Stack direction={{ xs: 'column', md: 'row' }} gap={1} alignItems={{ md: 'start' }} sx={{ mt: 1 }}>
+              <TextField size="small" select label="QC Result" value={qcResult} onChange={(e) => setQcResult(e.target.value)} sx={{ minWidth: 140 }}>
+                <MenuItem value="PASS">PASS</MenuItem><MenuItem value="FAIL">FAIL</MenuItem>
+              </TextField>
+              <TextField size="small" multiline minRows={1} fullWidth label={qcResult === 'FAIL' ? 'Failure reason (required)' : 'QC note (optional)'}
+                inputProps={{ maxLength: 1000 }} value={qcNote} onChange={(e) => setQcNote(e.target.value)} />
+              <Button variant="contained" onClick={submitQcResult} disabled={qcBusy || !selected.sscc18 || (qcResult === 'PASS' && !selected.identified) || (qcResult === 'FAIL' && qcNote.trim().length < 3)}>
+                Save QC
+              </Button>
+            </Stack>
+          ) : <Alert severity="info" sx={{ mt: 1 }}>QC recording requires the Assign Barcode permission. History remains read-only.</Alert>}
+          <Typography variant="subtitle2" sx={{ mt: 1.5 }}>QC History ({qcHistory.length})</Typography>
+          <Box sx={{ maxHeight: 160, overflowY: 'auto' }}>
+            {qcHistory.length === 0 ? <Typography variant="body2" color="text.secondary">No QC history yet.</Typography> : qcHistory.map((record, index) => (
+              <Typography key={record.id || index} variant="body2" sx={{ py: 0.35 }}>
+                <Chip size="small" color={resultColor(record.result)} label={record.result} sx={{ mr: 1 }}/>
+                {show(record.checkedBy)} · {when(record.checkedAt)} · {record.note || '—'}
+              </Typography>
+            ))}
+          </Box>
+        </Paper>
         <Box>
-          <Typography variant="subtitle2" sx={{ mb: 0.75 }}>Carton Items</Typography>
+          <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mb: 0.75 }}>
+            <Typography variant="subtitle2">Carton Items</Typography>
+            {selected.identified && <Typography variant="caption" color="text.secondary">
+              Recorded information comes from Carton Identification unless an item has its own scan.
+            </Typography>}
+          </Stack>
         {itemError && <Alert severity="error">{itemError}</Alert>}
-        <Box sx={{ pb: 0.6 }}>
+        <Box sx={{ p: 0.8, border: '1px solid', borderColor: 'divider', borderBottom: 0, borderRadius: '8px 8px 0 0', bgcolor: '#FBFCFE' }}>
           <TableFilterBar
             fields={[
               { key: 'itemNo', label: 'Item No.' }, { key: 'sku', label: 'SKU' },
               { key: 'style', label: 'Style' }, { key: 'color', label: 'Color' },
               { key: 'sizeValue', label: 'Size' }, { key: 'status', label: 'Status' },
-              { key: 'scannedBy', label: 'Scanned By' }
+              { key: 'scannedBy', label: 'Recorded By' }
             ]}
             values={itemFilters}
             onChange={(key, value) => { setItemFilters((current) => ({ ...current, [key]: value })); setItemPage(0); }}
@@ -338,21 +407,21 @@ export default function CheckingManagementPage() {
           />
         </Box>
         {itemBusy && <Typography sx={{ px: 1.2 }} color="text.secondary" variant="body2">Loading item list...</Typography>}
-        <TableContainer sx={{ maxHeight: 420, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}><Table size="small" stickyHeader>
+        <StandardTableViewport sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '0 0 8px 8px' }}><Table size="small" stickyHeader>
           <TableHead><TableRow>
-            {['STT', 'Item No.', 'Scanned SKU', 'Style', 'Color', 'Size', 'Qty', 'Status', 'Scanned By', 'Scanned At'].map((label) =>
+            {['STT', 'Item No.', 'SKU', 'Style', 'Color', 'Size', 'Qty', 'Status', 'Recorded By', 'Recorded At'].map((label) =>
               <TableCell key={label} sx={{ fontWeight: 750, whiteSpace: 'nowrap' }}>{label}</TableCell>)}
           </TableRow></TableHead><TableBody>
             {itemData.content.map((item, i) => <TableRow key={item.id || `${item.itemNo}-${i}`} hover>
               <TableCell>{itemPage * itemPageSize + i + 1}</TableCell>
-              <TableCell>{show(item.itemNo)}</TableCell><TableCell>{show(item.sku)}</TableCell>
+              <TableCell>{show(item.itemNo)}</TableCell><TableCell>{show(recordedSku(item, selected))}</TableCell>
               <TableCell>{show(fromPoIfMissing(item.style, selected.style))}</TableCell>
               <TableCell>{show(fromPoIfMissing(item.color, selected.color))}</TableCell><TableCell>{show(fromPoIfMissing(item.size, selected.size))}</TableCell>
               <TableCell>{show(item.quantity)}</TableCell>
               <TableCell><Chip size="small" variant="outlined" color={['PASS', 'IDENTIFIED', 'SCANNED'].includes(item.status) ? 'success' : 'default'} label={show(item.status)} /></TableCell>
-              <TableCell>{show(item.scannedBy)}</TableCell><TableCell>{when(item.scannedAt)}</TableCell>
+              <TableCell>{show(recordedBy(item, selected))}</TableCell><TableCell>{when(recordedAt(item, selected))}</TableCell>
             </TableRow>)}
-          </TableBody></Table></TableContainer>
+          </TableBody></Table></StandardTableViewport>
         <TablePagination component="div" count={itemData.totalElements} page={itemPage} onPageChange={(_, value) => setItemPage(value)}
           rowsPerPage={itemPageSize} onRowsPerPageChange={(event) => { setItemPageSize(Number(event.target.value)); setItemPage(0); }}
           rowsPerPageOptions={[10, 25, 50, 100]} />

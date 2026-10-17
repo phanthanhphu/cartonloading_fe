@@ -24,7 +24,6 @@ import {
   Typography
 } from '@mui/material';
 import {
-  ArrowBackRounded,
   CancelOutlined,
   DeleteOutlineRounded,
   MoveToInboxOutlined,
@@ -34,8 +33,6 @@ import {
   PlayArrowRounded,
   TaskAltRounded
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { buyerPath } from 'utils/buyerAccess';
 import { CompactPageHeader } from 'components/CompactPageHeader';
 import OrderScope from '../components/OrderScope';
 import StatusChip from '../components/StatusChip';
@@ -63,7 +60,6 @@ const isActiveHandoff = (status) => [PRINT_REQUEST_STATUS.SENT, PRINT_REQUEST_ST
 const isDeletableHandoff = (status) => [PRINT_REQUEST_STATUS.SENT, PRINT_REQUEST_STATUS.PENDING].includes(String(status || '').toUpperCase());
 
 export default function PrintRequestsPage() {
-  const navigate = useNavigate();
   const printRoomUser = canPrintRoom();
   const packingUser = canAssignBarcode() || canManageSales();
   const salesUser = canManageSales();
@@ -232,7 +228,7 @@ export default function PrintRequestsPage() {
   };
 
   return (
-    <Stack spacing={0.9}>
+    <Stack spacing={0.9} className="lululemon-compact-v16">
       <CompactPageHeader
         dense
         title="Print Request"
@@ -240,7 +236,6 @@ export default function PrintRequestsPage() {
         meta={<Chip size="small" label={BUYER_CODE.LULULEMON} variant="outlined" sx={{ fontWeight: 750 }} />}
         actions={
           <Stack direction="row" spacing={0.5}>
-            <Button size="small" variant="outlined" startIcon={<ArrowBackRounded />} onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'packing'))}>Back</Button>
             <Tooltip title="Refresh"><span><IconButton size="small" onClick={() => loadQueue(queue.page, queue.size)} disabled={queue.loading}><RefreshRounded fontSize="small" /></IconButton></span></Tooltip>
           </Stack>
         }

@@ -1,5 +1,6 @@
-import { Box, Dialog, DialogContent, IconButton, Stack, Typography, useMediaQuery } from '@mui/material';
-import { CloseRounded } from '@mui/icons-material';
+import { useEffect, useState } from 'react';
+import { Box, Dialog, DialogContent, IconButton, Stack, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { CloseRounded, FullscreenExitRounded, FullscreenRounded } from '@mui/icons-material';
 
 export default function OperationWorkspaceDialog({
   open,
@@ -10,9 +11,17 @@ export default function OperationWorkspaceDialog({
   children,
   maxWidth = 'xl',
   disableClose = false,
+  allowMaximize = false,
   contentSx = {}
 }) {
   const handheld = useMediaQuery('(max-width:768px)');
+  const [maximized, setMaximized] = useState(false);
+  const fullScreen = handheld || (allowMaximize && maximized);
+
+  // Closing the workspace resets its size without touching the active weighing or RFID session.
+  useEffect(() => {
+    if (!open) setMaximized(false);
+  }, [open]);
 
   const handleClose = (_event, reason) => {
     if (disableClose && (reason === 'backdropClick' || reason === 'escapeKeyDown')) return;
@@ -25,17 +34,17 @@ export default function OperationWorkspaceDialog({
       onClose={handleClose}
       maxWidth={maxWidth}
       fullWidth
-      fullScreen={handheld}
+      fullScreen={fullScreen}
       keepMounted
       disableEscapeKeyDown={disableClose}
       PaperProps={{
         sx: {
-          width: handheld ? '100%' : 'min(98vw, 1700px)',
-          maxWidth: handheld ? '100%' : 'min(98vw, 1700px)',
-          height: handheld ? '100dvh' : 'min(94vh, 980px)',
-          maxHeight: handheld ? '100dvh' : '94vh',
-          m: handheld ? 0 : { xs: 0.5, md: 1.5 },
-          borderRadius: handheld ? 0 : { xs: 1.5, md: 2.5 },
+          width: fullScreen ? '100%' : 'min(98vw, 1700px)',
+          maxWidth: fullScreen ? '100%' : 'min(98vw, 1700px)',
+          height: fullScreen ? '100dvh' : 'min(94vh, 980px)',
+          maxHeight: fullScreen ? '100dvh' : '94vh',
+          m: fullScreen ? 0 : { xs: 0.5, md: 1.5 },
+          borderRadius: fullScreen ? 0 : { xs: 1.5, md: 2.5 },
           overflow: 'hidden'
         }
       }}
@@ -76,6 +85,19 @@ export default function OperationWorkspaceDialog({
             sx={{ flexShrink: 0, '& .MuiButton-root': { minHeight: { xs: 42, md: 'auto' } } }}
           >
             {actions}
+            {allowMaximize && !handheld ? (
+              <Tooltip title={maximized ? 'Restore window' : 'Expand to full screen'}>
+                <IconButton
+                  size="small"
+                  onClick={() => setMaximized((previous) => !previous)}
+                  aria-label={maximized ? 'Restore weighing window' : 'Expand weighing window to full screen'}
+                  aria-pressed={maximized}
+                  sx={{ width: 34, height: 34 }}
+                >
+                  {maximized ? <FullscreenExitRounded fontSize="small" /> : <FullscreenRounded fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            ) : null}
             <IconButton
               size="small"
               onClick={() => onClose?.()}

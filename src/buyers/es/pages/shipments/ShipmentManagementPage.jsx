@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { canPlanCarton } from 'buyers/es/domain/workflow';
 import { useEffect, useMemo, useState } from 'react';
@@ -129,8 +130,6 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
 
   return (
     <Stack spacing={2}>
-      <Box><Typography variant="h4">{mode === 'sales' ? 'Sales · Shipment Planning' : 'Carton & Shipment Tracking'}</Typography>
-        <Typography color="text.secondary">{mode === 'sales' ? 'Sales owns this step: select one Order, choose cartons that already have Factory Barcodes, then create the shipment plan for Packing.' : 'Track carton and shipment progress. Barcode assignment and PLC weighing are handled in their dedicated workflow steps.'}</Typography></Box>
       {sales && <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#F8FBFF', borderColor: '#CFE0F2' }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
           <Typography sx={{ fontWeight: 850, color: '#173B63' }}>Sales Shipment Planning:</Typography>
@@ -151,7 +150,8 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       </Stack>
       <Tabs value={tab} onChange={(_, value) => setTab(value)}><Tab label={sales ? 'Plan New Shipment' : 'Carton tracking'} /><Tab label={sales ? 'Sales Shipment Plans' : 'Shipment plans'} /></Tabs>
       {tab === 0 && <>
-        <Paper sx={{ p: 2 }}><Stack spacing={2}>
+        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ p: 1.25, bgcolor: '#FBFCFE', borderBottom: '1px solid', borderColor: 'divider' }}><Stack spacing={2}>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <TextField size="small" label="Find Order for shipment planning" value={orderKeyword} onChange={(event) => setOrderKeyword(event.target.value)} helperText={APP_MESSAGES.SHIPMENT_ORDER_SEARCH_HELPER} />
             <TextField select size="small" label="Order" value={orderId} onChange={(event) => changeFilter(setOrderId, event.target.value)} sx={{ minWidth: 240 }}>
@@ -180,8 +180,8 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
           {sales && orderId && <Alert severity="info" sx={{ py: 0.35 }}>
             Step 2: Select eligible cartons. Sales cannot create new cartons here; shipment planning only uses physical cartons generated from Master Total Ctns and already assigned a Factory Barcode.
           </Alert>}
-        </Stack></Paper>
-        <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
+        </Stack></Box>
+        <StandardTableViewport sx={{ border: 0, borderRadius: 0 }}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
           {sales && <TableCell padding="checkbox"><Checkbox aria-label="Select available cartons on this page" disabled={!orderId || loading || !eligible.length}
             checked={eligible.length > 0 && eligible.every((row) => selected.includes(row.id))}
             indeterminate={eligible.some((row) => selected.includes(row.id)) && !eligible.every((row) => selected.includes(row.id))}
@@ -203,12 +203,13 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
               {packing && row.lifecycleStatus === SHIPMENT_LIFECYCLE_STATUS.CHECKED && row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button size="small" disabled={busy || loading} onClick={() => openAction('complete', row)}>Complete</Button>}
             </Stack></TableCell>
           </TableRow>)}
-        </TableBody></SortableTable></TableContainer>
+        </TableBody></SortableTable></StandardTableViewport>
         <TablePagination component="div" count={cartons.totalElements} page={page} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => { setPage(next); }} />
+        </Paper>
       </>}
       {tab === 1 && <>
         <Alert severity="info">{APP_MESSAGES.SHIPMENT_DISPATCH_RULES}</Alert>
-        <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label="Shipment plans"><TableHead><TableRow>
+        <StandardTableViewport component={Paper}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label="Shipment plans"><TableHead><TableRow>
           {['Shipment', 'Destination / Carrier', 'Planned date', 'Status', 'Progress (cartons)', 'Actions'].map((label) => <TableCell key={label}>{label}</TableCell>)}
         </TableRow></TableHead><TableBody>
           {!loading && !shipments.content.length && <TableRow><TableCell colSpan={6}>No Sales Shipment Plans yet. Open “Plan New Shipment”, select an Order and eligible cartons, then create a plan.</TableCell></TableRow>}
@@ -223,7 +224,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
               {sales && row.status === SHIPMENT_STATUS.PLANNED && !row.executionStarted && <Button size="small" color="error" disabled={busy || loading} onClick={() => openAction('cancel', row)}>Cancel plan</Button>}
             </Stack></TableCell>
           </TableRow>)}
-        </TableBody></SortableTable></TableContainer>
+        </TableBody></SortableTable></StandardTableViewport>
         <TablePagination component="div" count={shipments.totalElements} page={shipmentPage} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => setShipmentPage(next)} />
       </>}
       <Dialog open={Boolean(action)} onClose={() => !busy && setAction(null)} fullWidth maxWidth="sm">

@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Chip, CircularProgress, MenuItem, Paper, Stack,  TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
@@ -40,7 +41,6 @@ export default function PackingShipmentInboxPage() {
     finally { setBusy(false); }
   };
   return <Stack spacing={2}>
-    <Typography variant="h4">Packing · Weight Check & Dispatch</Typography>
     <Typography color="text.secondary">Sales Shipment Plans refresh automatically every 5 seconds. Packing opens a Sales plan, scans assigned Factory Barcodes, weighs cartons by PLC, then confirms dispatch.</Typography>
     {!buyer && <Alert severity="warning">{APP_MESSAGES.NO_BUYER_ACCESS}</Alert>}
     {error && <Alert severity="error">{error}</Alert>}
@@ -49,7 +49,7 @@ export default function PackingShipmentInboxPage() {
         {buyers.map((b) => <MenuItem key={b.code} value={b.code}>{b.label}</MenuItem>)}
       </TextField><Button onClick={() => setRevision((n) => n + 1)} disabled={busy || !buyer}>Refresh</Button>{loading && buyer && <CircularProgress size={20} />}
     </Stack>
-    <TableContainer component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE}><TableHead><TableRow>
+    <StandardTableViewport component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE}><TableHead><TableRow>
       {['Shipment', 'Planned Date / Destination', 'Status', 'Weighed', 'Completed', 'Failed', 'Actions'].map((label) => <TableCell key={label}>{label}</TableCell>)}
     </TableRow></TableHead><TableBody>
       {!loading && !data.content.length && <TableRow><TableCell colSpan={7}>No shipment plans yet. Sales must create a Shipment Plan before Packing can start.</TableCell></TableRow>}
@@ -61,7 +61,7 @@ export default function PackingShipmentInboxPage() {
           {[SHIPMENT_STATUS.PLANNED, SHIPMENT_STATUS.DISPATCHING].includes(row.status) && <Button onClick={() => dispatch(row)} disabled={busy || loading || Boolean(error) || !planned || completed !== planned || failed > 0}>{row.status === SHIPMENT_STATUS.DISPATCHING ? 'Resume Dispatch' : 'Confirm Dispatch'}</Button>}
         </Stack></TableCell>
       </TableRow>)}
-    </TableBody></SortableTable></TableContainer>
+    </TableBody></SortableTable></StandardTableViewport>
     <TablePagination component="div" count={data.totalElements} page={page} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => setPage(next)} />
   </Stack>;
 }

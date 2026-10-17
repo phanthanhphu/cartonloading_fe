@@ -1,6 +1,7 @@
 import { apiClient } from 'routes/globalApi';
 const cfg = (p) => ({ params: Object.fromEntries(Object.entries(p || {}).filter(([, v]) => v !== '' && v !== undefined && v !== null)) });
 export const getCartonDashboard = () => apiClient.get('/api/carton-dashboard/summary');
+export const getLululemonOperationsDashboard = () => apiClient.get('/api/buyers/LULULEMON/lululemon/operations-dashboard');
 export const listManagedOrders = (buyer, q = {}) => apiClient.get('/api/order-management/orders', cfg({ buyer, ...q }));
 export const getManagedOrder = (buyer, id) => apiClient.get(`/api/order-management/orders/${id}`, cfg({ buyer }));
 export const createManagedOrder = (buyer, body) => apiClient.post('/api/order-management/orders', body, cfg({ buyer }));

@@ -1,0 +1,26 @@
+/* V16 · compact non-invasive table styling for LULULEMON screens only.
+   These classes affect presentation, never scanning logic or permissions. */
+.lululemon-compact-v16 .MuiTable-root .MuiTableCell-head {
+  padding: 7px 10px;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  letter-spacing: .01em;
+}
+.lululemon-compact-v16 .MuiTable-root .MuiTableCell-body {
+  padding: 7px 10px;
+  font-size: 0.79rem;
+  line-height: 1.35;
+}
+.lululemon-compact-v16 .MuiTable-root .MuiTableCell-root {
+  border-bottom: 1px solid #d6e0ea;
+  border-right: 1px solid #d6e0ea;
+}
+.lululemon-compact-v16 .MuiTable-root .MuiTableRow-root > .MuiTableCell-root:last-child {
+  border-right: 0;
+}
+.lululemon-compact-v16 .MuiTablePagination-toolbar { min-height: 42px; }
+.lululemon-compact-v16 .MuiTablePagination-selectLabel,
+.lululemon-compact-v16 .MuiTablePagination-displayedRows { font-size: .76rem; }
+@media (min-width: 900px) {
+  .lululemon-compact-v16 .MuiAlert-message { padding-top: 2px; padding-bottom: 2px; }
+}

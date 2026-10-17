@@ -14,10 +14,12 @@ import { ArrowForward, StoreOutlined } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 import ManagementTable from 'components/ManagementTable';
+import OperationsDashboard from 'buyers/lululemon/components/OperationsDashboard';
 import { CompactPageHeader } from 'components/CompactPageHeader';
 import { getCartonDashboard } from 'services/managementService';
 import { readStoredUser } from 'utils/accessControl';
-import { getAccessibleBuyers, saveSelectedBuyer } from 'utils/buyerAccess';
+import { getAccessibleBuyers, getActiveBuyer, saveSelectedBuyer } from 'utils/buyerAccess';
+import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
 import { DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
 
 const metricLabels = [
@@ -33,8 +35,14 @@ export default function DashboardPage() {
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
   const accessibleBuyers = useMemo(() => getAccessibleBuyers(readStoredUser()), []);
+  // Give LULULEMON its own full-width visual dashboard; preserve the shared
+  // dashboard for ES and every other buyer.
+  const currentBuyerCode = getActiveBuyer()?.code || (accessibleBuyers.length === 1 ? accessibleBuyers[0]?.code : null);
+  const showLululemon = currentBuyerCode === 'LULULEMON'
+    && accessibleBuyers.some((buyer) => buyer.code === 'LULULEMON');
 
   useEffect(() => {
+    if (showLululemon) return undefined;
     let alive = true;
     setLoading(true);
     getCartonDashboard()
@@ -42,17 +50,21 @@ export default function DashboardPage() {
       .catch((e) => alive && setError(e?.response?.data?.message || e.message))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, []);
+  }, [showLululemon]);
 
   const buyerSummary = data?.buyers || [];
   const visible = useMemo(() => buyerSummary.slice(page * size, page * size + size), [buyerSummary, page, size]);
 
   const openBuyer = (buyer) => {
     saveSelectedBuyer(buyer);
-    navigate(`/buyers/${buyer.slug}/orders`);
+    navigate(getBuyerAccessLandingPath(buyer));
   };
 
   const summaryFor = (buyer) => buyerSummary.find((row) => row.buyerCode === buyer.code) || {};
+
+  if (showLululemon) {
+    return <Box sx={{ p: { xs: 0.5, md: 1 } }}><OperationsDashboard /></Box>;
+  }
 
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
@@ -64,6 +76,7 @@ export default function DashboardPage() {
         />
 
         {error ? <Alert severity="error">{error}</Alert> : null}
+
 
         <Grid container spacing={1}>
           {metricLabels.map(([key, label]) => (

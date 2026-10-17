@@ -1,32 +1,26 @@
 import { Box, Paper, Stack, Typography } from '@mui/material';
 
-export function CompactPageHeader({ title, subtitle, breadcrumbs, meta, actions, details, dense = false }) {
+/** Global AppBar provides the page heading; keep only navigation, key facts and actions. */
+export function CompactPageHeader({ breadcrumbs, meta, actions, details, dense = false }) {
+  if (!breadcrumbs && !meta && !actions && !details) return null;
   return (
-    <Stack spacing={dense ? 0.45 : 0.75}>
-      {breadcrumbs ? <Box sx={{ px: 0.25, '& .MuiBreadcrumbs-root': { fontSize: '0.78rem', color: '#6B7F93' } }}>{breadcrumbs}</Box> : null}
-      <Paper
-        variant="outlined"
-        sx={{
-          px: dense ? { xs: 1, md: 1.2 } : { xs: 1.4, md: 1.75 },
-          py: dense ? { xs: 0.72, md: 0.82 } : { xs: 1.15, md: 1.35 },
-          borderRadius: dense ? 1.8 : 2.25,
-          bgcolor: '#FFFFFF',
-          borderColor: '#DFE7EF',
-          boxShadow: '0 1px 2px rgba(30, 55, 80, 0.035)'
-        }}
-      >
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={dense ? 0.7 : 1.25} justifyContent="space-between" alignItems={{ md: 'center' }}>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Typography sx={{ fontSize: dense ? { xs: '0.94rem', md: '1rem' } : { xs: '1rem', md: '1.08rem' }, fontWeight: 760, lineHeight: 1.2, color: '#20364D' }}>{title}</Typography>
+    <Stack spacing={dense ? 0.4 : 0.6}>
+      {breadcrumbs ? <Box sx={{ px: 0.15, '& .MuiBreadcrumbs-root': { fontSize: '0.76rem', color: '#6B7F93' } }}>{breadcrumbs}</Box> : null}
+      {(meta || details || actions) ? (
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.65} justifyContent="space-between" alignItems={{ md: 'center' }} useFlexGap>
+          {(meta || details) ? (
+            <Stack direction="row" spacing={0.55} useFlexGap flexWrap="wrap" alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
               {meta}
+              {details}
             </Stack>
-            {subtitle ? <Typography variant={dense ? 'caption' : 'body2'} color="text.secondary" sx={{ mt: dense ? 0.12 : 0.3, maxWidth: 900, lineHeight: dense ? 1.25 : undefined }}>{subtitle}</Typography> : null}
-            {details ? <Box sx={{ mt: dense ? 0.45 : 0.8 }}>{details}</Box> : null}
-          </Box>
-          {actions ? <Stack direction="row" spacing={dense ? 0.35 : 0.6} alignItems="center" flexWrap="wrap" useFlexGap sx={{ width: { xs: '100%', md: 'auto' }, '& .MuiButton-root': { minHeight: { xs: 42, md: 'auto' } } }}>{actions}</Stack> : null}
+          ) : <Box sx={{ flex: 1 }} />}
+          {actions ? (
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center" sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' }, '& .MuiButton-root': { minHeight: 32 } }}>
+              {actions}
+            </Stack>
+          ) : null}
         </Stack>
-      </Paper>
+      ) : null}
     </Stack>
   );
 }

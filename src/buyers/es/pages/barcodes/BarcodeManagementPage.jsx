@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Pagination, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
@@ -277,7 +278,7 @@ export default function BarcodeManagementPage() {
       </Paper>
 
       <Paper variant="outlined" sx={{ borderRadius: '0 0 8px 8px', overflow: 'hidden', borderColor: '#DCE4EC' }}>
-        <TableContainer sx={{ minHeight: 380, maxHeight: 'calc(100vh - 245px)', overflowX: 'auto' }}>
+        <StandardTableViewport paginate sx={{ minHeight: 380, maxHeight: 'calc(100vh - 245px)', overflowX: 'auto' }}>
           <SortableTable size="small" sx={{ minWidth: 1420 }}>
             <TableHead>
               <TableRow>
@@ -327,7 +328,7 @@ export default function BarcodeManagementPage() {
               )}
             </TableBody>
           </SortableTable>
-        </TableContainer>
+        </StandardTableViewport>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.25, borderTop: '1px solid #E5E7EB' }}>
           <Typography variant="body2" color="text.secondary">Page {totalPages ? page + 1 : 0} / {totalPages}</Typography>
           <Pagination count={Math.max(1, totalPages)} page={Math.min(page + 1, Math.max(1, totalPages))} onChange={(_, value) => setPage(value - 1)} disabled={totalPages <= 1} />

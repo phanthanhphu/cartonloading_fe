@@ -174,13 +174,13 @@ const replaceOrInjectRowNumber = (row, number, explicitIndex, injectRowNumber) =
   return row;
 };
 
-const transformBody = (body, sortIndex, direction, rowNumberStart, explicitIndex, injectRowNumber) => {
+const transformBody = (body, sortIndex, direction, rowNumberStart, explicitIndex, injectRowNumber, alreadySorted = false) => {
   if (!isValidElement(body)) return body;
   const children = flattenChildren(body.props?.children);
   const sortable = children.filter(isDataRow);
 
   let orderedChildren = children;
-  if (sortIndex !== null && sortable.length >= 2) {
+  if (!alreadySorted && sortIndex !== null && sortable.length >= 2) {
     const positions = new Map(sortable.map((row, index) => [row, index]));
     const sorted = [...sortable].sort((a, b) => {
       const aCell = directCells(a)[sortIndex];
@@ -212,16 +212,21 @@ const transformBody = (body, sortIndex, direction, rowNumberStart, explicitIndex
  * - disableRowNumber: used by Carton Loading screens, where STT is intentionally hidden.
  * - Existing STT/No./# columns are reused rather than duplicated.
  */
-export default function SortableTable({ children, rowNumberStart = 0, disableRowNumber = false, ...props }) {
+export default function SortableTable({ children, rowNumberStart = 0, disableRowNumber = false,
+  controlledSortIndex = null, controlledSortDirection = 'asc', onSortChange, ...props }) {
   const [sortIndex, setSortIndex] = useState(null);
   const [direction, setDirection] = useState('asc');
 
+  const controlled = typeof onSortChange === 'function';
+  const activeSortIndex = controlled ? controlledSortIndex : sortIndex;
+  const activeDirection = controlled ? controlledSortDirection : direction;
   const handleSort = (index) => {
-    if (sortIndex === index) setDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
-    else {
-      setSortIndex(index);
-      setDirection('asc');
+    if (controlled) {
+      onSortChange(index, activeSortIndex === index && activeDirection === 'asc' ? 'desc' : 'asc');
+      return;
     }
+    if (sortIndex === index) setDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+    else { setSortIndex(index); setDirection('asc'); }
   };
 
   const flat = flattenChildren(children);
@@ -231,8 +236,8 @@ export default function SortableTable({ children, rowNumberStart = 0, disableRow
 
   const transformed = flat.map((child) => {
     if (!isValidElement(child)) return child;
-    if (child.type === TableHead) return transformHead(child, sortIndex, direction, handleSort, injectRowNumber);
-    if (child.type === TableBody) return transformBody(child, sortIndex, direction, rowNumberStart, explicitRowNumberIndex, injectRowNumber);
+    if (child.type === TableHead) return transformHead(child, activeSortIndex, activeDirection, handleSort, injectRowNumber);
+    if (child.type === TableBody) return transformBody(child, activeSortIndex, activeDirection, rowNumberStart, explicitRowNumberIndex, injectRowNumber, controlled);
     return child;
   });
 
@@ -240,3 +245,5 @@ export default function SortableTable({ children, rowNumberStart = 0, disableRow
 }
 
 export { TableBody, TableCell, TableHead, TableRow };
+
+export { compare, directCells, extractText };

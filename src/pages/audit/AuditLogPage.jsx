@@ -43,10 +43,11 @@ export default function AuditLogPage() {
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
-        <Typography variant="h5" fontWeight={850}>Audit Trail</Typography>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
         <Alert severity="info">{APP_MESSAGES.AUDIT_LOGS_READ_ONLY}</Alert>
-        <TableFilterBar
+        
+        <ManagementTable
+          filterBar={<TableFilterBar
           fields={[
             { key: 'username', label: 'User' },
             { key: 'action', label: 'Action' },
@@ -58,8 +59,7 @@ export default function AuditLogPage() {
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onClear={() => setFilters({ username: '', action: '', resourceType: '', resourceId: '', ipAddress: '' })}
           disabled={state.loading}
-        />
-        <ManagementTable {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
+        />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
         {viewing ? <AuditDetailDialog row={viewing} onClose={() => setViewing(null)} /> : null}
       </Stack>
     </Box>

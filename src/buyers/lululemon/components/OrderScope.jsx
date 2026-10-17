@@ -9,6 +9,7 @@ import { listManagedOrders } from 'services/managementService';
 import { BUYER_CODE, buyerOrderStorageKey } from '../../../constants/appConstants';
 import { APP_MESSAGES, createBuyerOrderFirstMessage } from '../../../constants/appMessages';
 import { buyerPath } from 'utils/buyerAccess';
+import { canManageSales } from 'utils/accessControl';
 async function loadAllOrders() {
   const rows = [];
   let page = 0;
@@ -53,11 +54,12 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
   };
 
   if (error) return <Alert severity="error" action={<Button color="inherit" size="small" onClick={load}>Retry</Button>}>{error}</Alert>;
-  if (!loading && !orders.length) return <Alert severity="warning" action={<Button color="inherit" size="small" onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'orders'))}>Create Order</Button>}>{createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON)}</Alert>;
+  if (!loading && !orders.length) return <Alert severity="warning" action={canManageSales() ? <Button color="inherit" size="small" onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'orders'))}>Create Order</Button> : null}>
+    {canManageSales() ? createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON) : 'No Order is available. Contact Sales or Admin to create an Order before Packing can pick and ship POs.'}
+  </Alert>;
 
   const content = (
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.55} alignItems={{ md: 'center' }}>
-      {!embedded ? <Box sx={{ minWidth: 76 }}><Typography variant="caption" color="text.secondary">Active Order</Typography><Typography variant="body2" sx={{ fontWeight: 750 }}>Order scope</Typography></Box> : null}
       <Autocomplete
         size="small"
         sx={{ minWidth: { xs: '100%', md: 300 }, flex: 1 }}
@@ -84,8 +86,8 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
         renderInput={(params) => (
           <TextField
             {...params}
-            label={compact ? undefined : 'Active Order'}
-            placeholder={compact ? 'Search and select an Order' : 'Search Order...'}
+            label={compact ? 'Order' : 'Active Order'}
+            placeholder={compact ? 'Search Order' : 'Search Order...'}
             sx={compact ? {
               bgcolor: '#FFFFFF',
               borderRadius: 1.8,

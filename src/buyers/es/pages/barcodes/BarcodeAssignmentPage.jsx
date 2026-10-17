@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import { DEFAULT_TABLE_PAGE_SIZE, OPERATION_ROUTE, BARCODE_CARTON_STATUS, COMMON_FILTER, PROGRESS_STATUS } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { quantityMatchesPlan } from 'buyers/es/domain/workflow';
@@ -324,9 +325,8 @@ export default function BarcodeAssignmentPage() {
         <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
           <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate(OPERATION_ROUTE.ASSIGN_BARCODE)}>Back</Button>
           <Box>
-            <Typography sx={{ fontWeight: 850, color: '#103B5C', fontSize: '1.05rem' }}>Assign Barcode for Carton</Typography>
-            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-              {loadingOrder ? 'Loading Order...' : (order?.orderName || 'Order')} · Select Master Data first, then assign one Factory Barcode to each physical carton.
+            <Typography sx={{ fontSize: '0.76rem', color: 'text.secondary' }}>
+              {loadingOrder ? 'Loading Order...' : (order?.orderName || 'Order')}
             </Typography>
           </Box>
         </Stack>
@@ -341,7 +341,7 @@ export default function BarcodeAssignmentPage() {
       {pageError && <Alert severity="error" sx={{ mb: 1 }}>{pageError}</Alert>}
       {pageNotice && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setPageNotice('')}>{pageNotice}</Alert>}
 
-      <Paper variant="outlined" sx={{ p: 1.15, mb: 0.9, borderRadius: 1.75 }}>
+      <Paper variant="outlined" sx={{ p: 1.15, mb: 0, borderRadius: '8px 8px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ lg: 'center' }}>
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontWeight: 800, color: '#173B63' }}>Choose the Master row before packing</Typography>
@@ -372,8 +372,8 @@ export default function BarcodeAssignmentPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <TableContainer sx={{ minHeight: 430, maxHeight: 'calc(100vh - 310px)', overflow: 'auto' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+        <StandardTableViewport sx={{ minHeight: 430, maxHeight: 'calc(100vh - 310px)', overflow: 'auto' }}>
           <SortableTable stickyHeader size="small" rowNumberStart={page * pageSize} sx={{ minWidth: 1680 }}>
             <TableHead>
               <TableRow>
@@ -426,7 +426,7 @@ export default function BarcodeAssignmentPage() {
               )}
             </TableBody>
           </SortableTable>
-        </TableContainer>
+        </StandardTableViewport>
         <TablePagination
           component="div"
           count={totalElements}
@@ -570,7 +570,7 @@ export default function BarcodeAssignmentPage() {
                       />
                     </Stack>
                   </Box>
-                  <TableContainer sx={{ maxHeight: 310 }}>
+                  <StandardTableViewport sx={{ maxHeight: 310 }}>
                     <SortableTable stickyHeader size="small" sx={{ minWidth: 930 }}>
                       <TableHead>
                         <TableRow>
@@ -657,7 +657,7 @@ export default function BarcodeAssignmentPage() {
                         })}
                       </TableBody>
                     </SortableTable>
-                  </TableContainer>
+                  </StandardTableViewport>
                 </Paper>
 
                 {checkedBarcode && !selectedCarton && eligibleCartons.length > 0 && (

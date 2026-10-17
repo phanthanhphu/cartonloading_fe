@@ -79,3 +79,16 @@ export const canAccessAssignedFactory = (factoryCode) => {
   const allowed = getFactoryPermissions();
   return allowed.includes('*') || allowed.includes(code);
 };
+
+
+// Separate Weighing permissions: read from authenticated user, never infer from the menu URL.
+export const getWeighingFactoryPermissions = () => {
+  const user = readStoredUser();
+  const configured = user.weighingFactoryPermissions;
+  const values = Array.isArray(configured) ? configured : getFactoryPermissions();
+  return [...new Set(values.map((v) => String(v || '').toUpperCase().trim()).filter((v) => /^F[1-7]$/.test(v)))];
+};
+export const canWeighFactory = (factory) => (isAdmin() || canManageSales())
+  ? /^F[1-7]$/.test(String(factory || '').toUpperCase())
+  : canWeightCheck() ? getWeighingFactoryPermissions().includes(String(factory || '').toUpperCase())
+    : canAccessAssignedFactory(factory);

@@ -1,11 +1,12 @@
 import { Box, CircularProgress, Paper, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Typography } from '@mui/material';
 import SortableTable from 'components/SortableTable';
+import { PAGE_TABLE_HEIGHT } from 'components/TableViewportHeights';
 import StatusChip from 'components/StatusChip';
 
 export default function ManagementTable({ title, columns = [], rows = [], loading = false, count = 0, page = 0, rowsPerPage = 25,
-  onPageChange, onRowsPerPageChange, onRowClick, selectedId, getRowId = (row) => row?.id, emptyText = 'No data' }) {
+  onPageChange, onRowsPerPageChange, onRowClick, filterBar, selectedId, getRowId = (row) => row?.id, emptyText = 'No data' }) {
   const safeCount = Math.max(0, Number(count || 0));
-  const safeRowsPerPage = Math.max(1, Number(rowsPerPage || 25));
+  const safeRowsPerPage = Math.max(1, Number(rowsPerPage || 10));
   const maxPage = Math.max(0, Math.ceil(safeCount / safeRowsPerPage) - 1);
   const safePage = Math.min(Math.max(0, Number(page || 0)), maxPage);
   const colSpan = Math.max(1, columns.length);
@@ -14,9 +15,14 @@ export default function ManagementTable({ title, columns = [], rows = [], loadin
   return (
     <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 2, borderColor: '#DCE4EC' }}>
       {title ? <Box sx={{ px: 1.25, py: 0.75, borderBottom: '1px solid #E5E7EB' }}><Typography fontWeight={800}>{title}</Typography></Box> : null}
+      {filterBar ? (
+        <Box sx={{ px: { xs: 0.85, md: 1.2 }, py: 0.85, borderBottom: '1px solid #E5E7EB', bgcolor: '#FBFCFE' }}>
+          {filterBar}
+        </Box>
+      ) : null}
       <TableContainer
         sx={{
-          maxHeight: 520,
+          height: PAGE_TABLE_HEIGHT,
           maxWidth: '100%',
           overflowX: 'auto',
           overflowY: 'auto',

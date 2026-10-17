@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import { BARCODE_CARTON_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -197,7 +198,7 @@ export default function OrderScanPage() {
           </Stack>
           <Typography sx={{ color: tone, fontWeight: 900, fontSize: '0.82rem' }}>TOTAL {Number(total || 0).toLocaleString()}</Typography>
         </Stack>
-        <TableContainer sx={{ maxHeight: 255 }}>
+        <StandardTableViewport>
           <SortableTable disableRowNumber stickyHeader size="small" sx={{ minWidth: 820, '& th, & td': { border: '1px solid #E2E8F0', px: 0.8, py: 0.65, fontSize: '0.69rem' }, '& th': { bgcolor: '#F8FAFC', color: '#40566E', fontWeight: 800 } }}>
             <TableHead>
               <TableRow>
@@ -230,7 +231,7 @@ export default function OrderScanPage() {
               ))}
             </TableBody>
           </SortableTable>
-        </TableContainer>
+        </StandardTableViewport>
         <TablePagination component="div" count={Number(total || 0)} page={page} rowsPerPage={rowsPerPage}
           onPageChange={(_, next) => onPageChange(next)} onRowsPerPageChange={(e) => onRowsPerPageChange(Number(e.target.value))}
           rowsPerPageOptions={[10,25,50,100]} />

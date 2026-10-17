@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -638,7 +639,7 @@ export default function CartonItemDetailPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 1.25, mb: 1.25, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ p: 1.25, mb: 0, borderRadius: '8px 8px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
           <Box sx={{ flex: 1 }}>
             <TableFilterBar
@@ -669,8 +670,8 @@ export default function CartonItemDetailPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <TableContainer sx={{ minHeight: 420, overflowX: 'auto' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+        <StandardTableViewport sx={{ minHeight: 420, overflowX: 'auto' }}>
           <SortableTable disableRowNumber size="medium" sx={{ minWidth: 1430 }}>
             <TableHead>
               <TableRow>
@@ -721,7 +722,7 @@ export default function CartonItemDetailPage() {
               )}
             </TableBody>
           </SortableTable>
-        </TableContainer>
+        </StandardTableViewport>
         <Box sx={{ p: 1.25, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="caption" color="text.secondary">
             The Factory Barcode is a one-to-one carton ID. The backend opens only the carton mapped to the scanned code; it never chooses another carton by sequence.

@@ -11,13 +11,15 @@ import {
 import { isAdmin, readStoredUser } from 'utils/accessControl';
 import { getAccessibleBuyers, getActiveBuyer } from 'utils/buyerAccess';
 import { buyerCapability, getBuyerMenuEntries } from 'buyers/core/buyerModules';
+import { BUYER_CODE } from '../constants/appConstants';
 
-const item = (id, title, url, icon, activePaths = [url]) => ({
+const item = (id, title, url, icon, activePaths = [url], matchDescendants = false) => ({
   id,
   title,
   url,
   icon,
   activePaths,
+  matchDescendants,
   type: 'item',
   breadcrumbs: false,
   exact: true
@@ -28,7 +30,8 @@ const toMenuItem = (entry, buyer) => item(
   entry.title,
   entry.to,
   entry.icon,
-  entry.activePaths || [entry.to]
+  entry.activePaths || [entry.to],
+  true // Buyer operations own their nested routes; admin/home items remain exact.
 );
 
 const getDashboardMenu = () => {
@@ -39,8 +42,16 @@ const getDashboardMenu = () => {
 
   const buyerEntries = activeBuyer ? getBuyerMenuEntries(activeBuyer) : [];
   const entryById = new Map(buyerEntries.map((entry) => [entry.id, entry]));
-  const salesIds = ['orders', 'shipping'];
-  const operationIds = ['print-requests', 'packing', 'checking', 'shipping-operations', 'weight-management'];
+  // LULULEMON: Shipment hand-off belongs to Packing / Operations, not Sales.
+  // Keep the navigation grouping for other buyers unchanged.
+  const isLululemon = activeBuyer?.code === BUYER_CODE.LULULEMON;
+  const salesIds = isLululemon ? ['orders'] : ['orders', 'shipping'];
+  const operationIds = [
+    'po-picking', 'packing', 'checking',
+    ...(isLululemon ? ['shipping'] : []),
+    'weight-management',
+    ...buyerEntries.filter((entry) => entry.id.startsWith('weight-management-')).map((entry) => entry.id)
+  ];
 
   const salesChildren = activeBuyer
     ? salesIds.map((id) => entryById.get(id)).filter(Boolean).map((entry) => toMenuItem(entry, activeBuyer))

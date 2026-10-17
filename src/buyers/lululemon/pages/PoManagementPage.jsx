@@ -8,12 +8,13 @@ import {
   TableRow, Typography
 } from '@mui/material';
 import { Refresh, UploadFile, ViewColumn } from '@mui/icons-material';
-import { CompactPageHeader, CompactStat, CompactToolbar } from 'components/CompactPageHeader';
+import { CompactStat, CompactToolbar } from 'components/CompactPageHeader';
+import { CompactPageHeader } from '../components/LululemonPageHeader';
 import TableFilterBar from 'components/TableFilterBar';
 import { canManageSales } from 'utils/accessControl';
 import StatusChip from '../components/StatusChip';
 import OrderScope from '../components/OrderScope';
-import { importAllBp, listAllPos } from '../services/service';
+import { importSharedAllBp, listAllPos } from '../services/service';
 import { APP_MESSAGES, createAllBpImportDetailMessage } from '../../../constants/appMessages';
 
 import { ALL_BP_FORMULA_KEYS, ALL_BP_KNOWN_HEADERS, ALL_BP_SOURCE_ALIAS, ALL_BP_UI_LABELS, PURCHASE_ORDER_STATUS_OPTIONS, DEFAULT_TABLE_ROWS_PER_PAGE, EXCEL_FILE_ACCEPT, BUYER_CODE, BUYER_LABEL } from '../../../constants/appConstants';
@@ -287,7 +288,7 @@ export default function PoManagementPage() {
     if (!file || !orderId) return;
     setLoading(true); setImporting(true); setImportProgress(0);
     try {
-      const result = await importAllBp(orderId, file, true, BUYER_CODE.LULULEMON, (progressEvent) => {
+      const result = await importSharedAllBp(orderId, file, BUYER_CODE.LULULEMON, (progressEvent) => {
         const total = Number(progressEvent?.total || 0);
         const loaded = Number(progressEvent?.loaded || 0);
         const percent = total > 0
@@ -324,11 +325,10 @@ export default function PoManagementPage() {
   const tableColSpan = Math.max(1, visibleColumns.length);
 
   return (
-    <Stack spacing={0.9}>
+    <Stack spacing={0.9} className="lululemon-compact-v16">
       <CompactPageHeader
         dense
         title={`${BUYER_LABEL[BUYER_CODE.LULULEMON]} · PO Master Data`}
-        subtitle="ALL_BP data for the selected Order. All source columns are saved; choose which columns to show on the table."
         actions={(<>
           <Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading || !orderId}>Refresh</Button>
           {sales && (
@@ -359,7 +359,7 @@ export default function PoManagementPage() {
         </>)}
       />
 
-      <OrderScope value={orderId} onChange={setOrderId} disabled={loading} />
+      <OrderScope value={orderId} onChange={setOrderId} disabled={loading} compact />
       {message && <Alert severity={message.severity} onClose={() => setMessage(null)}>{message.text}</Alert>}
 
       <CompactToolbar>
@@ -397,6 +397,8 @@ export default function PoManagementPage() {
         </Menu>
       </CompactToolbar>
 
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 1, py: 0.9, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#FBFCFE' }}>
       <TableFilterBar
         fields={[
           { key: 'factoryCode', label: 'Factory' },
@@ -411,8 +413,9 @@ export default function PoManagementPage() {
         onClear={() => setFilters({ factoryCode: '', poNumber: '', style: '', sku: '', exFtyDate: '', status: '' })}
         disabled={!orderId}
       />
+        </Box>
 
-      <LululemonTableViewport component={Paper} variant="outlined" sx={{ maxWidth: '100%', overflowX: 'auto' }}>
+      <LululemonTableViewport sx={{ maxWidth: '100%', overflowX: 'auto', border: 0, borderRadius: 0 }}>
         <SortableTable size="small" stickyHeader rowNumberStart={page * rowsPerPage} sx={{ minWidth: Math.max(900, visibleColumns.length * 125) + 64 }}>
           <TableHead>
             <TableRow>
@@ -453,6 +456,7 @@ export default function PoManagementPage() {
         onRowsPerPageChange={(event) => { setRowsPerPage(Number(event.target.value)); setPage(0); }}
         rowsPerPageOptions={[10, 25, 50, 100]}
       />
+      </Paper>
     </Stack>
   );
 }

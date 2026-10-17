@@ -23,7 +23,7 @@ const HOVER = '#F5F8FC';
 const SELECTED = '#EAF3FC';
 const SELECTED_BORDER = '#D7E7F7';
 
-export default function NavItem({ item, level, isParents = false, setSelectedID, pathname }) {
+export default function NavItem({ item, level, isParents = false, setSelectedID, pathname, activeMenuItemId }) {
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
@@ -42,12 +42,13 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
     Boolean(matchPath({ path: activePath, end: true }, pathname))
   );
 
-  const isSelected =
+  const isSelected = activeMenuItemId !== undefined ? item.id === activeMenuItemId : (
     item.id === 'grouprequest'
       ? ['/group-requests', '/summary/', '/requisition-monthly/', '/comparison/', '/request-monthly-comparison/'].some((route) =>
           pathname.startsWith(route)
         )
-      : Boolean(matchPath({ path: itemPath, end: isExactItem }, pathname)) || isSelectedByActivePath;
+      : Boolean(matchPath({ path: itemPath, end: isExactItem }, pathname)) || isSelectedByActivePath
+  );
 
   const itemHandler = () => {
     if (downLG) handlerDrawerOpen(false);
@@ -223,5 +224,6 @@ NavItem.propTypes = {
   level: PropTypes.number,
   isParents: PropTypes.bool,
   setSelectedID: PropTypes.any,
-  pathname: PropTypes.string
+  pathname: PropTypes.string,
+  activeMenuItemId: PropTypes.string
 };

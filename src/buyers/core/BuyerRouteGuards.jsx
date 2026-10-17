@@ -8,7 +8,6 @@ import {
   canAssignBarcode,
   canManageBarcodes,
   canManageSales,
-  canPrintRoom,
   canUseBuyerWorkspace,
   canWeightCheck
 } from 'utils/accessControl';
@@ -88,6 +87,15 @@ export function BuyerWorkspaceRoute({ children }) {
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
+/** LULULEMON Orders are Sales/Admin-only, including direct bookmarked routes. */
+export function BuyerOrdersAccessRoute({ children }) {
+  const { buyerSlug } = useParams();
+  const buyer = getBuyerBySlug(buyerSlug);
+  const allowed = Boolean(buyer && (buyer.code !== 'LULULEMON' || canManageSales()));
+  useEffect(() => { if (!allowed) toast.error('Only Sales or Admin can access Orders.'); }, [allowed]);
+  return allowed ? children : <BuyerHomeRedirect />;
+}
+
 export function WorkspaceRoute({ children }) {
   const allowed = canUseBuyerWorkspace();
   useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.FACTORY_OPERATIONS_ONLY); }, [allowed]);
@@ -127,11 +135,6 @@ export function WeightAccessRoute({ children }) {
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
-export function PrintAccessRoute({ children }) {
-  const allowed = canPrintRoom() || canAssignBarcode() || canManageSales();
-  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.PRINT_ROOM_PERMISSION_REQUIRED); }, [allowed]);
-  return allowed ? children : <BuyerHomeRedirect />;
-}
 
 export function AssignBuyerRoute({ children }) {
   const { buyerSlug } = useParams();

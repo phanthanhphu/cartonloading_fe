@@ -10,3 +10,49 @@
 * {
   -webkit-tap-highlight-color: transparent;
 }
+/* One table palette for all buyers and shared modules, matched to LULULEMON
+ * PO Picking V3. Styling only: no changes to selection, sorting, pagination,
+ * scanned quantities, or workflow permissions. */
+:root {
+  --app-table-grid: #d6e0ea;
+  --app-table-head-bg: #f7f9fc;
+  --app-table-head-text: #475569;
+  --app-table-body-bg: #ffffff;
+  --app-table-zebra-bg: #f8fafd;
+  --app-table-hover-bg: #eef4fc;
+}
+
+/* A separate-collapse grid keeps sticky columns/headers aligned and provides
+ * visible borders on every side of every MUI table cell. */
+.MuiTable-root {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-top: 1px solid var(--app-table-grid);
+  border-left: 1px solid var(--app-table-grid);
+  background-color: var(--app-table-body-bg);
+}
+.MuiTable-root .MuiTableCell-root {
+  border-right: 1px solid var(--app-table-grid);
+  border-bottom: 1px solid var(--app-table-grid);
+}
+/* Override local header backgrounds (including sticky headers) consistently.
+ * Status chips and custom backgrounds in data cells are intentionally spared. */
+.MuiTable-root .MuiTableHead-root .MuiTableCell-root {
+  background-color: var(--app-table-head-bg);
+  color: var(--app-table-head-text);
+  font-weight: 800;
+}
+/* The PO Picking main table already computes the stripe color from the PO
+ * group index, not the DOM row index (expanded source rows affect the latter).
+ * Preserve its grouping behavior; other tables receive the same zebra colors. */
+.MuiTable-root:not(.po-picking-main-table) .MuiTableBody-root > .MuiTableRow-root:nth-of-type(even):not(.Mui-selected) {
+  background-color: var(--app-table-zebra-bg);
+}
+.MuiTable-root .MuiTableBody-root > .MuiTableRow-root.MuiTableRow-hover:hover:not(.Mui-selected) {
+  background-color: var(--app-table-hover-bg);
+}
+/* PO Picking's first two sticky cells have their own backgrounds; keep them
+ * visually attached to the hovered row instead of showing a white block. */
+.MuiTable-root.po-picking-main-table .MuiTableBody-root > .MuiTableRow-root.MuiTableRow-hover:hover > .MuiTableCell-root:nth-child(-n + 2) {
+  background-color: var(--app-table-hover-bg);
+}

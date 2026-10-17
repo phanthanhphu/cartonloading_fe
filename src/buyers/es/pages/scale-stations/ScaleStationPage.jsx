@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -111,7 +112,7 @@ export default function ScaleStationPage() {
             <Button size="small" variant="contained" startIcon={<AddOutlinedIcon />} onClick={openCreate}>Add Station</Button>
           </Stack>
         </Stack>
-      <TableContainer>
+      <StandardTableViewport>
         <SortableTable size="small" rowNumberStart={page * rowsPerPage}>
           <TableHead>
             <TableRow>
@@ -145,7 +146,7 @@ export default function ScaleStationPage() {
             )}
           </TableBody>
         </SortableTable>
-      </TableContainer>
+      </StandardTableViewport>
       <TablePagination component="div" count={rows.length} page={Math.min(page, Math.max(0, Math.ceil(rows.length / rowsPerPage) - 1))} rowsPerPage={rowsPerPage}
         onPageChange={(_, next) => setPage(next)} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }} rowsPerPageOptions={[10,25,50,100]} />
       </Paper>

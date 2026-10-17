@@ -1,3 +1,4 @@
+import StandardTableViewport from 'components/StandardTableViewport';
 import { BARCODE_CARTON_STATUS, FACTORY_BARCODE_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, LARGE_TABLE_PAGE_SIZE, OPERATION_ROUTE } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -616,7 +617,8 @@ export default function PackingAllocationPage() {
             )}
           </Stack>
 
-          <Paper elevation={0} sx={{ p: 1, mb: 0.7, border: '1px solid #DCE4EC', borderRadius: 1.5 }}>
+          <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 2, overflow: 'hidden' }}>
+            <Box sx={{ p: 1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E5E7EB' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
               <TextField size="small" label="General keyword" value={masterFilters.keyword} onChange={(event) => setMasterFilters((current) => ({ ...current, keyword: event.target.value }))} />
               <TextField size="small" label="e.s. PO #" value={masterFilters.poNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, poNumber: event.target.value }))} />
@@ -627,21 +629,21 @@ export default function PackingAllocationPage() {
               <TextField size="small" label="Mode of shipment" value={masterFilters.shipmentMode} onChange={(event) => setMasterFilters((current) => ({ ...current, shipmentMode: event.target.value }))} />
               <TextField size="small" label="STATUS" value={masterFilters.status} onChange={(event) => setMasterFilters((current) => ({ ...current, status: event.target.value }))} />
             </Box>
-            <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+            <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.2 }}>
               <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={() => { setMasterApplied(masterFilters); setMasterPage(0); }} sx={{ textTransform: 'none' }}>Search</Button>
               <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={() => { setMasterFilters(emptyMasterFilters); setMasterApplied(emptyMasterFilters); setMasterPage(0); }} sx={{ textTransform: 'none' }}>Reset</Button>
             </Stack>
-          </Paper>
+          </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1, mb: 1.3 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1, px: 1, py: 0.9, mb: 0, borderBottom: '1px solid #E5E7EB' }}>
             {[
               ['Total rows', masterTotal], ['PCS on page', masterTotals.pcs], ['CTNS on page', masterTotals.cartons],
               ['AIR PCS on page', masterTotals.pcsAir], ['SEA PCS on page', masterTotals.pcsSea]
             ].map(([label, value]) => summaryCard(label, value))}
           </Box>
 
-          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
-            <TableContainer sx={{ maxHeight: 'calc(100vh - 470px)', minHeight: 300 }}>
+          <Box sx={{ overflow: 'hidden' }}>
+            <StandardTableViewport paginate sx={{ maxHeight: 'calc(100vh - 470px)', minHeight: 300, border: 0, borderRadius: 0 }}>
               <SortableTable stickyHeader size="small" sx={{ minWidth: 3600 }}>
                 <TableHead><TableRow>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 70 }}>No.</TableCell>
@@ -667,12 +669,13 @@ export default function PackingAllocationPage() {
                   </TableRow>)}
                 </TableBody>
               </SortableTable>
-            </TableContainer>
-          </Paper>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.3 }}>
+            </StandardTableViewport>
+          </Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1, borderTop: '1px solid #E5E7EB' }}>
             <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>Total: {masterTotal} rows</Typography>
             <Pagination page={masterPage + 1} count={masterPages} onChange={(_, value) => setMasterPage(value - 1)} />
           </Stack>
+          </Paper>
         </>
       ) : (
         <>
@@ -694,7 +697,8 @@ export default function PackingAllocationPage() {
             </Stack>
           </Stack>
 
-          <Paper elevation={0} sx={{ p: 1, mb: 0.7, border: '1px solid #DCE4EC', borderRadius: 1.5 }}>
+          <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 2, overflow: 'hidden' }}>
+            <Box sx={{ p: 1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E5E7EB' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
               <TextField size="small" label="General keyword" value={packingFilters.keyword} onChange={(event) => setPackingFilters((current) => ({ ...current, keyword: event.target.value }))} />
               <TextField size="small" label="P.O. #" value={packingFilters.poNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, poNumber: event.target.value }))} />
@@ -703,21 +707,21 @@ export default function PackingAllocationPage() {
               <TextField size="small" label="Color" value={packingFilters.color} onChange={(event) => setPackingFilters((current) => ({ ...current, color: event.target.value }))} />
               <TextField size="small" label="Size" value={packingFilters.sizeValue} onChange={(event) => setPackingFilters((current) => ({ ...current, sizeValue: event.target.value }))} />
             </Box>
-            <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+            <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.2 }}>
               <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={() => { setPackingApplied(packingFilters); setPackingPage(0); }} sx={{ textTransform: 'none' }}>Search</Button>
               <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={() => { setPackingFilters(emptyPackingFilters); setPackingApplied(emptyPackingFilters); setPackingPage(0); }} sx={{ textTransform: 'none' }}>Reset</Button>
             </Stack>
-          </Paper>
+          </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1, mb: 1.3 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1, px: 1, py: 0.9, mb: 0, borderBottom: '1px solid #E5E7EB' }}>
             {[
               ['Total rows', packingTotal], ['PCS on page', packingTotals.pcs], ['CTNS on page', packingTotals.cartons],
               ['CBM on page', packingTotals.cbm], ['Gross weight on page', packingTotals.grossWeight]
             ].map(([label, value]) => summaryCard(label, value))}
           </Box>
 
-          <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
-            <TableContainer sx={{ maxHeight: 'calc(100vh - 470px)', minHeight: 300 }}>
+          <Box sx={{ overflow: 'hidden' }}>
+            <StandardTableViewport paginate sx={{ maxHeight: 'calc(100vh - 470px)', minHeight: 300, border: 0, borderRadius: 0 }}>
               <SortableTable stickyHeader size="small" sx={{ minWidth: 2350 }}>
                 <TableHead><TableRow>
                   <TableCell sx={{ position: 'sticky', left: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 70 }}>No.</TableCell>
@@ -737,12 +741,13 @@ export default function PackingAllocationPage() {
                   </TableRow>)}
                 </TableBody>
               </SortableTable>
-            </TableContainer>
-          </Paper>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.3 }}>
+            </StandardTableViewport>
+          </Box>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1, borderTop: '1px solid #E5E7EB' }}>
             <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>Total: {packingTotal} rows</Typography>
             <Pagination page={packingPage + 1} count={packingPages} onChange={(_, value) => setPackingPage(value - 1)} />
           </Stack>
+          </Paper>
         </>
       )}
 
@@ -797,7 +802,7 @@ export default function PackingAllocationPage() {
               <Box textAlign="center" py={5}><CircularProgress /></Box>
             ) : cartonItemChildren.length ? (
               <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.5, overflow: 'hidden' }}>
-                <TableContainer sx={{ maxHeight: 480 }}>
+                <StandardTableViewport paginate sx={{ maxHeight: 480 }}>
                   <SortableTable stickyHeader size="small" sx={{ minWidth: 1120 }}>
                     <TableHead>
                       <TableRow>
@@ -905,7 +910,7 @@ export default function PackingAllocationPage() {
                       })}
                     </TableBody>
                   </SortableTable>
-                </TableContainer>
+                </StandardTableViewport>
               </Paper>
             ) : (
               <Alert severity="warning">
