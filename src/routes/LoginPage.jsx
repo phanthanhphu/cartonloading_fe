@@ -39,6 +39,7 @@ import { listAccessibleBuyers, listLoginBuyers } from '../services/buyerService'
 import { getBuyerAccessLandingPath } from '../buyers/core/buyerModules';
 import { AUTH_STORAGE_KEYS, ROLE, STORAGE_KEY } from '../constants/appConstants';
 import { APP_MESSAGES, createLoginSuccessMessage } from '../constants/appMessages';
+import { SYSTEM_TYPE_OPTIONS, legacySystemTypes, readJwtSession, supportedSystemTypes } from '../utils/systemTypes';
 
 const DEFAULT_LOGIN_BUYER_CODE = getBuyerCatalog()[0]?.code || '';
 
@@ -63,6 +64,7 @@ const clearLoginDraft = () => {
     sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_EMAIL);
     sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_PASSWORD);
     sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_BUYER);
+    sessionStorage.removeItem(STORAGE_KEY.LOGIN_DRAFT_TYPE);
   } catch {
     // Ignore storage errors.
   }
@@ -183,6 +185,9 @@ export default function LoginPage() {
   const [selectedBuyerCode, setSelectedBuyerCode] = useState(
     () => getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER) || DEFAULT_LOGIN_BUYER_CODE
   );
+  const [selectedType, setSelectedType] = useState(
+    () => getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE) || legacySystemTypes(getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER) || DEFAULT_LOGIN_BUYER_CODE)[0] || ''
+  );
   const [buyerOptions, setBuyerOptions] = useState(() => getBuyerCatalog().filter((buyer) => buyer.active));
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -200,7 +205,7 @@ export default function LoginPage() {
 
     const storedUser = getStoredUserForRedirect();
     const selectedBuyer = readSelectedBuyer();
-    if (selectedBuyer && canAccessBuyer(selectedBuyer.code, storedUser)) {
+    if (selectedBuyer && readJwtSession().type && canAccessBuyer(selectedBuyer.code, storedUser)) {
       navigate(getBuyerAccessLandingPath(selectedBuyer), { replace: true });
       return;
     }
@@ -219,7 +224,9 @@ export default function LoginPage() {
         const catalog = setBuyerCatalog(rows).filter((buyer) => buyer.active);
         setBuyerOptions(catalog);
         if (!catalog.some((buyer) => buyer.code === selectedBuyerCode)) {
-          setSelectedBuyerCode(catalog[0]?.code || '');
+          const nextBuyer = catalog[0]?.code || '';
+          setSelectedBuyerCode(nextBuyer);
+          setSelectedType(supportedSystemTypes(catalog[0])[0] || '');
         }
       })
       .catch(() => {
@@ -233,7 +240,7 @@ export default function LoginPage() {
 
     const cleanEmail = email.trim();
 
-    if (!cleanEmail || !password || !selectedBuyerCode) {
+    if (!cleanEmail || !password || !selectedBuyerCode || !selectedType) {
       const message = APP_MESSAGES.LOGIN_REQUIRED_FIELDS;
       setLoginError(message);
       toast.error(message);
@@ -246,7 +253,7 @@ export default function LoginPage() {
     try {
       const res = await apiRawClient.post(
         '/api/auth/login',
-        { email: cleanEmail, password, buyerCode: selectedBuyerCode },
+        { email: cleanEmail, password, buyerCode: selectedBuyerCode, systemType: selectedType },
         {
           headers: { 'Content-Type': 'application/json' },
           validateStatus: () => true,
@@ -260,12 +267,29 @@ export default function LoginPage() {
       const loggedInRole = getUserRole(loggedInUser, data?.role || data?.data?.role || tokenPayload?.role || '');
 
       if (res.status >= 200 && res.status < 300 && token) {
+        if (data?.selectedBuyer !== selectedBuyerCode || data?.selectedType !== selectedType) {
+          clearAuthSession();
+          const message = 'Server rejected the selected Buyer / Type context.';
+          setLoginError(message);
+          toast.error(message);
+          return;
+        }
         persistAuthSession({
           token,
           user: loggedInUser,
           role: loggedInRole
         });
 
+        const jwtSession = readJwtSession();
+        if (jwtSession.buyer !== selectedBuyerCode || jwtSession.type !== selectedType
+            || data?.selectedBuyer !== selectedBuyerCode || data?.selectedType !== selectedType) {
+          clearAuthSession();
+          const message = 'Login session Buyer / Type mismatch. Please sign in again.';
+          setLoginError(message);
+          toast.error(message);
+          return;
+        }
+        localStorage.setItem(STORAGE_KEY.SELECTED_TYPE, selectedType);
         try {
           const accessible = await listAccessibleBuyers();
           if (Array.isArray(accessible) && accessible.length) setBuyerCatalog(accessible);
@@ -321,6 +345,7 @@ export default function LoginPage() {
       saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_EMAIL, cleanEmail);
       saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_PASSWORD, password);
       saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER, selectedBuyerCode);
+      saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE, selectedType);
       setLoginError(message);
       toast.error(message);
     } catch (err) {
@@ -583,6 +608,9 @@ export default function LoginPage() {
                   onChange={(e) => {
                     const nextBuyer = e.target.value;
                     setSelectedBuyerCode(nextBuyer);
+                    const nextTypes = supportedSystemTypes(buyerOptions.find((buyer) => buyer.code === nextBuyer));
+                    setSelectedType(nextTypes[0] || '');
+                    saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE, nextTypes[0] || '');
                     saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER, nextBuyer);
                     if (loginError) setLoginError('');
                   }}
@@ -613,6 +641,26 @@ export default function LoginPage() {
                       {buyer.label}
                     </MenuItem>
                   ))}
+                </TextField>
+
+                <TextField
+                  select fullWidth label="System Type" value={selectedType}
+                  onChange={(e) => {
+                    setSelectedType(e.target.value);
+                    saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE, e.target.value);
+                    if (loginError) setLoginError('');
+                  }}
+                  helperText="Chọn RFID, UnRFID hoặc Factory Use Only. Quyền được kiểm tra khi đăng nhập."
+                  InputLabelProps={{ sx: { fontWeight: 750 } }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5, backgroundColor: '#FFFFFF' } }}
+                >
+                  <MenuItem value="" disabled>Select Type</MenuItem>
+                  {SYSTEM_TYPE_OPTIONS.map((option) => {
+                    const supported = supportedSystemTypes(buyerOptions.find((b) => b.code === selectedBuyerCode)).includes(option.value);
+                    return <MenuItem key={option.value} value={option.value}>
+                      {option.label}{!supported ? ' (not configured for this Buyer)' : ''}
+                    </MenuItem>;
+                  })}
                 </TextField>
 
                 {loginError && (

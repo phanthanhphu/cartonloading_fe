@@ -47,3 +47,44 @@ export function getUniqueEpcRows(epcs, expectedSku, wrongSkuEpcs = [], crossCart
     return { ...decoded, sku, status: decoded.error ? 'INVALID' : cross ? 'DUPLICATE_CARTON' : wrong ? 'WRONG_SKU' : 'MATCH' };
   });
 }
+
+/**
+ * The backend deliberately stores unsupported raw PDA tags in invalidReads,
+ * not epcs (which contains only decoded TrueVUE EPCs). Keep those raw tags
+ * visible in the scan result without treating them as eligible carton items.
+ * The entries are "raw : reason"; one entry is recorded per read event (up to
+ * the backend's existing diagnostics limit).
+ */
+export function getUniqueInvalidEpcRows(invalidReads) {
+  const unique = new Map();
+  for (const value of (Array.isArray(invalidReads) ? invalidReads : [])) {
+    const entry = String(value ?? '').trim();
+    if (!entry) continue;
+    const separator = entry.indexOf(' : ');
+    const raw = (separator < 0 ? entry : entry.slice(0, separator)).replace(/\s+/g, '').toUpperCase();
+    if (!raw) continue;
+    const reason = separator < 0 ? 'Unsupported RFID tag' : entry.slice(separator + 3).trim();
+    if (unique.has(raw)) {
+      unique.get(raw).readCount += 1;
+    } else {
+      unique.set(raw, { raw, epc: null, sku: null, status: 'INVALID', reason, readCount: 1 });
+    }
+  }
+  return [...unique.values()];
+}
+
+/** Keep PDA XLSX original raw EPC and per-tag COUNT (including repeat events). */
+export function getRawInventoryPreviewRows(preview) {
+  const events = Array.isArray(preview?.reads) && preview.reads.length
+    ? preview.reads
+    : [...(preview?.epcs || []), ...(preview?.rejectedEpcs || [])];
+  const tags = new Map();
+  for (const value of events) {
+    const raw = String(value ?? '').replace(/\s+/g, '').toUpperCase();
+    if (!raw) continue;
+    const record = tags.get(raw);
+    if (record) record.count += 1;
+    else tags.set(raw, { epc: raw, count: 1, valid: !decodeTrueVueEpc(raw).error });
+  }
+  return [...tags.values()];
+}

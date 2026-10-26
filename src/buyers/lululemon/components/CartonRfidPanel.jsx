@@ -8,8 +8,9 @@ import {
   finishCartonRfidSession,
   reopenCartonRfidSession
 } from '../services/weighing';
-import { decodeTrueVueEpc, getUniqueEpcRows } from '../utils/trueVueEpc';
+import { decodeTrueVueEpc, getUniqueEpcRows, getUniqueInvalidEpcRows } from '../utils/trueVueEpc';
 import RfidPdaManager from './RfidPdaManager';
+import { readyForAutomaticRfidFinish } from '../../../common/rfid/rfidWorkflow';
 
 const messageOf = (error) => error?.response?.data?.message || error?.message || 'RFID request failed.';
 const statusColor = (status) => status === 'PASS' ? 'success' : status === 'FAILED' ? 'error' : status === 'SCANNING' ? 'info' : 'default';
@@ -37,7 +38,7 @@ const statCircleSx = (mode) => ({
  * Compact Lululemon RFID carton test: a single EPC entry on Enter, or optional batch paste.
  * Reader Bridge later POSTs the same /reads API; the backend is the authority on dedupe / PASS.
  */
-export default function CartonRfidPanel({ orderId, poId, carton, stationCode, factoryCode, onSessionChange, admin = false }) {
+export default function CartonRfidPanel({ orderId, poId, carton, stationCode, factoryCode, onSessionChange, admin = false, deferStart = false, compact = false }) {
   const [session, setSession] = useState(null);
   const [singleEpc, setSingleEpc] = useState('');
   const [batchEpcs, setBatchEpcs] = useState('');
@@ -64,7 +65,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
     (async () => {
       try {
         let result = await getCartonRfidSession(orderId, poId, sscc);
-        if (!result || result.status === 'REOPENED') {
+        if ((!result || result.status === 'REOPENED') && !deferStart) {
           result = await startCartonRfidSession(orderId, poId, { sscc, stationCode });
         }
         if (!cancelled) publish(result);
@@ -92,12 +93,49 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
   const expectedQty = Number(session?.expectedQty ?? carton?.plannedQty ?? 0);
   const rows = useMemo(() => getUniqueEpcRows(session?.epcs, expectedSku, session?.wrongSkuEpcs, session?.crossCartonEpcs),
     [session?.epcs, session?.wrongSkuEpcs, session?.crossCartonEpcs, expectedSku]);
+  // Include unsupported tags from the XLSX in the *display* only. The backend
+  // retains them as invalidReads, never as physical-item quantity / RFID PASS.
+  const invalidRows = useMemo(() => getUniqueInvalidEpcRows(session?.invalidReads), [session?.invalidReads]);
+  const displayRows = useMemo(() => [...rows, ...invalidRows], [rows, invalidRows]);
+  const invalidUnique = invalidRows.length;
+  const invalidReadEvents = session?.invalidReads?.length || 0;
   const matched = rows.filter((x) => x.status === 'MATCH').length;
   const wrong = rows.filter((x) => x.status === 'WRONG_SKU').length;
   const cross = rows.filter((x) => x.status === 'DUPLICATE_CARTON').length;
   const invalid = session?.invalidReads?.length || 0;
   const missing = Math.max(0, expectedQty - matched);
   const singlePreview = useMemo(() => singleEpc.trim() ? decodeTrueVueEpc(singleEpc.trim()) : null, [singleEpc]);
+
+  // Only finalize a fully persisted, complete set of valid EPCs. The server
+  // independently checks SKU, quantity, item slots and cross-carton uniqueness.
+  const autoFinishIfPassing = async (saved) => {
+    if (!readyForAutomaticRfidFinish(saved) || saved.id !== currentSessionId.current) return false;
+    const confirmed = await finishCartonRfidSession(orderId, poId, sscc, saved.id);
+    publish(confirmed);
+    if (confirmed?.status === 'PASS') {
+      setNote('');
+      return true;
+    }
+    setError(confirmed?.reason || 'RFID validation did not pass. Review EPCs before continuing.');
+    return false;
+  };
+
+  // Called after the PDA has STOPPED, the XLSX import has completed AND the
+  // PDA lock has been released. It must not finalize during an active scan.
+  const finalizeImportedCapture = async (saved) => {
+    if (!saved || saved.id !== currentSessionId.current || saved.status !== 'SCANNING') return;
+    // STOP ends one complete PDA capture. Always let the backend verify the
+    // submitted batch: extra or missing UNIQUE EPCs become persisted FAILED,
+    // never an indefinite SCANNING state or a false PASS.
+    setBusy(true); setError('');
+    try {
+      const confirmed = await finishCartonRfidSession(orderId, poId, sscc, saved.id);
+      publish(confirmed);
+      if (confirmed?.status === 'PASS') setNote('');
+      else setError(confirmed?.reason || 'RFID FAILED. EPC quantity/SKU must match the carton exactly.');
+    } catch (e) { setError(messageOf(e)); }
+    finally { setBusy(false); }
+  };
 
   const submitReads = async (input, clearInput) => {
     if (!session?.id || session.status !== 'SCANNING' || busy) return;
@@ -112,6 +150,9 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
       const added = Math.max(0, (result.epcs?.length || 0) - before);
       const duplicated = epcs.length - added - Math.max(0, (result.invalidReads?.length || 0) - (session.invalidReads?.length || 0));
       setNote(`Received ${epcs.length} read(s); added ${added} new unique EPC(s)${duplicated > 0 ? `; ${duplicated} duplicate read(s) did not increase item quantity` : ''}.`);
+      // Manual EPC scanning (without an active PDA export) auto-finishes if
+      // the backend has saved exactly the required valid unique EPCs.
+      if (!deviceCapturing) await autoFinishIfPassing(result);
     } catch (e) { setError(messageOf(e)); }
     finally { setBusy(false); }
   };
@@ -141,7 +182,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
         publish(latest);
         setNote(`Importing PDA EPCs: ${completed} / ${epcs.length} processed`);
       }
-      setNote(`${epcs.length} EPC(s) received from PDA XLSX; review SKU/count then Finish RFID.`);
+      setNote(`${epcs.length} EPC read(s) imported.`);
       return latest;
     } catch (error) {
       // Earlier chunks may have been committed. Refresh the server's authoritative
@@ -205,30 +246,35 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
 
   return (
     <Box sx={{ px: 0.1, py: 0.3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="flex-end" gap={0.6}>
-        <Chip size="small" color={statusColor(session?.status)} icon={<Sensors />} label={session?.status || 'CONNECTING'} sx={{ height: 22 }} />
-      </Stack>
+      {!compact && <Stack direction="row" alignItems="center" justifyContent="flex-end" gap={0.6}>
+        <Chip size="small" color={statusColor(session?.status)} icon={<Sensors />} label={session?.status || (deferStart ? 'READY TO START' : 'CONNECTING')} sx={{ height: 22 }} />
+      </Stack>}
 
-      <Box sx={{ mt: 0.65, p: 0.9, borderRadius: 1.5, bgcolor: 'action.hover' }}>
+      <Box sx={{ mt: compact ? 0.15 : 0.65, p: compact ? 0.45 : 0.9, borderRadius: 1.5, bgcolor: compact ? '#FFFFFF' : 'action.hover', border: compact ? '1px solid #E2E8F0' : 'none' }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
-          spacing={1.1}
+          spacing={compact ? 0.4 : 1.1}
           alignItems={{ xs: 'flex-start', md: 'center' }}
           justifyContent="space-between"
         >
-          <Stack spacing={0.25}>
+          {!compact && <Stack spacing={0.25}>
             <Typography sx={miniLabel}>SKU</Typography>
             <Typography sx={{ ...miniValue, color: 'text.primary' }}>{expectedSku}</Typography>
-          </Stack>
+          </Stack>}
 
-          <Stack direction="row" spacing={1.4} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={compact ? 0.5 : 1.4} flexWrap="wrap" useFlexGap>
             {[
               { label: 'Expected', value: expectedQty || 0, mode: 'dark' },
               { label: 'Matched', value: matched, mode: 'success' },
               { label: 'Wrong SKU', value: wrong, mode: 'error' }
             ].map((item) => (
-              <Stack key={item.label} spacing={0.45} alignItems="center" sx={{ minWidth: 74 }}>
-                <Box sx={statCircleSx(item.mode)}>{item.value}</Box>
+              <Stack key={item.label} spacing={compact ? 0.1 : 0.45} alignItems="center" sx={{ minWidth: compact ? 55 : 74 }}>
+                <Box sx={compact ? {
+                  minWidth: 53, height: 29, px: 0.8, display: 'grid', placeItems: 'center',
+                  bgcolor: item.mode === 'success' ? '#ECFDF5' : item.mode === 'error' ? '#FEF2F2' : '#F1F5F9',
+                  color: item.mode === 'success' ? '#15803D' : item.mode === 'error' ? '#B91C1C' : '#0F172A',
+                  fontSize: 18, fontWeight: 950, borderRadius: 1.5, fontVariantNumeric: 'tabular-nums'
+                } : statCircleSx(item.mode)}>{item.value}</Box>
                 <Typography sx={{ ...miniLabel, color: item.mode === 'success' ? 'success.main' : item.mode === 'error' ? 'error.main' : 'text.secondary', fontWeight: 800 }}>
                   {item.label}
                 </Typography>
@@ -245,12 +291,15 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
         </Stack>
       </Box>
 
-      <RfidPdaManager orderId={orderId} poId={poId} sscc={sscc}
+      {(!session?.id || session?.status === 'REOPENED') && deferStart && <Button fullWidth size="small" variant="contained" color="primary"
+        sx={{ my: 0.65 }} disabled={busy || !stationCode} onClick={restart}>Start RFID Scan</Button>}
+      {session?.id && session?.status !== 'REOPENED' && <RfidPdaManager orderId={orderId} poId={poId} sscc={sscc}
         stationCode={stationCode} factoryCode={factoryCode} session={session} onImport={importPdaReads}
-        onCaptureActiveChange={setDeviceCapturing} onSessionRenewed={renewPdaSession} />
+        onCaptureActiveChange={setDeviceCapturing} onSessionRenewed={renewPdaSession}
+        onCaptureImported={finalizeImportedCapture} compact={compact} />}
 
       {session?.status === 'SCANNING' ? (
-        <Box sx={{ mt: 0.8 }}>
+        <Box sx={{ mt: compact ? 0.35 : 0.8 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} gap={0.65} alignItems={{ sm: 'center' }}>
             <TextField autoFocus size="small" fullWidth value={singleEpc} onChange={(event) => setSingleEpc(event.target.value)}
               label="Enter EPC (press Enter to add)" placeholder="30003BD000002626CB52BC5B017E"
@@ -265,7 +314,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
             <Stack direction="row" gap={0.5} sx={{ flexShrink: 0 }}>
               <Button size="small" variant="outlined" startIcon={<QrCodeScannerOutlined />} disabled={busy || !singleEpc.trim()}
                 onClick={() => submitReads(singleEpc, () => setSingleEpc(''))}>Add EPC</Button>
-              <Button size="small" variant="contained" onClick={finish} disabled={busy || deviceCapturing}>Finish RFID</Button>
+              <Button size="small" variant="contained" onClick={finish} disabled={busy || deviceCapturing}>Finish / Review</Button>
             </Stack>
           </Stack>
           {singlePreview && (
@@ -294,11 +343,11 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
 
       {session?.status === 'FAILED' && (
         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 0.8 }}>
-          <Typography variant="caption" color="error.main">{session.reason || 'RFID check failed.'}</Typography>
+          <Typography variant="caption" color="error.main">{(session.reason || 'RFID check failed.').replace('RFID quantity ', 'Total unique TrueVUE EPCs ')}</Typography>
           <Button size="small" startIcon={<Refresh />} variant="outlined" onClick={restart} disabled={busy}>Rescan Carton</Button>
         </Stack>
       )}
-      {session?.status === 'PASS' && (
+      {!compact && session?.status === 'PASS' && (
         <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.6 }}>
           RFID PASS · {matched}/{expectedQty} matching item(s).
         </Typography>
@@ -306,7 +355,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
       {admin && session?.status === 'PASS' && (
         <Button size="small" color="warning" onClick={reopen} disabled={busy}>Supervisor: reopen RFID</Button>
       )}
-      {(invalid > 0 || cross > 0) && (
+      {session?.status !== 'FAILED' && (invalid > 0 || cross > 0) && (
         <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.4 }}>
           {invalid ? `${invalid} non-TrueVUE read(s). ` : ''}{cross ? `${cross} EPC(s) already verified in another carton.` : ''}
         </Typography>
@@ -314,34 +363,48 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
       {error && <Alert severity="error" sx={{ mt: 0.6, py: 0 }}>{error}</Alert>}
       {note && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4 }}>{note}</Typography>}
 
-      {!!rows.length && (
+      {Boolean(session?.id) && (
         <Box sx={{ mt: 0.7, borderTop: '1px solid', borderColor: 'divider', pt: 0.5 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={0.5}>
             <Typography variant="caption" color="text.secondary">
-              {rows.length} unique EPC(s) · {session?.readCount ?? 0} read(s)
+              {displayRows.length} raw unique tag(s) ({rows.length} TrueVUE, {invalidUnique} unsupported) · {session?.readCount ?? 0} read(s)
             </Typography>
             <Button size="small" color="inherit" onClick={() => setDetailsOpen((x) => !x)}
               endIcon={detailsOpen ? <ExpandLess /> : <ExpandMore />}
               sx={{ fontSize: 11, textTransform: 'none', minWidth: 0, px: 0.5 }}>
-              {detailsOpen ? 'Collapse' : 'EPC Details'}
+              {detailsOpen ? 'Show less' : 'Show more EPCs'}
             </Button>
           </Stack>
           <Collapse in={detailsOpen} unmountOnExit>
+            <Stack direction="row" flexWrap="wrap" gap={0.5} alignItems="center" sx={{ mt: 0.45 }}>
+              <Chip size="small" color={statusColor(session?.status)} label={`RFID ${session?.status || 'PENDING'}`} />
+              <Chip size="small" variant="outlined" label={`Matched ${matched}/${expectedQty}`} />
+              {missing > 0 && <Chip size="small" color="error" variant="outlined" label={`Missing ${missing}`} />}
+              {matched > expectedQty && <Chip size="small" color="error" variant="outlined" label={`Excess ${matched - expectedQty}`} />}
+              {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={`Wrong SKU ${wrong}`} />}
+              {cross > 0 && <Chip size="small" color="error" variant="outlined" label={`Cross-carton ${cross}`} />}
+              {invalid > 0 && <Chip size="small" color="error" variant="outlined" label={`Invalid reads ${invalid}`} />}
+            </Stack>
+            {session?.status === 'FAILED' && <Alert severity="error" sx={{ mt: 0.5, py: 0 }}>
+              <b>RFID FAILED.</b> {session.reason || 'Quantity, SKU or EPC mismatch.'}
+            </Alert>}
             <Stack direction="row" gap={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.55, mb: 0.35 }}>
               {groups.map(({ sku, qty, wrong: issues }) => (
                 <Chip key={sku} size="small" variant="outlined" color={issues ? 'error' : 'success'} label={`${sku}: ${qty}`} sx={{ height: 21, fontSize: 11 }} />
               ))}
+              {invalidUnique > 0 && <Chip size="small" variant="outlined" color="error"
+                label={`${invalidUnique} unsupported unique · ${invalidReadEvents} read(s)`} sx={{ height: 21, fontSize: 11 }} />}
             </Stack>
             <TableContainer sx={{ mt: 0.45, maxHeight: 220, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
               <Table size="small" stickyHeader aria-label="RFID EPC scan results">
                 <TableHead><TableRow>
                   <TableCell sx={{ width: 54 }}>STT</TableCell>
-                  <TableCell>Unique EPC</TableCell>
+                  <TableCell>EPC / Raw tag</TableCell>
                   <TableCell>Decoded SKU</TableCell>
                   <TableCell>Result</TableCell>
                 </TableRow></TableHead>
                 <TableBody>
-                  {rows.map((row, index) => (
+                  {displayRows.map((row, index) => (
                     <TableRow key={row.epc || row.raw} hover>
                       <TableCell sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{index + 1}</TableCell>
                       <TableCell><Tooltip title={row.epc || row.raw} arrow>
@@ -351,14 +414,13 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
                         {row.sku || '—'}
                       </TableCell>
                       <TableCell sx={{ fontSize: 11, color: row.status === 'MATCH' ? 'success.main' : 'error.main' }}>
-                        {row.status === 'MATCH' ? 'Matched' : row.status === 'WRONG_SKU' ? 'Wrong SKU' : row.status === 'DUPLICATE_CARTON' ? 'Duplicate in Another Carton' : 'Invalid EPC'}
+                        {row.status === 'MATCH' ? 'Matched' : row.status === 'WRONG_SKU' ? 'Wrong SKU' : row.status === 'DUPLICATE_CARTON' ? 'Duplicate in Another Carton' : `Unsupported / Invalid (${row.readCount} read${row.readCount === 1 ? '' : 's'})`}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
-            <Typography variant="caption" color="text.secondary">Repeated reads of the same EPC count as one item per session; Total Reads is tracked separately.</Typography>
           </Collapse>
         </Box>
       )}

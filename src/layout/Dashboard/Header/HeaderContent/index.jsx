@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
+import { AUTH_STORAGE_KEYS, BUYER_CODE } from '../../../../constants/appConstants';
+import { saveSelectedFactory, useSelectedFactory } from 'utils/factorySelection';
 import { matchPath, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
@@ -25,7 +28,7 @@ const PAGE_MAP = [
   { path: '/dashboard', title: 'Carton Loading Dashboard', section: 'Supply Chain' },
   { path: '/orders-management', title: 'Orders', section: 'Supply Chain' },
   { path: '/users', title: 'User Management', section: 'Administration' },
-  { path: '/departments', title: 'Department Management', section: 'Administration' },
+  { path: '/departments', title: 'Factory & Department Management', section: 'Administration' },
   { path: '/buyers', title: 'Buyer Management', section: 'Administration' },
   { path: '/audit-logs', title: 'Audit Trail', section: 'Administration' },
   { path: '/scale-stations', title: 'Scale Stations', section: 'Factory Tools' },
@@ -46,8 +49,8 @@ const PAGE_MAP = [
   { path: '/buyers/:buyerSlug/shipping/review/:scheduleId', title: 'Shipment Details', section: 'Shipment Management' },
   { path: '/buyers/:buyerSlug/shipping/review', title: 'Shipment Management', section: 'Shipment Management' },
   { path: '/buyers/:buyerSlug/shipping', title: 'Shipment Management', section: 'Shipment Management' },
-  { path: '/buyers/:buyerSlug/weighing', title: 'Carton Weight', section: 'Weight Management' },
-  { path: '/buyers/:buyerSlug/weight-history', title: 'Weight History', section: 'Weight Management' },
+  { path: '/buyers/:buyerSlug/weighing', title: 'Carton Weight', section: 'Carton Weighing' },
+  { path: '/buyers/:buyerSlug/weight-history', title: 'Weight History', section: 'Carton Weighing' },
   { path: '/buyers/:buyerSlug/trace-history', title: 'Trace & History', section: 'Operations' },
   { path: '/buyers/:buyerSlug/po', title: 'PO Master Data', section: 'Orders' },
 
@@ -99,13 +102,14 @@ export default function HeaderContent() {
   const pathBuyer = pathBuyerMatch ? getBuyerBySlug(pathBuyerMatch[1]) : null;
   const storedBuyer = readSelectedBuyer();
   const activeBuyer = pathBuyer || buyers.find((buyer) => buyer.code === storedBuyer?.code) || buyers[0] || null;
+  const factory = useSelectedFactory(activeBuyer?.code);
 
   const changeBuyer = (buyerCode) => {
     const nextBuyer = buyers.find((buyer) => buyer.code === buyerCode);
     if (!nextBuyer || nextBuyer.code === activeBuyer?.code) return;
-    saveSelectedBuyer(nextBuyer);
-    window.dispatchEvent(new CustomEvent('buyer:selected', { detail: { buyerCode: nextBuyer.code } }));
-    window.location.assign(buyerSwitchTarget(pathname, nextBuyer));
+    // Buyer and Type are immutable claims in the JWT. Switching needs new login.
+    AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    window.location.assign('/login');
   };
 
   return (
@@ -131,7 +135,7 @@ export default function HeaderContent() {
         </Typography>
       </Stack>
 
-      {buyers.length > 0 && activeBuyer ? (
+      {buyers.length > 1 && activeBuyer ? (
         <Select
           size="small"
           value={activeBuyer.code}
@@ -168,6 +172,37 @@ export default function HeaderContent() {
           ))}
         </Select>
       ) : null}
+
+      {buyers.length === 1 && activeBuyer ? (
+        <Typography sx={{ fontSize: '0.76rem', fontWeight: 800, color: '#183658', px: 1.1, whiteSpace: 'nowrap' }}>
+          {activeBuyer.label}
+        </Typography>
+      ) : null}
+
+      {activeBuyer ? (
+        <Button size="small" variant="text" onClick={() => {
+          AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+          window.location.assign('/login');
+        }} sx={{ fontSize: '0.69rem', whiteSpace: 'nowrap' }}>
+          Switch Buyer / Type
+        </Button>
+      ) : null}
+
+      {activeBuyer?.code === BUYER_CODE.LULULEMON && !factory.loading && (factory.factories.length > 1 ? (
+        <Select size="small" aria-label="Switch Factory" value={factory.factoryCode}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (!factory.factories.includes(next) || next === factory.factoryCode) return;
+            saveSelectedFactory(next);
+            // Reload clears in-progress page state and all cached lists for the previous Factory.
+            window.location.reload();
+          }}
+          sx={{ minWidth: 92, height: 38, bgcolor: '#fff', borderRadius: 1.4 }}>
+          {factory.factories.map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
+        </Select>
+      ) : <Typography variant="caption" sx={{ px: 1, fontWeight: 800, color: '#315C8A' }}>
+        {factory.factoryCode || 'No Factory'}
+      </Typography>)}
 
       <Profile />
     </Box>

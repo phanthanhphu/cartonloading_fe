@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useSelectedFactory } from 'utils/factorySelection';
+import { BUYER_CODE } from '../../../constants/appConstants';
 import {
   Alert,
   Box,
@@ -21,24 +22,29 @@ import SortableTable from 'components/SortableTable';
 import { CompactPageHeader } from '../components/LululemonPageHeader';
 import LululemonTableViewport from '../components/LululemonTableViewport';
 import { listCartonWeightHistoryAll } from '../services/service';
+import { reopenProcessingManualWeight } from '../services/cartonProcessing';
+import { isAdmin } from 'utils/accessControl';
 
 const errorText = (error) => error?.response?.data?.message || error?.message || 'Operation failed.';
 const lower = (value) => String(value ?? '').trim().toLowerCase();
 const normalizeResult = (value) => value === 'HOLD' ? 'FAILED' : value;
 
 export default function WeightHistoryPage() {
-  const { search } = useLocation();
-  const selectedFactory = new URLSearchParams(search).get('factory')?.toUpperCase() || '';
+  const { factoryCode: selectedFactory } = useSelectedFactory(BUYER_CODE.LULULEMON);
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ keyword: '', orderNo: '', factory: '', shippingList: '', date: '', sscc: '' });
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [reopenForm, setReopenForm] = useState({ sscc: '', reason: '' });
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenBusy, setReopenBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await listCartonWeightHistoryAll();
+      if (!selectedFactory) { setRows([]); return; }
+      const result = await listCartonWeightHistoryAll(BUYER_CODE.LULULEMON, selectedFactory);
       setRows(Array.isArray(result) ? result : []);
     } catch (error) {
       setRows([]);
@@ -46,12 +52,12 @@ export default function WeightHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedFactory]);
 
   useEffect(() => { load(); }, [load]);
 
   const filteredRows = useMemo(() => rows.filter((row) => {
-    if (selectedFactory && String(row.factoryCode || "").toUpperCase() !== selectedFactory) return false;
+    if (!selectedFactory || String(row.factoryCode || "").toUpperCase() !== selectedFactory) return false;
     const event = row?.result || {};
     if (filters.orderNo && !lower(row.orderNo).includes(lower(filters.orderNo))) return false;
     if (filters.factory && !lower(row.factoryCode).includes(lower(filters.factory))) return false;
@@ -66,17 +72,42 @@ export default function WeightHistoryPage() {
     return true;
   }), [rows, filters, selectedFactory]);
 
+  const reopen = async () => {
+    if (reopenBusy || !reopenForm.sscc.trim() || reopenForm.reason.trim().length < 3) return;
+    setReopenBusy(true); setNotice(null);
+    try {
+      await reopenProcessingManualWeight(reopenForm);
+      setNotice({ severity: 'success', text: `Weight reopened for SSCC ${reopenForm.sscc}. Audit event retained. Open its PO in Orders to scan again.` });
+      setReopenOpen(false); setReopenForm({ sscc: '', reason: '' });
+      await load();
+    } catch (e) { setNotice({ severity: 'error', text: errorText(e) }); }
+    finally { setReopenBusy(false); }
+  };
+
   const clear = () => setFilters({ keyword: '', orderNo: '', factory: '', shippingList: '', date: '', sscc: '' });
 
   return (
     <Stack className="lululemon-compact-v16" spacing={0.85} sx={{ p: { xs: 0.25, md: 0.5 } }}>
       <CompactPageHeader
         dense
-        title="Weight History"
+        title={`Weight History · ${selectedFactory || "No Factory"}`}
         actions={<Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading}>Refresh</Button>}
       />
 
       {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert> : null}
+      {isAdmin() && <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 2 }}>
+        <Button size="small" variant="text" onClick={() => setReopenOpen((v) => !v)}>
+          {reopenOpen ? 'Hide Reopen Weight' : 'Admin · Reopen Direct Station Weight'}
+        </Button>
+        {reopenOpen && <Stack direction={{ xs: 'column', md: 'row' }} gap={1} sx={{ mt: 1 }}>
+          <TextField size="small" label="Carton SSCC-18" value={reopenForm.sscc}
+            onChange={(e) => setReopenForm((p) => ({ ...p, sscc: e.target.value }))}/>
+          <TextField size="small" label="Reason (min. 3 characters)" value={reopenForm.reason} sx={{ flex: 1 }}
+            onChange={(e) => setReopenForm((p) => ({ ...p, reason: e.target.value }))}/>
+          <Button variant="contained" disabled={reopenBusy || !reopenForm.sscc.trim() || reopenForm.reason.trim().length < 3} onClick={reopen}>Reopen Weight</Button>
+        </Stack>}
+        {reopenOpen && <Typography variant="caption" color="text.secondary">Direct station only, admin audited. Legacy Shipping weight is not affected.</Typography>}
+      </Paper>}
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <Box sx={{ p: 0.85, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#FBFCFE' }}>
@@ -102,7 +133,7 @@ export default function WeightHistoryPage() {
           <Collapse in={moreFiltersOpen} unmountOnExit>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2,minmax(0,1fr))', xl: 'repeat(5,minmax(140px,1fr))' }, gap: 0.75, pt: 0.5 }}>
             <TextField size="small" label="Order No." value={filters.orderNo} onChange={(e) => setFilters((current) => ({ ...current, orderNo: e.target.value }))} />
-            <TextField size="small" label="Factory" value={filters.factory} onChange={(e) => setFilters((current) => ({ ...current, factory: e.target.value }))} />
+
             <TextField size="small" label="Shipping List" value={filters.shippingList} onChange={(e) => setFilters((current) => ({ ...current, shippingList: e.target.value }))} />
             <TextField size="small" type="date" label="Shipping Date" InputLabelProps={{ shrink: true }} value={filters.date} onChange={(e) => setFilters((current) => ({ ...current, date: e.target.value }))} />
             <TextField size="small" label="SSCC-18" value={filters.sscc} onChange={(e) => setFilters((current) => ({ ...current, sscc: e.target.value }))} />

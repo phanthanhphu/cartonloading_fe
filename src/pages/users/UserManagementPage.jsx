@@ -5,7 +5,11 @@ import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
 import { createUser, deleteUser, generateUserPassword, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
 import { ACCESS_PERMISSION, ACCESS_PERMISSION_LABEL, ROLE, USER_ACCESS_PERMISSIONS, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
+import useActiveFactories from '../../common/factory/useActiveFactories';
+import useOrganizationRealtime from '../../common/realtime/useOrganizationRealtime';
+import { ORGANIZATION_REALTIME } from '../../constants/appConstants';
 import { APP_MESSAGES, createDeleteUserConfirmMessage } from '../../constants/appMessages';
+import { SYSTEM_TYPE_OPTIONS, supportedSystemTypes } from '../../utils/systemTypes';
 
 
 export default function UserManagementPage() {
@@ -16,6 +20,7 @@ export default function UserManagementPage() {
   const [error, setError] = useState('');
   const [departments, setDepartments] = useState([]);
   const [buyers, setBuyers] = useState([]);
+  const { codes: activeFactoryCodes } = useActiveFactories();
 
   const load = async (page = state.page, size = state.size) => {
     setState((s) => ({ ...s, loading: true }));
@@ -29,7 +34,10 @@ export default function UserManagementPage() {
   };
 
   useEffect(() => { load(0, state.size); }, [filters]);
-  useEffect(() => { listDepartments({ page: 0, size: 200 }).then((r) => setDepartments(r.content || [])).catch(() => {}); }, []);
+  const reloadDepartments = () => listDepartments({ page: 0, size: 200 }).then((r) => setDepartments(r.content || [])).catch((e) => setError(e?.response?.data?.message || e.message));
+  useEffect(() => { reloadDepartments(); }, []);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.DEPARTMENT, reloadDepartments);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.USER, () => load(state.page, state.size));
   useEffect(() => { listBuyersAdmin({ active: true, page: 0, size: 200 }).then((r) => setBuyers(r.content || [])).catch(() => {}); }, []);
 
   const save = async (body) => {
@@ -79,7 +87,8 @@ export default function UserManagementPage() {
     { key: 'email', label: 'Email' },
     { key: 'role', label: 'Role' },
     { key: 'enabled', label: 'Status', render: (r) => r.enabled ? 'Enabled' : 'Disabled' },
-    { key: 'buyerPermissions', label: 'Buyers', render: (r) => (r.buyerPermissions || []).join(', ') || '—' },
+    { key: 'buyerPermissions', label: 'Buyer / Type', render: (r) =>
+      (r.buyerTypePermissions || []).map((grant) => `${grant.buyerCode}: ${(grant.types || []).join('/')}`).join(', ') || '—' },
     { key: 'accessPermissions', label: 'Permissions', render: (r) => (r.accessPermissions || []).map((v) => ACCESS_PERMISSION_LABEL[v] || v).join(', ') || '—' },
     { key: 'departmentId', label: 'Department', render: (r) => { const d = departments.find((x) => x.id === r.departmentId); return d ? `${d.factory || '—'} · ${d.departmentName}` : (r.departmentId || '—'); } },
     {
@@ -119,14 +128,14 @@ export default function UserManagementPage() {
           onClear={() => setFilters({ username: '', email: '', phone: '', role: '', departmentId: '', enabled: '' })}
           disabled={state.loading}
         />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
-        {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers} onClose={() => setDialog(null)} onSave={save} /> : null}
+        {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers} activeFactoryCodes={activeFactoryCodes} onClose={() => setDialog(null)} onSave={save} /> : null}
         {reset ? <PasswordDialog user={reset} onClose={() => setReset(null)} onSave={doReset} onGenerateReset={doGenerateReset} /> : null}
       </Stack>
     </Box>
   );
 }
 
-function UserDialog({ row, departments, buyers, onClose, onSave }) {
+function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onSave }) {
   const editing = Boolean(row.id);
   const [f, setF] = useState({
     username: row.username || '',
@@ -139,9 +148,14 @@ function UserDialog({ row, departments, buyers, onClose, onSave }) {
     departmentId: row.departmentId || '',
     accessPermissions: row.accessPermissions || [ACCESS_PERMISSION.VIEW_SYSTEM],
     buyerPermissions: row.buyerPermissions || [],
+    buyerTypePermissions: row.buyerTypePermissions || [],
     factoryPermissions: row.factoryPermissions || [],
     weighingFactoryPermissions: row.weighingFactoryPermissions || []
   });
+
+  // A Department is selectable only when it belongs to an assigned, ACTIVE Factory.
+  const eligibleDepartments = departments.filter((d) => activeFactoryCodes.includes(d.factory) && f.factoryPermissions.includes(d.factory));
+  const missingSelectedDepartment = Boolean(f.departmentId) && !eligibleDepartments.some((d) => d.id === f.departmentId);
 
   const toggle = (key, v) => setF((s) => {
     if (key === 'accessPermissions') {
@@ -152,7 +166,25 @@ function UserDialog({ row, departments, buyers, onClose, onSave }) {
       const withoutView = current.filter((x) => x !== ACCESS_PERMISSION.VIEW_SYSTEM);
       return { ...s, [key]: withoutView.includes(v) ? withoutView.filter((x) => x !== v) : [...withoutView, v] };
     }
+    if (key === 'buyerPermissions') {
+      const enabled = !s.buyerPermissions.includes(v);
+      const nextBuyers = enabled ? [...s.buyerPermissions, v] : s.buyerPermissions.filter((x) => x !== v);
+      const nextGrants = enabled ? s.buyerTypePermissions : s.buyerTypePermissions.filter((g) => g.buyerCode !== v);
+      return { ...s, buyerPermissions: nextBuyers, buyerTypePermissions: nextGrants };
+    }
     return { ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] };
+  });
+  const toggleType = (buyerCode, type) => setF((s) => {
+    const existing = s.buyerTypePermissions.find((g) => g.buyerCode === buyerCode);
+    const types = existing?.types || [];
+    const nextTypes = types.includes(type) ? types.filter((value) => value !== type) : [...types, type];
+    return {
+      ...s,
+      buyerTypePermissions: [
+        ...s.buyerTypePermissions.filter((g) => g.buyerCode !== buyerCode),
+        { buyerCode, types: nextTypes }
+      ]
+    };
   });
   const body = useMemo(() => ({
     ...f,
@@ -175,9 +207,11 @@ function UserDialog({ row, departments, buyers, onClose, onSave }) {
               <MenuItem value="USER">USER</MenuItem>
               <MenuItem value="ADMIN">ADMIN</MenuItem>
             </TextField>
-            <TextField select fullWidth label="Department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
+            <TextField select fullWidth label="Department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}
+              helperText={eligibleDepartments.length === 0 ? 'No eligible Department. Assign an ACTIVE Factory and create its Department first.' : 'Only Departments in assigned ACTIVE Factories are shown.'}>
               <MenuItem value="">None</MenuItem>
-              {departments.map((d) => <MenuItem key={d.id} value={d.id}>{d.factory || '—'} · {d.division} — {d.departmentName}</MenuItem>)}
+              {missingSelectedDepartment ? <MenuItem value={f.departmentId} disabled>Previously assigned Department unavailable</MenuItem> : null}
+              {eligibleDepartments.map((d) => <MenuItem key={d.id} value={d.id}>{d.factory || '—'} · {d.division} — {d.departmentName}</MenuItem>)}
             </TextField>
           </Stack>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
@@ -187,17 +221,44 @@ function UserDialog({ row, departments, buyers, onClose, onSave }) {
           <FormControlLabel control={<Checkbox checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />} label="Enabled" />
           <Typography fontWeight={800}>Buyer permissions</Typography>
           <Stack direction="row" flexWrap="wrap">{buyers.map((buyer) => { const v = buyer.buyerKey; return <FormControlLabel key={buyer.id || v} control={<Checkbox checked={f.buyerPermissions.includes(v)} onChange={() => toggle('buyerPermissions', v)} />} label={buyer.buyerName || v} />; })}</Stack>
+          <Typography fontWeight={800}>Buyer / Type permissions</Typography>
+          {buyers.filter((buyer) => f.buyerPermissions.includes(buyer.buyerKey)).map((buyer) => (
+            <Box key={buyer.buyerKey} sx={{ p: 1.25, border: '1px solid #DFE7EF', borderRadius: 2 }}>
+              <Typography fontWeight={700} fontSize="0.86rem">{buyer.buyerName || buyer.buyerKey}</Typography>
+              <Stack direction="row" flexWrap="wrap">
+                {SYSTEM_TYPE_OPTIONS.map((option) => (
+                  <FormControlLabel key={option.value} control={<Checkbox
+                    checked={(f.buyerTypePermissions.find((g) => g.buyerCode === buyer.buyerKey)?.types || []).includes(option.value)}
+                    disabled={!supportedSystemTypes(buyer).includes(option.value)}
+                    onChange={() => toggleType(buyer.buyerKey, option.value)} />}
+                    label={`${option.label}${supportedSystemTypes(buyer).includes(option.value) ? '' : ' (not supported)'}`} />
+                ))}
+              </Stack>
+            </Box>
+          ))}
           <Typography fontWeight={800}>Access permissions</Typography>
           <Stack direction="row" flexWrap="wrap">{USER_ACCESS_PERMISSIONS.map((v) => <FormControlLabel key={v} control={<Checkbox checked={f.accessPermissions.includes(v)} onChange={() => toggle('accessPermissions', v)} />} label={ACCESS_PERMISSION_LABEL[v] || v} />)}</Stack>
-          <Typography fontWeight={800}>Lululemon – Weighing Factories (F1–F7)</Typography>
+          <Typography fontWeight={800}>Factory assignments (only ACTIVE)</Typography>
           <Stack direction="row" flexWrap="wrap" gap={0.6}>
-            {Array.from({ length: 7 }, (_, i) => `F${i + 1}`).map((factory) => (
+            {activeFactoryCodes.map((factory) => (
+              <FormControlLabel key={factory} control={<Checkbox checked={f.factoryPermissions.includes(factory)}
+                onChange={() => setF((current) => {
+                  const factoryPermissions = current.factoryPermissions.includes(factory)
+                    ? current.factoryPermissions.filter((v) => v !== factory) : [...current.factoryPermissions, factory];
+                  return { ...current, factoryPermissions,
+                    weighingFactoryPermissions: current.weighingFactoryPermissions.filter((v) => factoryPermissions.includes(v)),
+                    departmentId: current.departmentId && !factoryPermissions.includes(departments.find((d) => d.id === current.departmentId)?.factory) ? '' : current.departmentId };
+                })} />} label={factory} />
+            ))}
+          </Stack>
+          <Typography fontWeight={800}>Weighing scope (subset of assigned Factory)</Typography>
+          <Stack direction="row" flexWrap="wrap" gap={0.6}>
+            {activeFactoryCodes.filter((code) => f.factoryPermissions.includes(code)).map((factory) => (
               <FormControlLabel key={factory}
                 control={<Checkbox checked={f.weighingFactoryPermissions.includes(factory)} onChange={() => toggle('weighingFactoryPermissions', factory)} />}
                 label={factory} />
             ))}
           </Stack>
-          <TextField label="Packing / general factory permissions (comma-separated, e.g. F1)" value={Array.isArray(f.factoryPermissions) ? f.factoryPermissions.join(',') : f.factoryPermissions} onChange={(e) => setF({ ...f, factoryPermissions: e.target.value })} />
         </Stack>
       </DialogContent>
       <DialogActions>

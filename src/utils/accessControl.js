@@ -1,4 +1,5 @@
 import { ACCESS_PERMISSION, ROLE, STORAGE_KEY, ADMIN_ACCESS_PERMISSIONS, ALLOWED_ACCESS_PERMISSIONS } from '../constants/appConstants';
+import { isFactoryCode } from '../common/factory/factoryCodes';
 
 export { ACCESS_PERMISSION };
 
@@ -51,6 +52,8 @@ export const getAccessPermissions = () => normalizeAccessPermissions();
 export const canManageSales = () => isAdmin() || getAccessPermissions().includes(ACCESS_PERMISSION.SALES);
 export const canManageBarcodes = () => canManageSales() || getAccessPermissions().includes(ACCESS_PERMISSION.BARCODE_OPERATOR);
 export const canAssignBarcode = () => isAdmin() || getAccessPermissions().includes(ACCESS_PERMISSION.ASSIGN_BARCODE);
+export const canPickPo = () => isAdmin() || canAssignBarcode() || getAccessPermissions().includes(ACCESS_PERMISSION.PICK_PO);
+export const canAssignWeight = () => isAdmin() || getAccessPermissions().includes(ACCESS_PERMISSION.ASSIGN_WEIGHT);
 export const canWeightCheck = () => isAdmin() || getAccessPermissions().includes(ACCESS_PERMISSION.WEIGHT_CHECK);
 export const canPrintRoom = () => isAdmin() || getAccessPermissions().includes(ACCESS_PERMISSION.PRINT_ROOM);
 export const isViewOnly = () => !isAdmin() && getAccessPermissions().length === 1 && getAccessPermissions()[0] === ACCESS_PERMISSION.VIEW_SYSTEM;
@@ -73,11 +76,11 @@ export const getFactoryPermissions = () => {
 };
 
 export const canAccessAssignedFactory = (factoryCode) => {
-  if (isAdmin() || canManageSales()) return true;
+  if (isAdmin()) return true;
   const code = String(factoryCode || '').trim().toUpperCase();
   if (!code) return false;
   const allowed = getFactoryPermissions();
-  return allowed.includes('*') || allowed.includes(code);
+  return isFactoryCode(code) && allowed.includes(code);
 };
 
 
@@ -86,9 +89,9 @@ export const getWeighingFactoryPermissions = () => {
   const user = readStoredUser();
   const configured = user.weighingFactoryPermissions;
   const values = Array.isArray(configured) ? configured : getFactoryPermissions();
-  return [...new Set(values.map((v) => String(v || '').toUpperCase().trim()).filter((v) => /^F[1-7]$/.test(v)))];
+  return [...new Set(values.map((v) => String(v || '').toUpperCase().trim()).filter(isFactoryCode))];
 };
-export const canWeighFactory = (factory) => (isAdmin() || canManageSales())
-  ? /^F[1-7]$/.test(String(factory || '').toUpperCase())
+export const canWeighFactory = (factory) => isAdmin()
+  ? isFactoryCode(factory)
   : canWeightCheck() ? getWeighingFactoryPermissions().includes(String(factory || '').toUpperCase())
     : canAccessAssignedFactory(factory);

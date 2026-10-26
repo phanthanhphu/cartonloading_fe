@@ -408,7 +408,7 @@ export default function OperationsDashboard() {
       </Box>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1.5, mb: 1.5 }}>
-        <DashboardPanel title="Factory Comparison" subtitle="Weight / RFID / Final PASS by F1–F7 · select a factory">
+        <DashboardPanel title="Factory Comparison" subtitle="Weight / RFID / Final PASS by active Factory · select a factory">
           <ComparisonChart rows={factoryChartRows} getLabel={row => row.factoryCode}
             series={[{ key: 'weightPass', label: 'Weight PASS', color: C.cyan },
               { key: 'rfidPass', label: 'RFID PASS', color: C.blue },

@@ -30,6 +30,12 @@ const flattenPoSummary = (row = {}) => {
     identifiedFullCartons: Number(row.identifiedFullCartons || 0),
     identifiedRemainderQty: Number(row.identifiedRemainderQty || 0),
     identifiedRemainderCartons: Number(row.identifiedRemainderCartons || 0),
+    // Final-pass progress is independent of label identification and partial inspection.
+    completedQty: Number(row.completedQty || 0),
+    completedCartons: Number(row.completedCartons || 0),
+    completedFullCartons: Number(row.completedFullCartons || 0),
+    completedRemainderQty: Number(row.completedRemainderQty || 0),
+    completedRemainderCartons: Number(row.completedRemainderCartons || 0),
     allBpHeaders: Array.isArray(po.allBpHeaders) ? po.allBpHeaders : [],
     allBpRows: Array.isArray(po.allBpRows) ? po.allBpRows : []
   };

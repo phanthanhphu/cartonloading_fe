@@ -8,3 +8,7 @@ export const getLululemonTestCleanupStatus = (orderId) => unwrap(
 export const purgeLululemonTestOrder = (orderId, confirmation) => unwrap(
   apiRawClient.post(`${scopedRoot(orderId)}/test-cleanup/purge`, { confirmation })
 );
+
+export const previewLululemonTestOrder = (orderId) => unwrap(
+  apiRawClient.get(`${scopedRoot(orderId)}/test-cleanup/preview`)
+);

@@ -314,7 +314,7 @@ export default function PoManagementPage() {
       return row.sku || <Typography color="warning.main" variant="body2">Not assigned</Typography>;
     }
     if (column.key.startsWith('src:')) {
-      if (['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(column.canonical) && row.identifiedQty !== undefined) {
+      if (['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(column.canonical) && row.completedQty !== undefined && row.completedQty !== null) {
         return <PoScanProgressCell row={row} canonical={column.canonical} metrics={calculatedCartonMetrics(row)} />;
       }
       return sourceValue(row, column.canonical);

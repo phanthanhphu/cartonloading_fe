@@ -46,6 +46,11 @@ export const WS_URL = removeTrailingSlash(
   `${WS_PROTOCOL}://${APP_HOST}:${API_PORT}/ws`
 );
 
+// Native STOMP transport for organization invalidation events; original WS_URL stays untouched.
+export const WS_ORGANIZATION_URL = removeTrailingSlash(
+  `${WS_PROTOCOL}://${APP_HOST}:${API_PORT}/ws-native`
+);
+
 console.log('================ APP ENV ================');
 console.log('MODE:', APP_ENV.mode);
 console.log('APP_PROTOCOL:', APP_PROTOCOL);

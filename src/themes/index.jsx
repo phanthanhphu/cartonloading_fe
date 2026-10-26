@@ -18,7 +18,7 @@ import { HEADER_HEIGHT } from 'config';
 export default function ThemeCustomization({ children }) {
   const theme = Palette('light', 'default');
 
-  const themeTypography = Typography(`Inter var`);
+  const themeTypography = Typography(`"Inter", "Segoe UI", Arial, Helvetica, sans-serif`);
   const themeCustomShadows = useMemo(() => CustomShadows(theme), [theme]);
 
   const themeOptions = useMemo(

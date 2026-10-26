@@ -89,8 +89,8 @@ export const lookupCartonWeightSscc = (sscc, buyer = BUYER_CODE.LULULEMON) => un
   apiRawClient.post(`${cartonWeightRoot(buyer)}/lookup`, { sscc })
 );
 
-export const listCartonWeightHistoryAll = (buyer = BUYER_CODE.LULULEMON) => unwrap(
-  apiRawClient.get(`${cartonWeightRoot(buyer)}/history`)
+export const listCartonWeightHistoryAll = (buyer = BUYER_CODE.LULULEMON, factoryCode) => unwrap(
+  apiRawClient.get(`${cartonWeightRoot(buyer)}/history`, { params: { factoryCode: factoryCode || undefined } })
 );
 
 // Lululemon RFID carton inspection: shared contract for PM86 pilot and fixed-reader bridge.

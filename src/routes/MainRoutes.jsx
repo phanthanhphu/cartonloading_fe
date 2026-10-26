@@ -10,6 +10,7 @@ import { isAdmin } from 'utils/accessControl';
 import barcodePackingRoutes from 'buyers/es/routes/routes';
 import { AUTH_STORAGE_KEYS, BUYER_CODE, ROUTE_PATH, STORAGE_KEY } from '../constants/appConstants';
 import { APP_MESSAGES } from '../constants/appMessages';
+import { readJwtSession } from '../utils/systemTypes';
 import ssccPackingRoutes from 'buyers/lululemon/routes/routes';
 
 const WorkflowHomePage = Loadable(lazy(() => import('pages/workflow/WorkflowHomePage')));
@@ -73,7 +74,10 @@ function ProtectedRoute() {
     }
   }, [expired]);
 
-  if (!token || expired) return <Navigate to={ROUTE_PATH.LOGIN} replace state={{ from: location }} />;
+  if (!token || expired || !readJwtSession().buyer || !readJwtSession().type) {
+    if (token && !expired && !readJwtSession().buyer) clearAuthSession();
+    return <Navigate to={ROUTE_PATH.LOGIN} replace state={{ from: location }} />;
+  }
   return <Outlet />;
 }
 

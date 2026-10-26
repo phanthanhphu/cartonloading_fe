@@ -40,3 +40,8 @@ export const sendShippingScheduleToWeight = (orderId, scheduleId, buyer = BUYER_
 export const listShippingScheduleWeightHistory = (orderId, scheduleId, buyer = BUYER_CODE.LULULEMON) => unwrap(
   apiRawClient.get(`${scopedRoot(orderId, buyer)}/shipping-schedules/${encodeURIComponent(scheduleId)}/weight-history`)
 );
+
+// Sales-only PO planning, separate from legacy Packing/Weight Shipping Schedule.
+export const schedulePoShippingDate = (orderId, body, buyer = BUYER_CODE.LULULEMON) => unwrap(
+  apiRawClient.post(`${scopedRoot(orderId, buyer)}/po-shipping-plans`, body)
+);

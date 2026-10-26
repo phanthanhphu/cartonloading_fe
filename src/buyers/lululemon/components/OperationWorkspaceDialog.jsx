@@ -12,6 +12,8 @@ export default function OperationWorkspaceDialog({
   maxWidth = 'xl',
   disableClose = false,
   allowMaximize = false,
+  startMaximized = false,
+  fitViewport = false,
   contentSx = {}
 }) {
   const handheld = useMediaQuery('(max-width:768px)');
@@ -20,8 +22,8 @@ export default function OperationWorkspaceDialog({
 
   // Closing the workspace resets its size without touching the active weighing or RFID session.
   useEffect(() => {
-    if (!open) setMaximized(false);
-  }, [open]);
+    setMaximized(Boolean(open && startMaximized));
+  }, [open, startMaximized]);
 
   const handleClose = (_event, reason) => {
     if (disableClose && (reason === 'backdropClick' || reason === 'escapeKeyDown')) return;
@@ -41,9 +43,9 @@ export default function OperationWorkspaceDialog({
         sx: {
           width: fullScreen ? '100%' : 'min(98vw, 1700px)',
           maxWidth: fullScreen ? '100%' : 'min(98vw, 1700px)',
-          height: fullScreen ? '100dvh' : 'min(94vh, 980px)',
-          maxHeight: fullScreen ? '100dvh' : '94vh',
-          m: fullScreen ? 0 : { xs: 0.5, md: 1.5 },
+          height: fitViewport ? '100dvh' : fullScreen ? '100dvh' : 'min(94vh, 980px)',
+          maxHeight: fitViewport ? '100dvh' : fullScreen ? '100dvh' : '94vh',
+          m: fitViewport ? 0 : fullScreen ? 0 : { xs: 0.5, md: 1.5 },
           borderRadius: fullScreen ? 0 : { xs: 1.5, md: 2.5 },
           overflow: 'hidden'
         }
@@ -52,8 +54,8 @@ export default function OperationWorkspaceDialog({
       <Box
         sx={{
           px: { xs: 1, md: 1.4 },
-          pt: { xs: 'max(10px, env(safe-area-inset-top))', md: 0.8 },
-          pb: 0.8,
+          pt: { xs: 'max(8px, env(safe-area-inset-top))', md: 0.5 },
+          pb: 0.5,
           borderBottom: '1px solid',
           borderColor: 'divider',
           bgcolor: 'background.paper',
@@ -117,9 +119,18 @@ export default function OperationWorkspaceDialog({
           p: { xs: 0.8, md: 1 },
           pb: { xs: 'max(12px, env(safe-area-inset-bottom))', md: 1 },
           bgcolor: '#F8FAFC',
-          overflow: 'auto',
+          // Keep the LULULEMON workstation in one viewport on desktop.
+          // Mobile/small viewports retain normal scrolling rather than clipping controls.
+          overflowY: fitViewport ? { xs: 'auto', md: 'hidden' } : 'auto',
+          overflowX: 'hidden',
+          flex: '1 1 auto',
+          minHeight: 0,
+          display: fitViewport ? 'flex' : 'block',
+          flexDirection: 'column',
           WebkitOverflowScrolling: 'touch',
-          ...contentSx
+          ...contentSx,
+          // Very short laptop/browser windows must scroll rather than hide any action.
+          ...(fitViewport ? { '@media (max-height: 680px)': { overflowY: 'auto' } } : {})
         }}
       >
         {children}

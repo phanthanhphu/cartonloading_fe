@@ -1,4 +1,5 @@
 import { BUYER_CODE, BUYER_CODE_ALIAS, DEFAULT_BUYERS, ROLE, ROUTE_PATH, STORAGE_KEY } from '../constants/appConstants';
+import { readJwtSession, supportedSystemTypes } from './systemTypes';
 
 export { DEFAULT_BUYERS };
 
@@ -36,7 +37,8 @@ const normalizeBuyer = (buyer = {}) => {
     buyerName: String(buyer.buyerName || buyer.label || code).trim(),
     active: buyer.active !== false,
     sequence: Number(buyer.sequence || 0),
-    description: buyer.description || ''
+    description: buyer.description || '',
+    supportedTypes: supportedSystemTypes({ ...buyer, code })
   };
 };
 
@@ -93,7 +95,9 @@ export const getAccessibleBuyers = (user = {}) => {
   const admin = role === ROLE.ADMIN || role === ROLE.ROLE_ADMIN;
   const source = user?.buyerPermissions ?? localStorage.getItem(STORAGE_KEY.BUYER_PERMISSIONS);
   const codes = normalizeBuyerPermissions(source, admin);
-  return getBuyerCatalog().filter((buyer) => buyer.active && codes.includes(buyer.code));
+  const sessionBuyer = readJwtSession().buyer;
+  return getBuyerCatalog().filter((buyer) => buyer.active && codes.includes(buyer.code)
+    && (!localStorage.getItem(STORAGE_KEY.TOKEN) || buyer.code === sessionBuyer));
 };
 
 export const canAccessBuyer = (value, user = {}) => {
@@ -106,11 +110,16 @@ export const buyerPath = (buyer, child = 'orders') => {
   return resolved ? `/buyers/${resolved.slug}/${child}` : ROUTE_PATH.LOGIN;
 };
 
-export const readSelectedBuyer = () => getBuyerByCode(localStorage.getItem(STORAGE_KEY.SELECTED_BUYER));
+export const readSelectedBuyer = () => {
+  const session = readJwtSession();
+  return getBuyerByCode(session.buyer || localStorage.getItem(STORAGE_KEY.SELECTED_BUYER));
+};
 
 export const saveSelectedBuyer = (buyer) => {
   const resolved = typeof buyer === 'string' ? (getBuyerByCode(buyer) || getBuyerBySlug(buyer)) : normalizeBuyer(buyer);
   if (!resolved) return null;
+  const session = readJwtSession();
+  if (localStorage.getItem(STORAGE_KEY.TOKEN) && session.buyer !== resolved.code) return null;
   localStorage.setItem(STORAGE_KEY.SELECTED_BUYER, resolved.code);
   localStorage.setItem(STORAGE_KEY.SELECTED_BUYER_LABEL, resolved.label);
   return resolved;

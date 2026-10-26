@@ -45,7 +45,7 @@ const getDashboardMenu = () => {
   // LULULEMON: Shipment hand-off belongs to Packing / Operations, not Sales.
   // Keep the navigation grouping for other buyers unchanged.
   const isLululemon = activeBuyer?.code === BUYER_CODE.LULULEMON;
-  const salesIds = isLululemon ? ['orders'] : ['orders', 'shipping'];
+  const salesIds = isLululemon ? [] : ['orders', 'shipping'];
   const operationIds = [
     'po-picking', 'packing', 'checking',
     ...(isLululemon ? ['shipping'] : []),
@@ -119,7 +119,7 @@ const getDashboardMenu = () => {
         type: 'group',
         children: isAdmin() ? [
           item('users', 'Users', '/users', GroupOutlined),
-          item('departments', 'Departments', '/departments', BusinessOutlined),
+          item('departments', 'Factories & Departments', '/departments', BusinessOutlined),
           item('buyers', 'Buyers', '/buyers', ManageAccountsOutlined),
           item('audit-logs', 'Audit Logs', '/audit-logs', HistoryOutlined)
         ] : []

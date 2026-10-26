@@ -283,11 +283,10 @@ export default function CheckingManagementPage() {
           {poBusy && <Typography color="text.secondary" variant="body2" sx={{ px: 1.2 }}>Loading cartons...</Typography>}
           {!poBusy && !poError && poCartons.totalElements === 0 && <Alert severity="info">No cartons generated for this PO.</Alert>}
           <StandardTableViewport><Table size="small"><TableHead><TableRow>
-            {['Carton', 'SSCC-18', 'SKU', 'Target Qty', 'Packing', 'QC result', 'Action'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
+            {['SSCC-18', 'SKU', 'Target Qty', 'Packing', 'QC result', 'Action'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
           </TableRow></TableHead><TableBody>
             {poCartons.content.map((carton) => <TableRow key={carton.id} selected={selectedId === carton.id} hover
               sx={{ cursor: 'pointer' }} onClick={() => openCarton(carton)}>
-              <TableCell><Button sx={{ p: 0, minWidth: 0 }} size="small" onClick={(e) => { e.stopPropagation(); openCarton(carton); }}>Carton {show(carton.cartonNo)}</Button></TableCell>
               <TableCell>{show(carton.sscc18)}</TableCell><TableCell>{show(carton.sku)}</TableCell>
               <TableCell>{show(carton.plannedQty)}</TableCell>
               <TableCell><Chip size="small" color={carton.identified ? 'success' : 'warning'} label={carton.identified ? 'Identified' : 'Not identified'} variant="outlined" /></TableCell>
@@ -304,13 +303,12 @@ export default function CheckingManagementPage() {
           <Box sx={{ p: 1.1 }}><Typography variant="subtitle2">Matching Cartons — click to view Items</Typography></Box>
           <StandardTableViewport><Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap' } }}>
             <TableHead><TableRow>
-              {['Order', 'PO', 'Carton', 'SSCC-18', 'SKU', 'Qty', 'Packing', 'QC result', 'Action'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
+              {['Order', 'PO', 'SSCC-18', 'SKU', 'Qty', 'Packing', 'QC result', 'Action'].map((field) => <TableCell key={field} sx={{ fontWeight: 750 }}>{field}</TableCell>)}
             </TableRow></TableHead><TableBody>
               {rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((carton) =>
                 <TableRow key={carton.id} selected={selectedId === carton.id} hover sx={{ cursor: 'pointer' }} onClick={() => openCarton(carton)}>
                   <TableCell>{show(carton.orderName || carton.orderId)}</TableCell>
                   <TableCell>{show(carton.poNumber)}</TableCell>
-                  <TableCell><Button size="small" sx={{ p: 0, minWidth: 0 }} onClick={(e) => { e.stopPropagation(); openCarton(carton); }}>{show(carton.cartonNo)}</Button></TableCell>
                   <TableCell>{show(carton.sscc18)}</TableCell>
                   <TableCell>{show(carton.sku)}</TableCell>
                   <TableCell>{show(carton.plannedQty)}</TableCell>
@@ -395,7 +393,7 @@ export default function CheckingManagementPage() {
         <Box sx={{ p: 0.8, border: '1px solid', borderColor: 'divider', borderBottom: 0, borderRadius: '8px 8px 0 0', bgcolor: '#FBFCFE' }}>
           <TableFilterBar
             fields={[
-              { key: 'itemNo', label: 'Item No.' }, { key: 'sku', label: 'SKU' },
+              { key: 'sku', label: 'SKU' },
               { key: 'style', label: 'Style' }, { key: 'color', label: 'Color' },
               { key: 'sizeValue', label: 'Size' }, { key: 'status', label: 'Status' },
               { key: 'scannedBy', label: 'Recorded By' }
@@ -409,12 +407,12 @@ export default function CheckingManagementPage() {
         {itemBusy && <Typography sx={{ px: 1.2 }} color="text.secondary" variant="body2">Loading item list...</Typography>}
         <StandardTableViewport sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '0 0 8px 8px' }}><Table size="small" stickyHeader>
           <TableHead><TableRow>
-            {['STT', 'Item No.', 'SKU', 'Style', 'Color', 'Size', 'Qty', 'Status', 'Recorded By', 'Recorded At'].map((label) =>
+            {['STT', 'SKU', 'Style', 'Color', 'Size', 'Qty', 'Status', 'Recorded By', 'Recorded At'].map((label) =>
               <TableCell key={label} sx={{ fontWeight: 750, whiteSpace: 'nowrap' }}>{label}</TableCell>)}
           </TableRow></TableHead><TableBody>
             {itemData.content.map((item, i) => <TableRow key={item.id || `${item.itemNo}-${i}`} hover>
               <TableCell>{itemPage * itemPageSize + i + 1}</TableCell>
-              <TableCell>{show(item.itemNo)}</TableCell><TableCell>{show(recordedSku(item, selected))}</TableCell>
+              <TableCell>{show(recordedSku(item, selected))}</TableCell>
               <TableCell>{show(fromPoIfMissing(item.style, selected.style))}</TableCell>
               <TableCell>{show(fromPoIfMissing(item.color, selected.color))}</TableCell><TableCell>{show(fromPoIfMissing(item.size, selected.size))}</TableCell>
               <TableCell>{show(item.quantity)}</TableCell>

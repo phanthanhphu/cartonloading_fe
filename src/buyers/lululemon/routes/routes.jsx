@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { Navigate, useLocation, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import Loadable from 'components/Loadable';
 import { BUYER_MODULE_KEY } from '../../../constants/appConstants';
 import { getBuyerBySlug } from 'utils/buyerAccess';
@@ -9,52 +9,51 @@ import {
   BuyerWorkspaceRoute,
   PackingAccessRoute,
   WeightAccessRoute,
+  WeightRoute,
   AdminRoute
 } from 'buyers/core/BuyerRouteGuards';
 
-const PoPickingPage = Loadable(lazy(() => import('../pages/PoPickingPage')));
-const PackingPage = Loadable(lazy(() => import('../pages/PackingPage')));
 const CheckingManagementPage = Loadable(lazy(() => import('../pages/CheckingManagementPage')));
-const ShippingPage = Loadable(lazy(() => import('../pages/ShippingPage')));
-const ShippingScheduleDetailPage = Loadable(lazy(() => import('../pages/ShippingScheduleDetailPage')));
-const CartonLoadingPage = Loadable(lazy(() => import('../pages/CartonLoadingAssignPage')));
-const WeighingPage = Loadable(lazy(() => import('../pages/WeighingPage')));
-const RfidDevicesPage = Loadable(lazy(() => import('../pages/RfidDevicesPage')));
-const WeightHistoryPage = Loadable(lazy(() => import('../pages/WeightHistoryPage')));
-const WeightManagementLayout = Loadable(lazy(() => import('../pages/WeightManagementLayout')));
-const TraceHistoryPage = Loadable(lazy(() => import('../pages/TraceHistoryPage')));
+const DeviceManagementPage = Loadable(lazy(() => import('../pages/DeviceManagementPage')));
+const HistoryPage = Loadable(lazy(() => import('../pages/HistoryPage')));
 
+const PackingImportRedirect = () => { const { buyerSlug } = useParams(); return <Navigate to={`/buyers/${buyerSlug}/orders?tab=packing`} replace />; };
 const ModuleRoute = ({ children }) => <BuyerModuleRoute moduleKey={BUYER_MODULE_KEY.SSCC_PACKING}>{children}</BuyerModuleRoute>;
 const LegacyPoRedirect = () => { const { buyerSlug } = useParams(); return <Navigate to={`/buyers/${buyerSlug}/orders`} replace />; };
-// Legacy Shipping review bookmarks now open the single Shipment Management list.
-// Preserve query params (especially orderId) when navigating back from old URLs.
-const LegacyShippingReviewRedirect = () => {
-  const { buyerSlug } = useParams();
-  const { search } = useLocation();
-  return <Navigate to={`/buyers/${buyerSlug}/shipping${search}`} replace />;
-};
 const RetiredPrintRedirect = () => {
   const { buyerSlug } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
   return <Navigate to={buyer ? getBuyerAccessLandingPath(buyer) : '/workflow'} replace />;
 };
 
+const ProcessingRoute = () => {
+  const { buyerSlug } = useParams();
+  return <Navigate to={`/buyers/${buyerSlug}/orders`} replace />;
+};
+const WeightHistoryRedirect = () => {
+  const { buyerSlug } = useParams();
+  return <Navigate to={`/buyers/${buyerSlug}/trace-history?tab=weight`} replace />;
+};
+
 const moduleRoutes = [
   { path: 'buyers/:buyerSlug/po', element: <ModuleRoute><BuyerWorkspaceRoute><LegacyPoRedirect /></BuyerWorkspaceRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/po-picking', element: <ModuleRoute><PoPickingPage /></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/packing', element: <ModuleRoute><PackingAccessRoute><PackingPage /></PackingAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/packing/pos/:orderId/:poId', element: <ModuleRoute><PackingAccessRoute><PackingPage /></PackingAccessRoute></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/packing-import', element: <ModuleRoute><PackingAccessRoute><PackingImportRedirect /></PackingAccessRoute></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/carton-processing', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  // Old bookmarks stay valid but no longer expose PO self-picking, separate Packing,
+  // Shipping dispatch or Weight-first workflow.
+  { path: 'buyers/:buyerSlug/po-picking', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/packing', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/packing/pos/:orderId/:poId', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/shipping', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/shipping/review', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/shipping/review/:scheduleId', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/carton-loading', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/weighing', element: <ModuleRoute><ProcessingRoute /></ModuleRoute> },
   { path: 'buyers/:buyerSlug/checking', element: <ModuleRoute><PackingAccessRoute><CheckingManagementPage /></PackingAccessRoute></ModuleRoute> },
-  // Existing bookmarks redirect; the printing workflow is no longer accessible.
   { path: 'buyers/:buyerSlug/print-requests', element: <ModuleRoute><RetiredPrintRedirect /></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/shipping', element: <ModuleRoute><PackingAccessRoute><ShippingPage /></PackingAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/shipping/review', element: <ModuleRoute><PackingAccessRoute><LegacyShippingReviewRedirect /></PackingAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/shipping/review/:scheduleId', element: <ModuleRoute><PackingAccessRoute><ShippingScheduleDetailPage /></PackingAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/carton-loading', element: <ModuleRoute><PackingAccessRoute><CartonLoadingPage /></PackingAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/weighing', element: <ModuleRoute><WeightAccessRoute><WeightManagementLayout><WeighingPage /></WeightManagementLayout></WeightAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/rfid-devices', element: <ModuleRoute><AdminRoute><RfidDevicesPage /></AdminRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/weight-history', element: <ModuleRoute><WeightAccessRoute><WeightManagementLayout><WeightHistoryPage /></WeightManagementLayout></WeightAccessRoute></ModuleRoute> },
-  { path: 'buyers/:buyerSlug/trace-history', element: <ModuleRoute><TraceHistoryPage /></ModuleRoute> }
+  { path: 'buyers/:buyerSlug/rfid-devices', element: <ModuleRoute><AdminRoute><DeviceManagementPage /></AdminRoute></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/weight-history', element: <ModuleRoute><WeightHistoryRedirect /></ModuleRoute> },
+  { path: 'buyers/:buyerSlug/trace-history', element: <ModuleRoute><HistoryPage /></ModuleRoute> }
 ];
 
 export default moduleRoutes;

@@ -6,6 +6,8 @@ import { APP_MESSAGES } from '../../constants/appMessages';
 
 import {
   canAssignBarcode,
+  canAssignWeight,
+  canPickPo,
   canManageBarcodes,
   canManageSales,
   canUseBuyerWorkspace,
@@ -19,6 +21,7 @@ import {
   saveSelectedBuyer
 } from 'utils/buyerAccess';
 import { buyerCapability, getBuyerAccessLandingPath, getBuyerModule } from './buyerModules';
+import { readJwtSession, supportedSystemTypes } from '../../utils/systemTypes';
 
 const readStoredUser = () => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY.USER) || '{}') || {}; }
@@ -63,7 +66,9 @@ export function BuyerModuleRoute({ moduleKey, children }) {
   const { buyerSlug } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
   const user = readStoredUser();
-  const allowed = Boolean(buyer && getBuyerModule(buyer)?.key === moduleKey && canAccessBuyer(buyer.code, user));
+  const session = readJwtSession();
+  const allowed = Boolean(buyer && getBuyerModule(buyer)?.key === moduleKey && canAccessBuyer(buyer.code, user)
+    && supportedSystemTypes(buyer).includes(session.type));
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
@@ -77,7 +82,10 @@ export function BuyerWorkspaceRoute({ children }) {
   const { buyerSlug } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
   const user = readStoredUser();
-  const allowed = Boolean(buyer && canAccessBuyer(buyer.code, user) && canUseBuyerWorkspace());
+  const session = readJwtSession();
+  const allowed = Boolean(buyer && canAccessBuyer(buyer.code, user)
+    && supportedSystemTypes(buyer).includes(session.type)
+    && (canUseBuyerWorkspace() || (buyer.code === 'LULULEMON' && (canAssignBarcode() || canWeightCheck()))));
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
@@ -87,12 +95,12 @@ export function BuyerWorkspaceRoute({ children }) {
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
-/** LULULEMON Orders are Sales/Admin-only, including direct bookmarked routes. */
+/** LULULEMON Orders are readable by assigned Weight operators. Writes remain Sales/Admin-only on the API. */
 export function BuyerOrdersAccessRoute({ children }) {
   const { buyerSlug } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
-  const allowed = Boolean(buyer && (buyer.code !== 'LULULEMON' || canManageSales()));
-  useEffect(() => { if (!allowed) toast.error('Only Sales or Admin can access Orders.'); }, [allowed]);
+  const allowed = Boolean(buyer && (buyer.code !== 'LULULEMON' || canManageSales() || canAssignBarcode() || canWeightCheck()));
+  useEffect(() => { if (!allowed) toast.error('Orders requires Sales, Packing or Weight operator permission.'); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
@@ -128,6 +136,17 @@ export function PackingAccessRoute({ children }) {
   return allowed ? children : <BuyerHomeRedirect />;
 }
 
+
+export function PoPickingAccessRoute({ children }) {
+  const allowed = canPickPo() || canManageSales();
+  return allowed ? children : <BuyerHomeRedirect />;
+}
+
+export function ShippingAccessRoute({ children }) {
+  const allowed = canAssignBarcode() || canManageSales() || canAssignWeight();
+  useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.PACKING_PERMISSION_REQUIRED); }, [allowed]);
+  return allowed ? children : <BuyerHomeRedirect />;
+}
 
 export function WeightAccessRoute({ children }) {
   const allowed = canWeightCheck() || canManageSales() || canAssignBarcode();

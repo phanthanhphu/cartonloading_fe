@@ -1,3 +1,20 @@
+// Shared keys for the Factory & Department page navigation.
+export const ORGANIZATION_MANAGEMENT_TAB = Object.freeze({
+  FACTORIES: 'factories',
+  DEPARTMENTS: 'departments'
+});
+
+export const ORGANIZATION_REALTIME = Object.freeze({
+  FACTORY: 'FACTORY',
+  DEPARTMENT: 'DEPARTMENT',
+  USER: 'USER',
+  SYNC: 'SYNC',
+  FACTORIES_TOPIC: '/topic/organization-factories',
+  ADMIN_TOPIC: '/topic/organization-admin',
+  RETRY_MS: 1500,
+  MAX_RETRY_MS: 30000,
+});
+
 export const BUYER_CODE = Object.freeze({
   LULULEMON: 'LULULEMON',
   ENGELBERT_STRAUSS: 'ENGELBERT_STRAUSS'
@@ -32,6 +49,8 @@ export const ACCESS_PERMISSION = Object.freeze({
   SALES: 'SALES',
   BARCODE_OPERATOR: 'BARCODE_OPERATOR',
   ASSIGN_BARCODE: 'ASSIGN_BARCODE',
+  PICK_PO: 'PICK_PO',
+  ASSIGN_WEIGHT: 'ASSIGN_WEIGHT',
   WEIGHT_CHECK: 'WEIGHT_CHECK',
   PRINT_ROOM: 'PRINT_ROOM',
   VIEW_SYSTEM: 'VIEW_SYSTEM'
@@ -64,11 +83,13 @@ export const STORAGE_KEY = Object.freeze({
   FACTORY_PERMISSIONS: 'factoryPermissions',
   SELECTED_BUYER: 'selectedBuyer',
   SELECTED_BUYER_LABEL: 'selectedBuyerLabel',
+  SELECTED_TYPE: 'selectedSystemType',
   LOGIN_AT: 'loginAt',
   BUYER_CATALOG: 'buyerCatalog',
   LOGIN_DRAFT_EMAIL: 'loginDraftEmail',
   LOGIN_DRAFT_PASSWORD: 'loginDraftPassword',
   LOGIN_DRAFT_BUYER: 'loginDraftBuyer',
+  LOGIN_DRAFT_TYPE: 'loginDraftType',
   WEIGHING_STATION_SSCC: 'lululemon.weight.station'
 });
 
@@ -84,13 +105,16 @@ export const AUTH_STORAGE_KEYS = Object.freeze([
   STORAGE_KEY.FACTORY_PERMISSIONS,
   STORAGE_KEY.SELECTED_BUYER,
   STORAGE_KEY.SELECTED_BUYER_LABEL,
+  STORAGE_KEY.SELECTED_TYPE,
   STORAGE_KEY.LOGIN_AT
 ]);
 
 export const ACCESS_PERMISSION_LABEL = Object.freeze({
   [ACCESS_PERMISSION.SALES]: 'Sales',
   [ACCESS_PERMISSION.BARCODE_OPERATOR]: 'Barcode Operator',
-  [ACCESS_PERMISSION.ASSIGN_BARCODE]: 'Packing / Assign Barcode',
+  [ACCESS_PERMISSION.ASSIGN_BARCODE]: 'Packing / Assign Barcode (includes PO Picking)',
+  [ACCESS_PERMISSION.PICK_PO]: 'Pick / Unpick PO',
+  [ACCESS_PERMISSION.ASSIGN_WEIGHT]: 'Send / Assign Carton Weight',
   [ACCESS_PERMISSION.WEIGHT_CHECK]: 'Weight Check',
   [ACCESS_PERMISSION.PRINT_ROOM]: 'Print Room',
   [ACCESS_PERMISSION.VIEW_SYSTEM]: 'View Only'
@@ -100,6 +124,8 @@ export const USER_ACCESS_PERMISSIONS = Object.freeze([
   ACCESS_PERMISSION.SALES,
   ACCESS_PERMISSION.BARCODE_OPERATOR,
   ACCESS_PERMISSION.ASSIGN_BARCODE,
+  ACCESS_PERMISSION.PICK_PO,
+  ACCESS_PERMISSION.ASSIGN_WEIGHT,
   ACCESS_PERMISSION.WEIGHT_CHECK,
   ACCESS_PERMISSION.VIEW_SYSTEM
 ]);
@@ -108,6 +134,8 @@ export const ADMIN_ACCESS_PERMISSIONS = Object.freeze([
   ACCESS_PERMISSION.SALES,
   ACCESS_PERMISSION.BARCODE_OPERATOR,
   ACCESS_PERMISSION.ASSIGN_BARCODE,
+  ACCESS_PERMISSION.PICK_PO,
+  ACCESS_PERMISSION.ASSIGN_WEIGHT,
   ACCESS_PERMISSION.WEIGHT_CHECK,
   ACCESS_PERMISSION.PRINT_ROOM
 ]);
@@ -123,8 +151,8 @@ export const buyerPoColumnStorageKey = (buyerCode) => `${String(buyerCode || '')
 export const buyerWorkspaceColumnStorageKey = (buyerCode) => `cartonloading.${String(buyerCode || '').trim().toLowerCase()}.order-workspace.visible-columns.v1`;
 
 export const DEFAULT_BUYERS = Object.freeze([
-  { code: BUYER_CODE.LULULEMON, slug: 'lululemon', label: BUYER_LABEL[BUYER_CODE.LULULEMON], active: true, sequence: 10 },
-  { code: BUYER_CODE.ENGELBERT_STRAUSS, slug: 'engelbert-strauss', label: BUYER_LABEL[BUYER_CODE.ENGELBERT_STRAUSS], active: true, sequence: 20 }
+  { code: BUYER_CODE.LULULEMON, slug: 'lululemon', label: BUYER_LABEL[BUYER_CODE.LULULEMON], active: true, sequence: 10, supportedTypes: ['RFID'] },
+  { code: BUYER_CODE.ENGELBERT_STRAUSS, slug: 'engelbert-strauss', label: BUYER_LABEL[BUYER_CODE.ENGELBERT_STRAUSS], active: true, sequence: 20, supportedTypes: ['FACTORY_USE_ONLY'] }
 ]);
 
 export const CARTON_STATUS = Object.freeze({
@@ -334,7 +362,7 @@ export const COMMON_PAGE_SIZE_OPTIONS = Object.freeze([10, 25, 50]);
 
 export const LARGE_PAGE_SIZE_OPTIONS = Object.freeze([10, 25, 50, 100]);
 
-export const FACTORY_CODES = Object.freeze(['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7']);
+// Factory choices are dynamic; use useActiveFactories() instead of a static constant.
 
 export const REDIRECT_REASON = Object.freeze({
   SESSION_EXPIRED: 'sessionExpired',

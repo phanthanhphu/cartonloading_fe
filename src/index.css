@@ -1,5 +1,4 @@
 @import 'simplebar-react/dist/simplebar.min.css';
-@import './assets/fonts/inter/inter.css';
 
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
@@ -55,4 +54,11 @@
  * visually attached to the hovered row instead of showing a white block. */
 .MuiTable-root.po-picking-main-table .MuiTableBody-root > .MuiTableRow-root.MuiTableRow-hover:hover > .MuiTableCell-root:nth-child(-n + 2) {
   background-color: var(--app-table-hover-bg);
+}
+
+/* Typography fallback for source-only distributions: no unavailable variable font. */
+html, body, #root {
+  font-family: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }

@@ -10,12 +10,13 @@ import { BUYER_CODE, buyerOrderStorageKey } from '../../../constants/appConstant
 import { APP_MESSAGES, createBuyerOrderFirstMessage } from '../../../constants/appMessages';
 import { buyerPath } from 'utils/buyerAccess';
 import { canManageSales } from 'utils/accessControl';
-async function loadAllOrders() {
+import { useSelectedFactory } from 'utils/factorySelection';
+async function loadAllOrders(factoryCode) {
   const rows = [];
   let page = 0;
   const size = 100;
   while (true) {
-    const result = await listManagedOrders(BUYER_CODE.LULULEMON, { page, size });
+    const result = await listManagedOrders(BUYER_CODE.LULULEMON, { factory: factoryCode, page, size });
     rows.push(...(result?.content || []));
     if (result?.last || page + 1 >= Number(result?.totalPages || 0) || !(result?.content || []).length) break;
     page += 1;
@@ -25,14 +26,16 @@ async function loadAllOrders() {
 
 export default function OrderScope({ value, onChange, disabled = false, embedded = false, compact = false }) {
   const navigate = useNavigate();
+  const { factoryCode, loading: factoryLoading } = useSelectedFactory(BUYER_CODE.LULULEMON);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    if (!factoryCode || factoryLoading) { setOrders([]); onChange(''); return; }
     setLoading(true); setError('');
     try {
-      const next = await loadAllOrders();
+      const next = await loadAllOrders(factoryCode);
       setOrders(next);
       const stored = localStorage.getItem(buyerOrderStorageKey(BUYER_CODE.LULULEMON)) || '';
       const validCurrent = next.some((row) => row.id === value) ? value : '';
@@ -44,9 +47,9 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
       setOrders([]);
       setError(e?.response?.data?.message || e.message || APP_MESSAGES.UNABLE_LOAD_ORDERS);
     } finally { setLoading(false); }
-  }, [value, onChange]);
+  }, [value, onChange, factoryCode, factoryLoading]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [factoryCode, factoryLoading]); // reload only when Factory selection changes
 
   const change = (next) => {
     if (next) localStorage.setItem(buyerOrderStorageKey(BUYER_CODE.LULULEMON), next); else localStorage.removeItem(buyerOrderStorageKey(BUYER_CODE.LULULEMON));
@@ -55,7 +58,7 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
 
   if (error) return <Alert severity="error" action={<Button color="inherit" size="small" onClick={load}>Retry</Button>}>{error}</Alert>;
   if (!loading && !orders.length) return <Alert severity="warning" action={canManageSales() ? <Button color="inherit" size="small" onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'orders'))}>Create Order</Button> : null}>
-    {canManageSales() ? createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON) : 'No Order is available. Contact Sales or Admin to create an Order before Packing can pick and ship POs.'}
+    {canManageSales() ? createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON) : 'No Order is available for this Factory. Ask Sales or Admin to create an Order.'}
   </Alert>;
 
   const content = (

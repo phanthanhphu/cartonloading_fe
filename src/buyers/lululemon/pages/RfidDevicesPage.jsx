@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
-  DialogTitle, Divider, FormControlLabel, MenuItem, Paper, Stack, Table,
+  Alert, Box, Button, Checkbox, Chip, Divider, FormControlLabel, MenuItem, Paper, Stack, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography
 } from '@mui/material';
 import { Cable, Add, DeleteOutline, EditOutlined, Refresh, Star } from '@mui/icons-material';
 import { canWeighFactory, isAdmin } from 'utils/accessControl';
+import { listUsers } from 'services/adminService';
+import { ACCESS_PERMISSION, BUYER_CODE } from '../../../constants/appConstants';
+import useActiveFactories from '../../../common/factory/useActiveFactories';
 import {
   listManagedRfidPdas, saveManagedRfidPda, deleteManagedRfidPda, makeFactoryDefaultRfidPda,
   recoverManagedRfidPda
 } from '../services/rfidPdaDevices';
 
-const FACTORIES = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7'];
 const displayError = (e) => e?.response?.data?.message || e?.message || 'RFID Reader request failed.';
 const assignedFactories = (d) => {
   const values = Array.isArray(d?.factoryCodes) ? d.factoryCodes : [];
@@ -22,6 +23,7 @@ const isDefault = (d, factory) => (d?.defaultFactoryCodes || []).includes(factor
 const initialForm = (d) => ({
   label: d?.label || d?.serial || '',
   factories: assignedFactories(d),
+  assignedUserIds: d?.assignedUserIds || [],
   defaultFactory: '',
   startX: d?.startX ?? '', startY: d?.startY ?? '',
   stopX: d?.stopX ?? '', stopY: d?.stopY ?? '',
@@ -30,8 +32,10 @@ const initialForm = (d) => ({
 
 /** Multi-factory RFID registry. Each Reader may be shared, but capture locks by ADB Serial. */
 export default function RfidDevicesPage() {
-  const permittedFactories = useMemo(() => FACTORIES.filter(canWeighFactory), []);
+  const { codes: factoryCodes } = useActiveFactories();
+  const permittedFactories = useMemo(() => factoryCodes.filter(canWeighFactory), [factoryCodes]);
   const [devices, setDevices] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [search, setSearch] = useState('');
   const [factoryFilter, setFactoryFilter] = useState('ALL');
   const [editSerial, setEditSerial] = useState(null);
@@ -52,6 +56,7 @@ export default function RfidDevicesPage() {
     setDevices(Array.isArray(result) ? result : []);
   }, []);
   useEffect(() => { reload().catch((e) => setError(displayError(e))); }, [reload]);
+  useEffect(() => { listUsers({ page: 0, size: 200 }).then((page) => setAccounts(page?.content || [])).catch((e) => setError(displayError(e))); }, []);
 
   const filtered = useMemo(() => devices.filter((d) => {
     const term = search.trim().toLowerCase();
@@ -93,6 +98,7 @@ export default function RfidDevicesPage() {
     await saveManagedRfidPda(selected.serial, {
       label: form.label.trim(),
       factoryCodes: form.factories,
+      assignedUserIds: form.assignedUserIds,
       ...Object.fromEntries(fields.map((field) => [field, entered.length ? Number(form[field]) : null]))
     });
     if (form.defaultFactory && form.factories.includes(form.defaultFactory))
@@ -142,7 +148,7 @@ export default function RfidDevicesPage() {
           <TextField size="small" fullWidth label="Search Reader / ADB Serial" value={search} onChange={(e) => setSearch(e.target.value)} />
           <TextField size="small" select label="Factory" value={factoryFilter} onChange={(e) => setFactoryFilter(e.target.value)} sx={{ minWidth: 185 }}>
             <MenuItem value="ALL">All Factories</MenuItem>
-            {FACTORIES.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
+            {permittedFactories.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
             <MenuItem value="UNASSIGNED">Unassigned</MenuItem>
           </TextField>
         </Stack>
@@ -196,9 +202,8 @@ export default function RfidDevicesPage() {
         </Typography>
       </Paper>
 
-      <Dialog open={Boolean(editSerial)} onClose={closeAssignment} maxWidth="sm" fullWidth>
-        <DialogTitle>ADMIN · {isNew ? 'Add RFID Reader' : 'Edit RFID Reader / Assign Factories'}</DialogTitle>
-        <DialogContent dividers>
+      {editSerial && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>ADMIN · {isNew ? 'Add RFID Reader' : 'Edit RFID Reader / Assign Factories'}</Typography>
           <Stack gap={1.5} sx={{ pt: 0.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Cable fontSize="small"/>
@@ -218,6 +223,7 @@ export default function RfidDevicesPage() {
                   onChange={(e) => setForm((prev) => ({
                     ...prev,
                     factories: e.target.checked ? [...prev.factories, factory] : prev.factories.filter((v) => v !== factory),
+                    assignedUserIds: [],
                     defaultFactory: !e.target.checked && prev.defaultFactory === factory ? '' : prev.defaultFactory
                   }))}/>}/>)}
             </Stack>
@@ -231,6 +237,20 @@ export default function RfidDevicesPage() {
               A Reader can be assigned to multiple Factories. Default is configured separately for each Factory.
             </Typography>
             <Divider/>
+            <Typography variant="subtitle2" fontWeight={800}>Assign Users (optional)</Typography>
+            <Typography variant="caption" color="text.secondary">If no User is selected, legacy Factory permissions still apply. If assigned, only listed Users can START/STOP this reader.</Typography>
+            <Stack direction="row" gap={0.5} flexWrap="wrap">
+              {accounts.filter((user) => user.enabled !== false
+                && (user.buyerPermissions || []).includes(BUYER_CODE.LULULEMON)
+                && (user.accessPermissions || []).includes(ACCESS_PERMISSION.WEIGHT_CHECK)
+                && form.factories.some((factory) => (user.weighingFactoryPermissions || user.factoryPermissions || []).includes(factory)))
+                .map((user) => <FormControlLabel key={user.id} label={user.username}
+                  control={<Checkbox size="small" disabled={busy || selected?.capturing}
+                    checked={form.assignedUserIds.includes(user.id)}
+                    onChange={(e) => setForm((prev) => ({ ...prev,
+                      assignedUserIds: e.target.checked ? [...prev.assignedUserIds, user.id] : prev.assignedUserIds.filter((id) => id !== user.id)
+                    }))}/>} />)}
+            </Stack>
             <Typography variant="subtitle2" fontWeight={800}>RFID Control V2 · START / STOP coordinates</Typography>
             <Typography variant="caption" color="text.secondary">You may assign a Factory now and calibrate later. START is disabled until all four coordinates are configured.</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
@@ -249,25 +269,22 @@ export default function RfidDevicesPage() {
                 onClick={recover}>Release Reserved Reader</Button>
             </Paper>}
           </Stack>
-        </DialogContent>
-        <DialogActions>
+        <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 1.5 }}>
           <Button disabled={busy} onClick={closeAssignment}>Cancel</Button>
           <Button variant="contained" disabled={busy || selected?.capturing || (isNew && !newSerial.trim())} onClick={save}>
             {isNew ? 'Add Reader' : 'Save Changes'}
           </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog open={Boolean(deleteSerial)} onClose={() => !busy && setDeleteSerial(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete RFID Reader?</DialogTitle>
-        <DialogContent dividers>
+        </Stack>
+      </Paper>}
+      {deleteSerial && <Paper variant="outlined" sx={{ mt: 1.5, p: 2, borderRadius: 2, borderColor: 'error.main' }}>
+        <Typography variant="subtitle1" fontWeight={800}>Delete RFID Reader?</Typography>
           <Typography>Remove configuration and Factory assignments for <strong>{deleteSerial}</strong>?</Typography>
           <Alert severity="info" sx={{ mt: 1 }}>Only configuration and Factory assignments are deleted, not EPC/history. If still physically connected, the Reader remains listed as DETECTED until disconnected.</Alert>
-        </DialogContent>
-        <DialogActions>
+        <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 1.5 }}>
           <Button disabled={busy} onClick={() => setDeleteSerial(null)}>Cancel</Button>
           <Button variant="contained" color="error" disabled={busy} onClick={remove}>Delete Reader</Button>
-        </DialogActions>
-      </Dialog>
+        </Stack>
+      </Paper>}
       {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mt: 1 }}>{notice}</Alert>}
     </Box>

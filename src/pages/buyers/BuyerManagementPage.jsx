@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, FormControlLabel, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { Add, Delete, Edit, FolderOpenOutlined } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
@@ -51,6 +51,10 @@ export default function BuyerManagementPage() {
 
 
   const openOrders = (row) => {
+    if (!isSessionBuyer(row?.buyerKey)) {
+      setError('Switching Buyer requires signing in again with the new Buyer and Type.');
+      return;
+    }
     const buyer = saveSelectedBuyer({
       id: row?.id,
       buyerKey: row?.buyerKey,
@@ -58,6 +62,7 @@ export default function BuyerManagementPage() {
       slug: row?.slug,
       active: row?.active,
       sequence: row?.sequence,
+      supportedTypes: row?.supportedTypes,
       description: row?.description
     });
     if (!buyer) return;
@@ -71,6 +76,7 @@ export default function BuyerManagementPage() {
     { key: 'active', label: 'Status', render: (r) => r.active ? 'Active' : 'Inactive' },
     { key: 'sequence', label: 'Sequence' },
     { key: 'description', label: 'Description' },
+    { key: 'supportedTypes', label: 'Types', render: (r) => supportedSystemTypes(r).join(', ') || '—' },
     {
       key: 'actions',
       label: 'Actions',
@@ -100,6 +106,7 @@ export default function BuyerManagementPage() {
             { key: 'buyerKey', label: 'Buyer Key' },
             { key: 'buyerName', label: 'Buyer Name' },
             { key: 'description', label: 'Description' },
+    { key: 'supportedTypes', label: 'Types', render: (r) => supportedSystemTypes(r).join(', ') || '—' },
             { key: 'active', label: 'Status', options: [{ value: 'true', label: 'Active' }, { value: 'false', label: 'Inactive' }] }
           ]}
           values={filters}
@@ -115,6 +122,8 @@ export default function BuyerManagementPage() {
 
 import { APP_MESSAGES, createDeleteBuyerConfirmMessage } from '../../constants/appMessages';
 import { DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
+import { isSessionBuyer } from '../../utils/systemTypes';
+import { SYSTEM_TYPE_OPTIONS, supportedSystemTypes } from '../../utils/systemTypes';
 
 function BuyerDialog({ row, onClose, onSave }) {
   const editing = Boolean(row.id);
@@ -123,7 +132,8 @@ function BuyerDialog({ row, onClose, onSave }) {
     buyerName: row.buyerName || '',
     active: row.active !== false,
     sequence: row.sequence || 0,
-    description: row.description || ''
+    description: row.description || '',
+    supportedTypes: supportedSystemTypes(row)
   });
 
   const changeKey = (value) => {
@@ -148,6 +158,15 @@ function BuyerDialog({ row, onClose, onSave }) {
             <MenuItem value="active">Active</MenuItem>
             <MenuItem value="inactive">Inactive</MenuItem>
           </TextField>
+          <Typography fontWeight={800}>Supported System Types</Typography>
+          <Stack direction="row" flexWrap="wrap">
+            {SYSTEM_TYPE_OPTIONS.map((option) => <FormControlLabel key={option.value}
+              control={<Checkbox checked={form.supportedTypes.includes(option.value)}
+                onChange={() => setForm((s) => ({ ...s, supportedTypes: s.supportedTypes.includes(option.value)
+                  ? s.supportedTypes.filter((v) => v !== option.value) : [...s.supportedTypes, option.value] }))} />}
+              label={option.label} />)}
+          </Stack>
+          <Alert severity="info">RFID is implemented for LULULEMON; Factory Use Only for ES. UnRFID is a future workflow and cannot be used until its module is developed.</Alert>
           <TextField type="number" label="Sequence" value={form.sequence} onChange={(e) => setForm({ ...form, sequence: Number(e.target.value) })} />
           <TextField multiline minRows={2} label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </Stack>

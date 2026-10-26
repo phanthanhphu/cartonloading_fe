@@ -8,6 +8,7 @@ export const createManagedOrder = (buyer, body) => apiClient.post('/api/order-ma
 export const updateManagedOrder = (buyer, id, body) => apiClient.put(`/api/order-management/orders/${id}`, body, cfg({ buyer }));
 export const deleteManagedOrder = (buyer, id) => apiClient.delete(`/api/order-management/orders/${id}`, cfg({ buyer }));
 export const listManagedPos = (buyer, orderId, q = {}) => apiClient.get(`/api/order-management/orders/${orderId}/pos`, cfg({ buyer, ...q }));
+export const getManagedScheduledPoInspectionSummary = (buyer, orderId) => apiClient.get(`/api/order-management/orders/${orderId}/pos/scheduled-inspection-summary`, cfg({ buyer }));
 export const getManagedPo = (buyer, orderId, poKey) => apiClient.get(`/api/order-management/orders/${orderId}/pos/${encodeURIComponent(poKey)}`, cfg({ buyer }));
 export const listManagedCartons = (buyer, orderId, poKey, q = {}) => apiClient.get(`/api/order-management/orders/${orderId}/pos/${encodeURIComponent(poKey)}/cartons`, cfg({ buyer, ...q }));
 export const getManagedCarton = (buyer, orderId, cartonId) => apiClient.get(`/api/order-management/orders/${orderId}/cartons/${cartonId}`, cfg({ buyer }));
