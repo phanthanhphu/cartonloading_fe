@@ -582,22 +582,12 @@ export default function DeviceManagementPage() {
                   : 'Editing this Factory’s existing configuration. Cancel restores the saved values.'}
               </Alert>
             {modal?.kind === 'RFID' ? <>
-              {ownedReaders.length === 0 && <TextField size="small" select fullWidth label="Select detected / registered reader (optional)"
-                value={rfidDevices.some((d) => d.serial === rfidForm.serial) ? rfidForm.serial : ''} disabled={busy}
-                onChange={(e) => {
-                  const reader = rfidDevices.find((d) => d.serial === e.target.value);
-                  if (reader) fillReader(reader, factoryCode);
-                  else setRfidForm(rfidBlank(factoryCode));
-                }}>
-                <MenuItem value="">Enter ADB Serial manually</MenuItem>
-                {rfidDevices.filter((d) => !d.registered || !relatedFactories(d).includes(factoryCode)).map((reader) =>
-                  <MenuItem key={reader.serial} value={reader.serial}>{reader.label || reader.serial} · {reader.serial}{reader.online ? ' (online)' : ' (offline)'}</MenuItem>)}
-              </TextField>}
               <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
                 <TextField size="small" fullWidth label="ADB Serial" required value={rfidForm.serial}
                   disabled={busy} onChange={(e) => changeRfid('serial', e.target.value)}
                   helperText={ownedReaders.length === 1 && rfidForm.serial.trim() !== ownedReaders[0].serial
-                    ? `Replacing ${ownedReaders[0].serial} for ${factoryCode}; old scan history will be preserved.` : undefined} />
+                    ? `Replacing ${ownedReaders[0].serial} for ${factoryCode}; old scan history will be preserved.`
+                    : 'Enter the actual PDA serial (or IP:port for an ADB-connected network PDA). Use Test to check connectivity.'} />
                 <TextField size="small" fullWidth label="Reader Name" required value={rfidForm.label}
                   disabled={busy} onChange={(e) => changeRfid('label', e.target.value)} />
               </Stack>
