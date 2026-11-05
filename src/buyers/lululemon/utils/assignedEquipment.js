@@ -1,3 +1,4 @@
+import { DEVICE_CONNECTION_STATE } from '../../../constants/appConstants';
 /** Prefer the admin-assigned default RFID reader for the carton Factory.
  * Only fall back automatically if exactly one reader is assigned; never guess
  * between multiple readers when Admin has not chosen a default.
@@ -11,6 +12,6 @@ export const getAssignedRfidReader = (devices) => {
 export const getRfidReaderStatus = (device) => {
   if (!device) return { label: 'NOT ASSIGNED', color: 'default' };
   if (device.capturing) return { label: 'IN USE', color: 'warning' };
-  if (device.online && device.configured && device.state === 'device') return { label: 'CONNECTED', color: 'success' };
+  if (device.online && device.configured && device.state === 'device') return { label: DEVICE_CONNECTION_STATE.CONNECTED, color: 'success' };
   return { label: 'NOT READY', color: 'error' };
 };

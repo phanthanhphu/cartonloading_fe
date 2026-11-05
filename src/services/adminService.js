@@ -15,3 +15,4 @@ export const createBuyerAdmin = (body) => apiClient.post('/api/buyers', body);
 export const updateBuyerAdmin = (id, body) => apiClient.put(`/api/buyers/${id}`, body);
 export const deleteBuyerAdmin = (id) => apiClient.delete(`/api/buyers/${id}`);
 export const listAuditLogs = (q) => apiClient.get('/api/audit-logs', params(q));
+export const getAuditLog = (id, factoryCode = '') => apiClient.get(`/api/audit-logs/${encodeURIComponent(id)}`, params({ factoryCode }));

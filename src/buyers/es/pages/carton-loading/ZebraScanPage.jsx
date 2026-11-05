@@ -1,5 +1,5 @@
 import StandardTableViewport from 'components/StandardTableViewport';
-import { BARCODE_CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, LOOKUP_PAGE_SIZE, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
+import { BARCODE_CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, LOOKUP_PAGE_SIZE, DEFAULT_PALLET_CODE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -61,7 +61,7 @@ const inputModeStorageKey = (buyerCode) => `zebraScan.inputMode.${buyerCode || '
 
 const formatWeight = (value) => value == null
   ? '—'
-  : `${Number(value).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
+  : `${Number(value).toLocaleString(FORMAT_LOCALE.EN_US, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
 
 const formatDateTime = (value) => {
   if (!value) return '—';
@@ -125,7 +125,7 @@ function StatCard({ label, value, icon, color = 'primary.main', suffix = '' }) {
         <Box minWidth={0}>
           <Typography variant="caption" color="text.secondary">{label}</Typography>
           <Typography variant="h4" fontWeight={950} lineHeight={1.1}>
-            {Number(value || 0).toLocaleString('en-US')}{suffix}
+            {Number(value || 0).toLocaleString(FORMAT_LOCALE.EN_US)}{suffix}
           </Typography>
         </Box>
       </Stack>
@@ -399,7 +399,7 @@ export default function ZebraScanPage() {
       if (now - lastKeyAt > 180) buffer = '';
       lastKeyAt = now;
 
-      if (event.key === 'Enter') {
+      if (event.key === KEYBOARD_KEY.ENTER) {
         const code = buffer.trim();
         buffer = '';
         if (code) {
@@ -606,7 +606,7 @@ export default function ZebraScanPage() {
                         value={barcodeInput}
                         onChange={(event) => setBarcodeInput(event.target.value)}
                         onKeyDown={(event) => {
-                          if (event.key !== 'Enter') return;
+                          if (event.key !== KEYBOARD_KEY.ENTER) return;
                           event.preventDefault();
                           submitBarcode(event.currentTarget.value, 'zebra');
                         }}
@@ -639,7 +639,7 @@ export default function ZebraScanPage() {
                           value={manualBarcodeInput}
                           onChange={(event) => setManualBarcodeInput(event.target.value)}
                           onKeyDown={(event) => {
-                            if (event.key !== 'Enter') return;
+                            if (event.key !== KEYBOARD_KEY.ENTER) return;
                             event.preventDefault();
                             submitBarcode(event.currentTarget.value, 'manual');
                           }}

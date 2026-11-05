@@ -1,7 +1,8 @@
-import { BUYER_CODE, STORAGE_KEY } from '../constants/appConstants';
+import { BUYER_CODE, STORAGE_KEY, SYSTEM_TYPE } from '../constants/appConstants';
 
 /** Login Type is part of the server-issued JWT workspace, not a client-chosen filter. */
-export const SYSTEM_TYPE = Object.freeze({ RFID: 'RFID', UNRFID: 'UNRFID', FACTORY_USE_ONLY: 'FACTORY_USE_ONLY' });
+// Backward-compatible export: all callers now share one constant definition.
+export { SYSTEM_TYPE } from '../constants/appConstants';
 export const SYSTEM_TYPE_OPTIONS = Object.freeze([
   { value: SYSTEM_TYPE.RFID, label: 'RFID', detail: 'SSCC + EPC + Weight' },
   { value: SYSTEM_TYPE.UNRFID, label: 'UnRFID', detail: 'Reserved workflow' },

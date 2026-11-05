@@ -1,3 +1,6 @@
+import LululemonExcelActions from '../components/LululemonExcelActions';
+import PoDuplicateConflictDialog from '../components/PoDuplicateConflictDialog';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import SortableTable from 'components/SortableTable';
 import LululemonTableViewport from '../components/LululemonTableViewport';
 import PoScanProgressCell from '../components/PoScanProgressCell';
@@ -17,7 +20,7 @@ import OrderScope from '../components/OrderScope';
 import { importSharedAllBp, listAllPos } from '../services/service';
 import { APP_MESSAGES, createAllBpImportDetailMessage } from '../../../constants/appMessages';
 
-import { ALL_BP_FORMULA_KEYS, ALL_BP_KNOWN_HEADERS, ALL_BP_SOURCE_ALIAS, ALL_BP_UI_LABELS, PURCHASE_ORDER_STATUS_OPTIONS, DEFAULT_TABLE_ROWS_PER_PAGE, EXCEL_FILE_ACCEPT, BUYER_CODE, BUYER_LABEL } from '../../../constants/appConstants';
+import { ALL_BP_FORMULA_KEYS, ALL_BP_RETIRED_KEYS, ALL_BP_KNOWN_HEADERS, ALL_BP_SOURCE_ALIAS, ALL_BP_UI_LABELS, PURCHASE_ORDER_STATUS_OPTIONS, DEFAULT_TABLE_ROWS_PER_PAGE, EXCEL_FILE_ACCEPT, BUYER_CODE, BUYER_LABEL, PO_IMPORT_ERROR_CODE } from '../../../constants/appConstants';
 import { PO_COLUMN_STORAGE_KEY, PO_DEFAULT_COLUMN_KEYS, PO_SYSTEM_COLUMNS } from './poManagementConfig';
 const normalize = (value) => String(value || '').trim().toLowerCase();
 const headerKey = (value) => String(value || '')
@@ -163,6 +166,8 @@ export default function PoManagementPage() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [message, setMessage] = useState(null);
+  const [duplicatePos, setDuplicatePos] = useState([]);
+  useAutoDismissFeedback(message, setMessage, null, 'success');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
   const [columnMenuAnchor, setColumnMenuAnchor] = useState(null);
@@ -212,20 +217,21 @@ export default function PoManagementPage() {
     const columns = new Map();
     ALL_BP_KNOWN_HEADERS.forEach((label) => {
       const canonical = canonicalSourceKey(label);
+      if (ALL_BP_RETIRED_KEYS.includes(canonical)) return;
       columns.set(canonical, { key: `src:${canonical}`, canonical, label: ALL_BP_UI_LABELS[canonical] || label, group: 'ALL_BP', minWidth: canonical === 'ODD_RATIO' || canonical === 'REMAINDER' ? 130 : 120 });
     });
     const detectedFromFile = new Set();
     rows.forEach((row) => {
       (row.allBpHeaders || []).forEach((label) => {
         const canonical = canonicalSourceKey(label);
-        if (!canonical || detectedFromFile.has(canonical)) return;
+        if (!canonical || ALL_BP_RETIRED_KEYS.includes(canonical) || detectedFromFile.has(canonical)) return;
         columns.set(canonical, { key: `src:${canonical}`, canonical, label: ALL_BP_UI_LABELS[canonical] || label, group: 'ALL_BP', minWidth: canonical === 'ODD_RATIO' || canonical === 'REMAINDER' ? 130 : 120 });
         detectedFromFile.add(canonical);
       });
       (row.allBpRows || []).forEach((sourceRow) => {
         Object.keys(sourceRow || {}).forEach((label) => {
           const canonical = canonicalSourceKey(label);
-          if (!canonical || detectedFromFile.has(canonical)) return;
+          if (!canonical || ALL_BP_RETIRED_KEYS.includes(canonical) || detectedFromFile.has(canonical)) return;
           columns.set(canonical, { key: `src:${canonical}`, canonical, label: ALL_BP_UI_LABELS[canonical] || label, group: 'ALL_BP', minWidth: canonical === 'ODD_RATIO' || canonical === 'REMAINDER' ? 130 : 120 });
           detectedFromFile.add(canonical);
         });
@@ -286,7 +292,7 @@ export default function PoManagementPage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !orderId) return;
-    setLoading(true); setImporting(true); setImportProgress(0);
+    setDuplicatePos([]); setLoading(true); setImporting(true); setImportProgress(0);
     try {
       const result = await importSharedAllBp(orderId, file, BUYER_CODE.LULULEMON, (progressEvent) => {
         const total = Number(progressEvent?.total || 0);
@@ -304,7 +310,12 @@ export default function PoManagementPage() {
       });
       await load();
     } catch (error) {
-      setMessage({ severity: 'error', text: error?.response?.data?.message || error.message || APP_MESSAGES.ALL_BP_IMPORT_FAILED });
+      const conflicts = error?.response?.data?.code === PO_IMPORT_ERROR_CODE.ALL_BP_DUPLICATE_PO ? error?.response?.data?.duplicates : null;
+      if (Array.isArray(conflicts) && conflicts.length) {
+        setDuplicatePos(conflicts);
+      } else {
+        setMessage({ severity: 'error', text: error?.response?.data?.message || error.message || APP_MESSAGES.ALL_BP_IMPORT_FAILED });
+      }
     } finally { setLoading(false); setImporting(false); setImportProgress(0); }
   };
 
@@ -333,32 +344,14 @@ export default function PoManagementPage() {
           <Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading || !orderId}>Refresh</Button>
           {sales && (
             <>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={importing ? <CircularProgress size={15} thickness={5} /> : <UploadFile />}
-                onClick={() => fileRef.current?.click()}
-                disabled={loading || !orderId}
-              >
-                {importing ? (importProgress < 100 ? `Uploading ${importProgress}%` : 'Processing file...') : 'Import ALL_BP'}
-              </Button>
-              {importing ? (
-                <Box sx={{ width: 190, minWidth: 150 }}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.25 }}>
-                    <Typography variant="caption" fontWeight={700}>
-                      {importProgress < 100 ? 'Uploading ALL_BP' : 'Processing ALL_BP'}
-                    </Typography>
-                    <Typography variant="caption" fontWeight={800}>{importProgress}%</Typography>
-                  </Stack>
-                  <LinearProgress variant="determinate" value={importProgress} />
-                </Box>
-              ) : null}
+              <LululemonExcelActions orderId={orderId} onApplied={load} onMessage={setMessage} />
             </>
           )}
-          <input ref={fileRef} hidden type="file" accept={EXCEL_FILE_ACCEPT} onChange={upload} />
+
         </>)}
       />
 
+      <PoDuplicateConflictDialog open={duplicatePos.length > 0} duplicates={duplicatePos} onClose={() => setDuplicatePos([])} />
       <OrderScope value={orderId} onChange={setOrderId} disabled={loading} compact />
       {message && <Alert severity={message.severity} onClose={() => setMessage(null)}>{message.text}</Alert>}
 

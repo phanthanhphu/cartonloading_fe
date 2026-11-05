@@ -4,7 +4,7 @@ import useOrganizationRealtime from '../realtime/useOrganizationRealtime';
 import { ORGANIZATION_REALTIME } from '../../constants/appConstants';
 
 /** Mounted components refresh on entry; no hardcoded F1..F7 or stale catalog cache. */
-export default function useActiveFactories() {
+export default function useActiveFactories({ realtime = true } = {}) {
   const [factories, setFactories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export default function useActiveFactories() {
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { reload(); }, [reload]);
-  useOrganizationRealtime(ORGANIZATION_REALTIME.FACTORY, reload);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.FACTORY, reload, realtime);
   const codes = useMemo(() => factories.map((factory) => factory.code), [factories]);
   return { factories, codes, loading, error, reload };
 }

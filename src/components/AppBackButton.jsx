@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { fallbackBackPath, recordCurrentAppRoute, useSafeAppBack } from 'utils/appBackNavigation';
 
-const HOME_PATHS = new Set(['/', '/workflow']);
+const HOME_PATHS = new Set(['/', '/dashboard', '/workflow']);
 
 
 // Packing has its own local Back button which uses the same safe history helper.

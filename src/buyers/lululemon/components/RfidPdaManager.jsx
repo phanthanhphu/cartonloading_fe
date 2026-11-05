@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { isFactoryCode } from '../../../common/factory/factoryCodes';
 import { getRawInventoryPreviewRows } from '../utils/trueVueEpc';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -22,7 +23,9 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'info');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [epcFilter, setEpcFilter] = useState('');
@@ -173,7 +176,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
       </Stack>
       {compact && <Button size="small" variant="text" color="inherit" sx={{ mt: 0.25, py: 0.1, minHeight: 22, fontSize: 11 }}
         endIcon={showTechnical ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-        onClick={() => setShowTechnical((value) => !value)}>{showTechnical ? 'Hide reader details' : 'Show more reader / XLSX details'}</Button>}
+        onClick={() => setShowTechnical((value) => !value)}>{showTechnical ? 'Hide details' : 'Reader details'}</Button>}
       {(!compact || showTechnical) && (preview ? <Stack spacing={0.55} sx={{ mt: 1 }}>
         <Typography variant="body2" fontWeight={750}>{preview.filename} · {preview.excelRawUniqueEpcCount ?? '—'} raw tags · {preview.uniqueCount} valid TrueVUE</Typography>
         <Typography variant="caption" color="text.secondary">

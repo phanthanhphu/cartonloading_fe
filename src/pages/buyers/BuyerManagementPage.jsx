@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Checkbox, FormControlLabel, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { Add, Delete, Edit, FolderOpenOutlined } from '@mui/icons-material';
@@ -14,6 +15,7 @@ export default function BuyerManagementPage() {
   const [dialog, setDialog] = useState(null);
   const [error, setError] = useState('');
 
+  useAutoDismissFeedback(error, setError, '', 'error');
   const load = async (page = state.page, size = state.size) => {
     setState((s) => ({ ...s, loading: true }));
     try {
@@ -98,7 +100,6 @@ export default function BuyerManagementPage() {
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add Buyer</Button>
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
-        <Alert severity="info">{APP_MESSAGES.BUYER_CONFIGURATION_INFO}</Alert>
         
         <ManagementTable
           filterBar={<TableFilterBar
@@ -120,7 +121,7 @@ export default function BuyerManagementPage() {
   );
 }
 
-import { APP_MESSAGES, createDeleteBuyerConfirmMessage } from '../../constants/appMessages';
+import { createDeleteBuyerConfirmMessage } from '../../constants/appMessages';
 import { DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
 import { isSessionBuyer } from '../../utils/systemTypes';
 import { SYSTEM_TYPE_OPTIONS, supportedSystemTypes } from '../../utils/systemTypes';

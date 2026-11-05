@@ -1,6 +1,5 @@
 import {
   DashboardOutlined,
-  StoreOutlined,
   GroupOutlined,
   BusinessOutlined,
   ManageAccountsOutlined,
@@ -8,7 +7,7 @@ import {
   QrCode2Outlined,
   ScaleOutlined
 } from '@mui/icons-material';
-import { isAdmin, readStoredUser } from 'utils/accessControl';
+import { isAdmin, readStoredUser, getFactoryPermissions } from 'utils/accessControl';
 import { getAccessibleBuyers, getActiveBuyer } from 'utils/buyerAccess';
 import { buyerCapability, getBuyerMenuEntries } from 'buyers/core/buyerModules';
 import { BUYER_CODE } from '../constants/appConstants';
@@ -63,7 +62,12 @@ const getDashboardMenu = () => {
 
   // Buyer modules other than LULULEMON may expose different entries. Keep those visible
   // instead of dropping them when they do not fit the two LULULEMON workflow groups.
-  const groupedIds = new Set([...salesIds, ...operationIds]);
+  // LULULEMON keeps device administration and carton history in their dedicated groups.
+  // Preserve the existing Tools behavior for other Buyers.
+  const groupedIds = new Set([
+    ...salesIds, ...operationIds,
+    ...(isLululemon ? ['rfid-devices', 'trace-history'] : [])
+  ]);
   const otherBuyerChildren = activeBuyer
     ? buyerEntries.filter((entry) => !groupedIds.has(entry.id)).map((entry) => toMenuItem(entry, activeBuyer))
     : [];
@@ -77,6 +81,8 @@ const getDashboardMenu = () => {
   }
 
   const buyerLabel = activeBuyer?.label || 'Buyer';
+  const cartonHistoryEntry = isLululemon ? entryById.get('trace-history') : null;
+  const deviceManagementEntry = isLululemon && isAdmin() ? entryById.get('rfid-devices') : null;
 
   return {
     items: [
@@ -85,7 +91,6 @@ const getDashboardMenu = () => {
         title: 'Home',
         type: 'group',
         children: [
-          item('buyer-workspaces', 'Buyer Workspace', '/workflow', StoreOutlined, ['/workflow', '/buyers']),
           item('dashboard', 'Dashboard', '/dashboard', DashboardOutlined)
         ]
       },
@@ -121,8 +126,18 @@ const getDashboardMenu = () => {
           item('users', 'Users', '/users', GroupOutlined),
           item('departments', 'Factories & Departments', '/departments', BusinessOutlined),
           item('buyers', 'Buyers', '/buyers', ManageAccountsOutlined),
-          item('audit-logs', 'Audit Logs', '/audit-logs', HistoryOutlined)
+          ...(deviceManagementEntry ? [toMenuItem(deviceManagementEntry, activeBuyer)] : [])
         ] : []
+      },
+      {
+        id: 'history',
+        title: 'History',
+        type: 'group',
+        children: [
+          ...(cartonHistoryEntry ? [toMenuItem(cartonHistoryEntry, activeBuyer)] : []),
+          ...((isAdmin() || getFactoryPermissions().length > 0)
+            ? [item('audit-logs', 'Audit Logs', '/audit-logs', HistoryOutlined)] : [])
+        ]
       }
     ].filter((group) => group.children.length)
   };

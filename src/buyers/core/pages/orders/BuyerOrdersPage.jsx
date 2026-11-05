@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -12,14 +13,13 @@ import {
   DialogContentText,
   Link,
   IconButton,
-  MenuItem,
   Stack,
   TextField,
   Tooltip,
   Typography
 } from '@mui/material';
 import { Add, DeleteOutline, DeleteForeverOutlined, EditOutlined, FolderOpenOutlined, Refresh } from '@mui/icons-material';
-import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { APP_MESSAGES, createDeleteOrderConfirmMessage } from '../../../../constants/appMessages';
 
 import ManagementTable from 'components/ManagementTable';
@@ -29,14 +29,13 @@ import { canManageSales, isAdmin } from 'utils/accessControl';
 import { getBuyerBySlug, saveSelectedBuyer } from 'utils/buyerAccess';
 import {
   createManagedOrder,
+  checkManagedOrderName,
   deleteManagedOrder,
   listManagedOrders,
   updateManagedOrder
 } from 'services/managementService';
 import { BUYER_CODE, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../../../constants/appConstants';
-import { canAssignBarcode } from 'utils/accessControl';
 import { useSelectedFactory } from 'utils/factorySelection';
-import PackingImportPage from '../../../lululemon/pages/PackingImportPage';
 import { getLululemonTestCleanupStatus, previewLululemonTestOrder, purgeLululemonTestOrder } from '../../../lululemon/services/testCleanup';
 
 const stateOf = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
@@ -58,21 +57,19 @@ const todayLocal = () => {
 export default function BuyerOrdersPage() {
   const { buyerSlug } = useParams();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const buyer = getBuyerBySlug(buyerSlug);
   const buyerCode = buyer?.code || '';
   const writable = canManageSales();
   const isLululemon = buyerCode === BUYER_CODE.LULULEMON;
   const isLululemonAdmin = isAdmin() && isLululemon;
-  const { factoryCode, factories, loading: factoryLoading, error: factoryError } = useSelectedFactory(buyerCode);
-  const [showUnassigned, setShowUnassigned] = useState(false);
-  const tab = searchParams.get('tab') === 'packing' ? 'packing' : 'orders';
+  const { factoryCode, loading: factoryLoading, error: factoryError } = useSelectedFactory(buyerCode);
 
   const [state, setState] = useState(stateOf());
   const [filters, setFilters] = useState({ orderDate: '', orderName: '', factory: '', supplier: '', createdBy: '', status: '' });
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [dialog, setDialog] = useState(null);
   const [saveError, setSaveError] = useState('');
+  useAutoDismissFeedback(saveError, setSaveError, '', 'error');
   const [orderSaving, setOrderSaving] = useState(false);
   const [error, setError] = useState('');
   const [purgeEnabled, setPurgeEnabled] = useState(false);
@@ -93,7 +90,10 @@ export default function BuyerOrdersPage() {
   }, [buyer?.code]);
 
   const load = useCallback(async (page = paginationRef.current.page, size = paginationRef.current.size) => {
-    if (!buyerCode || (isLululemon && (factoryLoading || (!factoryCode && !showUnassigned)))) return;
+    if (!buyerCode || (isLululemon && (factoryLoading || !factoryCode))) {
+      setState((current) => ({ ...current, rows: [], count: 0, loading: false }));
+      return;
+    }
     const nextPage = Math.max(0, Number(page || 0));
     const nextSize = Math.max(1, Number(size || 10));
     const requestId = ++requestRef.current;
@@ -101,7 +101,7 @@ export default function BuyerOrdersPage() {
     paginationRef.current = { page: nextPage, size: nextSize };
     setState((current) => ({ ...current, page: nextPage, size: nextSize, loading: true }));
     try {
-      const result = await listManagedOrders(buyerCode, { ...debouncedFilters, factory: isLululemon ? (showUnassigned ? 'UNASSIGNED' : factoryCode) : debouncedFilters.factory, page: nextPage, size: nextSize });
+      const result = await listManagedOrders(buyerCode, { ...debouncedFilters, factory: isLululemon ? factoryCode : debouncedFilters.factory, page: nextPage, size: nextSize });
       if (requestId !== requestRef.current) return;
       setState({
         page: nextPage,
@@ -118,7 +118,7 @@ export default function BuyerOrdersPage() {
       setError(e?.response?.data?.message || e?.message || APP_MESSAGES.LOAD_ORDERS_FAILED);
       setState((current) => ({ ...current, loading: false }));
     }
-  }, [buyerCode, debouncedFilters, factoryCode, factoryLoading, isLululemon, showUnassigned]);
+  }, [buyerCode, debouncedFilters, factoryCode, factoryLoading, isLululemon]);
 
   useEffect(() => { load(0, paginationRef.current.size); }, [load]);
 
@@ -193,7 +193,7 @@ export default function BuyerOrdersPage() {
     ...(isLululemon ? [{ key: 'factoryCode', label: 'Factory', minWidth: 90, render: (row) => row.factoryCode || 'UNASSIGNED' }] : []),
     { key: 'orderName', label: 'Order', minWidth: 190, render: (row) => <Typography fontWeight={900}>{row.orderName}</Typography> },
     { key: 'orderDate', label: 'Start Order', render: (row) => formatDate(row.orderDate) },
-    { key: 'endOrderDate', label: 'End Order', render: (row) => formatDate(row.endOrderDate) },
+    ...(!isLululemon ? [{ key: 'endOrderDate', label: 'End Order', render: (row) => formatDate(row.endOrderDate) }] : []),
     { key: 'status', label: 'Status', status: true },
     { key: 'createdBy', label: 'Created By' },
     {
@@ -214,30 +214,23 @@ export default function BuyerOrdersPage() {
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
-        {isLululemon && <Stack direction="row" gap={1} alignItems="center" sx={{ borderBottom: '1px solid #DFE7EF', pb: 1 }}>
-          <Button variant={tab === 'orders' ? 'contained' : 'text'} size="small" onClick={() => setSearchParams({ tab: 'orders' })}>Orders</Button>
-          {(canAssignBarcode() || canManageSales()) && <Button variant={tab === 'packing' ? 'contained' : 'text'} size="small" onClick={() => setSearchParams({ tab: 'packing' })}>Optional SSCC Import</Button>}
-          <Chip label={`Factory ${factoryCode || 'Not assigned'}`} size="small" variant="outlined" />
-        </Stack>}
         {isLululemon && factoryError && <Alert severity="error">{factoryError}</Alert>}
         {isLululemon && !factoryLoading && !factoryCode && !factoryError && <Alert severity="warning">
           No active Factory assigned for LULULEMON. Ask Admin to assign a Factory before creating Orders or importing Excel.
         </Alert>}
-        {isLululemon && tab === 'packing' ? <PackingImportPage factoryCode={factoryCode}/> : <>
         <CompactPageHeader
           title="Orders"
-          subtitle={isLululemon ? `Buyer ${buyer.label} · Factory ${showUnassigned ? "UNASSIGNED" : factoryCode || "Not assigned"}. Create an Order, import Excel All_BP inside, then open PO to scan.` : "Orders are isolated inside this Buyer. Open an Order to manage PO → Carton → Item."}
-          breadcrumbs={(
+          subtitle={isLululemon ? `Buyer ${buyer.label} · Factory ${factoryCode || "Not assigned"}. Create an Order, import Excel All_BP inside, then open PO to scan.` : "Orders are isolated inside this Buyer. Open an Order to manage PO → Carton → Item."}
+          breadcrumbs={!isLululemon ? (
             <Breadcrumbs separator="/">
-              <Link component={RouterLink} underline="hover" color="inherit" to="/workflow">Buyers</Link>
+              <Link component={RouterLink} underline="hover" color="inherit" to="/dashboard">Dashboard</Link>
               <Typography color="text.primary">{buyer.label}</Typography>
             </Breadcrumbs>
-          )}
+          ) : null}
           meta={<Chip size="small" variant="outlined" label={`${state.count} Order${state.count === 1 ? '' : 's'}`} />}
           actions={(<>
             <Button size="small" startIcon={<Refresh />} onClick={() => load(paginationRef.current.page, paginationRef.current.size)} disabled={state.loading}>Refresh</Button>
-            {isLululemonAdmin && <Button size="small" color={showUnassigned ? "warning" : "inherit"} variant="outlined" onClick={() => setShowUnassigned((v) => !v)}>{showUnassigned ? "Back to Factory" : "Legacy Unassigned"}</Button>}
-            {writable && (!isLululemon || (factoryCode && !showUnassigned)) ? <Button size="small" variant="contained" startIcon={<Add />} onClick={() => { setSaveError(''); setDialog({ record: null }); }}>New Order</Button> : null}
+            {writable && (!isLululemon || factoryCode) ? <Button size="small" variant="contained" startIcon={<Add />} onClick={() => { setSaveError(''); setDialog({ record: null }); }}>New Order</Button> : null}
           </>)}
         />
 
@@ -294,17 +287,16 @@ export default function BuyerOrdersPage() {
           </DialogActions>
         </Dialog>
 
-        {dialog ? <OrderDialog record={dialog.record} factoryCode={factoryCode} factories={factories} isLululemon={isLululemon} allowLegacyAssign={isLululemonAdmin} onClose={() => { if (!orderSaving) setDialog(null); }} onSave={save} saveError={saveError} saving={orderSaving} /> : null}
-        </>}
+        {dialog ? <OrderDialog record={dialog.record} factoryCode={factoryCode} buyerCode={buyerCode} isLululemon={isLululemon} onClose={() => { if (!orderSaving) setDialog(null); }} onSave={save} saveError={saveError} saving={orderSaving} /> : null}
       </Stack>
     </Box>
   );
 }
 
-function OrderDialog({ record, factoryCode, factories = [], isLululemon = false, allowLegacyAssign = false, onClose, onSave, saveError, saving }) {
+function OrderDialog({ record, factoryCode, buyerCode, isLululemon = false, onClose, onSave, saveError, saving }) {
   const [form, setForm] = useState({
     orderDate: record?.orderDate || todayLocal(),
-    endOrderDate: record?.endOrderDate || todayLocal(),
+    endOrderDate: isLululemon ? null : (record?.endOrderDate || todayLocal()),
     orderName: record?.orderName || '',
     // Preserve legacy optional fields when editing, but keep the Order UI focused on Name/Start/End.
     supplierName: record?.supplierName || null,
@@ -313,27 +305,43 @@ function OrderDialog({ record, factoryCode, factories = [], isLululemon = false,
     factoryCode: record ? (record.factoryCode || '') : (factoryCode || '')
   });
 
+  const [nameCheck, setNameCheck] = useState({ name: '', duplicate: false, checking: false });
+  const verifyName = async () => {
+    if (!isLululemon || !form.orderName.trim() || !form.factoryCode) return;
+    const checkedName = form.orderName.trim();
+    setNameCheck({ name: checkedName, duplicate: false, checking: true });
+    try {
+      const response = await checkManagedOrderName(buyerCode, form.factoryCode, checkedName, record?.id);
+      setNameCheck((previous) => previous.name === checkedName
+        ? { name: checkedName, duplicate: Boolean(response?.data?.duplicate), checking: false } : previous);
+    } catch (_error) {
+      // Server repeats the validation on Save; a failed preview cannot grant access.
+      setNameCheck((previous) => previous.name === checkedName
+        ? { name: checkedName, duplicate: false, checking: false } : previous);
+    }
+  };
+  const isDuplicate = isLululemon && nameCheck.name === form.orderName.trim() && nameCheck.duplicate;
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle fontWeight={900}>{record ? 'Edit Order' : 'Create Order'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
-          {isLululemon && (record && !record.factoryCode && allowLegacyAssign ?
-            <TextField select label="Assign Legacy Order to Factory" value={form.factoryCode || ''}
-              onChange={(e) => setForm({ ...form, factoryCode: e.target.value })}>
-              <MenuItem value="">Select Factory</MenuItem>
-              {factories.map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
-            </TextField> : <TextField disabled label="Factory" value={form.factoryCode || ''}/>)}
+          {isLululemon && <TextField disabled label="Factory" value={form.factoryCode || ''}/>}
           {saveError && <Alert severity="error">{saveError}</Alert>}
           {isLululemon && !form.factoryCode && <Alert severity="warning">Assign/select a Factory in the header before creating an Order.</Alert>}
-          <TextField autoFocus label="Order Name" value={form.orderName} onChange={(e) => setForm({ ...form, orderName: e.target.value })} />
-          <TextField required type="date" label="Start Order" InputLabelProps={{ shrink: true }} value={form.orderDate} onChange={(e) => setForm({ ...form, orderDate: e.target.value, endOrderDate: form.endOrderDate < e.target.value ? e.target.value : form.endOrderDate })} />
-          <TextField required type="date" label="End Order" InputLabelProps={{ shrink: true }} value={form.endOrderDate} inputProps={{ min: form.orderDate || undefined }} onChange={(e) => setForm({ ...form, endOrderDate: e.target.value })} />
+          <TextField autoFocus label="Order Name" value={form.orderName}
+            onChange={(e) => { setForm({ ...form, orderName: e.target.value }); setNameCheck({ name: '', duplicate: false, checking: false }); }}
+            onBlur={verifyName} error={Boolean(isDuplicate)}
+            helperText={isDuplicate ? `Order name already exists in Factory ${form.factoryCode}.` : undefined} />
+          {!isLululemon && <>
+            <TextField required type="date" label="Start Order" InputLabelProps={{ shrink: true }} value={form.orderDate} onChange={(e) => setForm({ ...form, orderDate: e.target.value, endOrderDate: form.endOrderDate < e.target.value ? e.target.value : form.endOrderDate })} />
+            <TextField required type="date" label="End Order" InputLabelProps={{ shrink: true }} value={form.endOrderDate} inputProps={{ min: form.orderDate || undefined }} onChange={(e) => setForm({ ...form, endOrderDate: e.target.value })} />
+          </>}
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button variant="contained" onClick={() => onSave(form)} disabled={saving || !form.orderDate || !form.endOrderDate || !form.orderName.trim() || form.endOrderDate < form.orderDate || (isLululemon && !form.factoryCode)}>{saving ? 'Saving…' : 'Save Order'}</Button>
+        <Button variant="contained" onClick={() => onSave(form)} disabled={saving || isDuplicate || !form.orderName.trim() || (!isLululemon && (!form.orderDate || !form.endOrderDate || form.endOrderDate < form.orderDate)) || (isLululemon && !form.factoryCode)}>{saving ? 'Saving…' : 'Save Order'}</Button>
       </DialogActions>
     </Dialog>
   );

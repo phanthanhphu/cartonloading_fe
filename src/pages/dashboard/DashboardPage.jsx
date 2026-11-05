@@ -20,7 +20,7 @@ import { getCartonDashboard } from 'services/managementService';
 import { readStoredUser } from 'utils/accessControl';
 import { getAccessibleBuyers, getActiveBuyer, saveSelectedBuyer } from 'utils/buyerAccess';
 import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
-import { DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
+import { BUYER_CODE, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
 
 const metricLabels = [
   ['totalOrders', 'Orders'], ['totalPos', 'PO'], ['totalCartons', 'Cartons'], ['totalItems', 'Items'],
@@ -38,8 +38,8 @@ export default function DashboardPage() {
   // Give LULULEMON its own full-width visual dashboard; preserve the shared
   // dashboard for ES and every other buyer.
   const currentBuyerCode = getActiveBuyer()?.code || (accessibleBuyers.length === 1 ? accessibleBuyers[0]?.code : null);
-  const showLululemon = currentBuyerCode === 'LULULEMON'
-    && accessibleBuyers.some((buyer) => buyer.code === 'LULULEMON');
+  const showLululemon = currentBuyerCode === BUYER_CODE.LULULEMON
+    && accessibleBuyers.some((buyer) => buyer.code === BUYER_CODE.LULULEMON);
 
   useEffect(() => {
     if (showLululemon) return undefined;
@@ -63,7 +63,7 @@ export default function DashboardPage() {
   const summaryFor = (buyer) => buyerSummary.find((row) => row.buyerCode === buyer.code) || {};
 
   if (showLululemon) {
-    return <Box sx={{ p: { xs: 0.5, md: 1 } }}><OperationsDashboard /></Box>;
+    return <Box sx={{ p: { xs: 0.5, md: 0.5 }, height: { xs: 'auto', md: 'calc(100dvh - 88px)' }, minHeight: 0, boxSizing: 'border-box' }}><OperationsDashboard /></Box>;
   }
 
   return (
@@ -72,7 +72,6 @@ export default function DashboardPage() {
         <CompactPageHeader
           title="Carton Loading Dashboard"
           subtitle="Orders, PO, Cartons, Items, barcode/SSCC, weight and shipment status."
-          actions={<Button size="small" variant="contained" startIcon={<StoreOutlined />} onClick={() => navigate('/workflow')}>Buyer Workspaces</Button>}
         />
 
         {error ? <Alert severity="error">{error}</Alert> : null}

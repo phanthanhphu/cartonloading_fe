@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Box, Button, Checkbox, Chip, Divider, FormControlLabel, MenuItem, Paper, Stack, Table,
@@ -6,7 +7,7 @@ import {
 import { Cable, Add, DeleteOutline, EditOutlined, Refresh, Star } from '@mui/icons-material';
 import { canWeighFactory, isAdmin } from 'utils/accessControl';
 import { listUsers } from 'services/adminService';
-import { ACCESS_PERMISSION, BUYER_CODE } from '../../../constants/appConstants';
+import { ACCESS_PERMISSION, BUYER_CODE, DEVICE_CONNECTION_STATE } from '../../../constants/appConstants';
 import useActiveFactories from '../../../common/factory/useActiveFactories';
 import {
   listManagedRfidPdas, saveManagedRfidPda, deleteManagedRfidPda, makeFactoryDefaultRfidPda,
@@ -31,13 +32,14 @@ const initialForm = (d) => ({
 });
 
 /** Multi-factory RFID registry. Each Reader may be shared, but capture locks by ADB Serial. */
-export default function RfidDevicesPage() {
-  const { codes: factoryCodes } = useActiveFactories();
+export default function RfidDevicesPage({ factoryCode = null }) {
+  const { codes: factoryCodes } = useActiveFactories({ realtime: false });
   const permittedFactories = useMemo(() => factoryCodes.filter(canWeighFactory), [factoryCodes]);
   const [devices, setDevices] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [search, setSearch] = useState('');
   const [factoryFilter, setFactoryFilter] = useState('ALL');
+  const [showAvailable, setShowAvailable] = useState(false);
   const [editSerial, setEditSerial] = useState(null);
   const [isNew, setIsNew] = useState(false);
   const [newSerial, setNewSerial] = useState('');
@@ -45,7 +47,9 @@ export default function RfidDevicesPage() {
   const [form, setForm] = useState(initialForm(null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const [recoveryReason, setRecoveryReason] = useState('');
   const [physicalStopConfirmed, setPhysicalStopConfirmed] = useState(false);
   const selected = isNew ? { serial: newSerial.trim(), registered: false, capturing: false, online: false }
@@ -61,9 +65,10 @@ export default function RfidDevicesPage() {
   const filtered = useMemo(() => devices.filter((d) => {
     const term = search.trim().toLowerCase();
     return (!term || [d.label, d.serial].some((v) => String(v || '').toLowerCase().includes(term)))
-      && (factoryFilter === 'ALL' || assignedFactories(d).includes(factoryFilter)
-        || (factoryFilter === 'UNASSIGNED' && assignedFactories(d).length === 0));
-  }), [devices, search, factoryFilter]);
+      && (factoryCode ? (showAvailable || assignedFactories(d).includes(factoryCode))
+        : (factoryFilter === 'ALL' || assignedFactories(d).includes(factoryFilter)
+          || (factoryFilter === 'UNASSIGNED' && assignedFactories(d).length === 0)));
+  }), [devices, search, factoryFilter, factoryCode, showAvailable]);
 
   const openAssignment = (d) => {
     setIsNew(false);
@@ -75,7 +80,7 @@ export default function RfidDevicesPage() {
   const closeAssignment = () => { if (!busy) { setEditSerial(null); setIsNew(false); } };
   const openCreate = () => {
     setIsNew(true); setNewSerial(''); setEditSerial('__new__');
-    setForm(initialForm(null)); setError(''); setNotice('');
+    setForm({ ...initialForm(null), factories: factoryCode ? [factoryCode] : [] }); setError(''); setNotice('');
   };
   const action = async (handler) => {
     setBusy(true); setError(''); setNotice('');
@@ -146,11 +151,13 @@ export default function RfidDevicesPage() {
       <Paper variant="outlined" sx={{ mt: 0.9, p: 1.05, borderRadius: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} gap={0.8} sx={{ mb: 0.9 }}>
           <TextField size="small" fullWidth label="Search Reader / ADB Serial" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <TextField size="small" select label="Factory" value={factoryFilter} onChange={(e) => setFactoryFilter(e.target.value)} sx={{ minWidth: 185 }}>
-            <MenuItem value="ALL">All Factories</MenuItem>
-            {permittedFactories.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
-            <MenuItem value="UNASSIGNED">Unassigned</MenuItem>
-          </TextField>
+          {factoryCode ? <Button size="small" variant="outlined" onClick={() => setShowAvailable((current) => !current)}>
+              {showAvailable ? `Only ${factoryCode} Readers` : 'Find / Assign Existing Reader'}
+            </Button> : <TextField size="small" select label="Factory" value={factoryFilter} onChange={(e) => setFactoryFilter(e.target.value)} sx={{ minWidth: 185 }}>
+              <MenuItem value="ALL">All Factories</MenuItem>
+              {permittedFactories.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
+              <MenuItem value="UNASSIGNED">Unassigned</MenuItem>
+            </TextField>}
         </Stack>
         {!devices.length && <Alert severity="info">No registered RFID Readers. Connect PDA through ADB, authorize USB debugging, then Refresh Readers.</Alert>}
         <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, maxHeight: 'min(69vh, 760px)' }}>
@@ -198,7 +205,7 @@ export default function RfidDevicesPage() {
           </Table>
         </TableContainer>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          {filtered.length} / {devices.length} Readers. Factory assignments are shared; a busy Reader cannot be edited or deleted.
+          {filtered.length} / {devices.length} Readers{factoryCode && !showAvailable ? ` assigned to ${factoryCode}` : ''}. Factory assignments are shared; a busy Reader cannot be edited or deleted.
         </Typography>
       </Paper>
 
@@ -208,7 +215,7 @@ export default function RfidDevicesPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Cable fontSize="small"/>
               <Typography fontWeight={750}>{selected?.serial || '—'}</Typography>
-              <Chip size="small" color={selected?.online ? 'success' : 'default'} label={selected?.online ? 'CONNECTED' : 'OFFLINE'}/>
+              <Chip size="small" color={selected?.online ? 'success' : 'default'} label={selected?.online ? DEVICE_CONNECTION_STATE.CONNECTED : 'OFFLINE'}/>
             </Box>
             {isNew && <TextField size="small" fullWidth label="ADB Serial" value={newSerial} disabled={busy}
               onChange={(e) => setNewSerial(e.target.value)} helperText="The physical Reader must be discoverable via adb devices on the backend host."/>}
@@ -242,7 +249,7 @@ export default function RfidDevicesPage() {
             <Stack direction="row" gap={0.5} flexWrap="wrap">
               {accounts.filter((user) => user.enabled !== false
                 && (user.buyerPermissions || []).includes(BUYER_CODE.LULULEMON)
-                && (user.accessPermissions || []).includes(ACCESS_PERMISSION.WEIGHT_CHECK)
+                && (user.buyerAccessPermissions?.LULULEMON || []).includes(ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT)
                 && form.factories.some((factory) => (user.weighingFactoryPermissions || user.factoryPermissions || []).includes(factory)))
                 .map((user) => <FormControlLabel key={user.id} label={user.username}
                   control={<Checkbox size="small" disabled={busy || selected?.capturing}

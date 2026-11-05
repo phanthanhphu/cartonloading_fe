@@ -1,6 +1,6 @@
 import { WS_ORGANIZATION_URL } from '../../appEnv';
 import { getStoredToken } from '../../routes/globalApi';
-import { ORGANIZATION_REALTIME as RT } from '../../constants/appConstants';
+import { ORGANIZATION_REALTIME as RT, DEVICE_CONNECTION_STATE } from '../../constants/appConstants';
 
 // Singleton shared across screens: WebSocket carries invalidation events, never complete records.
 const listeners = new Set();
@@ -10,6 +10,7 @@ let stopped = true;
 let retryTimer = null;
 let retryDelay = RT.RETRY_MS;
 let nextSubscriptionId = 0;
+let everConnected = false;
 const topicSubscriptions = new Map();
 let buffer = '';
 
@@ -23,7 +24,14 @@ const topicsNeeded = () => {
   const modules = new Set([...listeners].map((entry) => entry.module));
   const topics = new Set();
   if (modules.has(RT.FACTORY)) topics.add(RT.FACTORIES_TOPIC);
-  if (modules.has(RT.DEPARTMENT) || modules.has(RT.USER)) topics.add(RT.ADMIN_TOPIC);
+  if (modules.has(RT.DEPARTMENT) || modules.has(RT.USER) || modules.has(RT.DEVICE)) topics.add(RT.ADMIN_TOPIC);
+  if (modules.has(RT.ACCOUNT)) topics.add(RT.ACCOUNT_TOPIC);
+  for (const module of modules) {
+    if (module.startsWith(`${RT.HISTORY}:`)) {
+      const factory = module.slice(`${RT.HISTORY}:`.length);
+      if (/^[A-Z0-9_-]{1,30}$/.test(factory)) topics.add(`/topic/lululemon-history/${factory}`);
+    }
+  }
   return topics;
 };
 
@@ -62,18 +70,22 @@ const receive = (raw) => {
     const separator = frame.indexOf('\n\n');
     if (separator < 0) continue;
     const command = frame.slice(0, frame.indexOf('\n')).trim();
-    if (command === 'CONNECTED') {
+    if (command === DEVICE_CONNECTION_STATE.CONNECTED) {
       connected = true;
       retryDelay = RT.RETRY_MS;
       reconcileSubscriptions();
-      // Resync after a reconnect to cover changes while the socket was offline.
-      broadcast({ module: RT.SYNC, action: 'RECONNECTED' });
+      // Component loads once on mount. Resync only on a real reconnect.
+      if (everConnected) broadcast({ module: RT.SYNC, action: 'RECONNECTED' });
+      everConnected = true;
     } else if (command === 'MESSAGE') {
       try {
         const notice = JSON.parse(frame.slice(separator + 2));
         if (typeof notice?.module === 'string') broadcast(notice);
       } catch (error) { console.error('Invalid organization event', error); }
     } else if (command === 'ERROR') {
+      // CONNECT can fail after a permission change while the browser was offline.
+      // A read-only HTTP account-change probe lets the affected user log out.
+      broadcast({ module: RT.SYNC, action: 'CONNECT_REJECTED' });
       socket?.close();
     }
   }
@@ -121,6 +133,7 @@ export function subscribeOrganizationChanges(module, callback) {
     listeners.delete(entry);
     if (listeners.size) { reconcileSubscriptions(); return; }
     stopped = true;
+    everConnected = false;
     if (retryTimer !== null) clearTimeout(retryTimer);
     retryTimer = null;
     connected = false;

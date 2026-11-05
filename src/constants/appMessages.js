@@ -1,3 +1,4 @@
+import { FORMAT_LOCALE } from './appConstants';
 export const APP_MESSAGES = Object.freeze({
   UNEXPECTED_ERROR: 'An unexpected error occurred.',
   LOGIN_SUCCESS: 'Login successful.',
@@ -25,7 +26,6 @@ export const APP_MESSAGES = Object.freeze({
   WEIGHT_CHECK_REQUIRED: 'Access denied. Weight Check permission is required.',
   PACKING_PERMISSION_REQUIRED: 'Access denied. Packing permission is required.',
   WEIGHING_PERMISSION_REQUIRED: 'Access denied. Weighing permission is required.',
-  PRINT_ROOM_PERMISSION_REQUIRED: 'Access denied. Print Room or Packing permission is required.',
   ASSIGN_BARCODE_BUYER_REQUIRED: 'Access denied. Assign Barcode permission is required for this Buyer.',
   WEIGHT_CHECK_BUYER_REQUIRED: 'Access denied. Weight Check permission is required for this Buyer.',
   ADMIN_ONLY: 'Access denied. Administrator only.',
@@ -171,8 +171,6 @@ export const APP_MESSAGES = Object.freeze({
   NO_BUYER_ACCESS: 'No Buyer access is assigned to your account.',
   NO_BUYER_ACCESS_CONTACT_ADMIN: 'No Buyer access is assigned to your account. Contact an administrator.',
   SELECT_BUYER_FIRST: 'Select a Buyer first.',
-  AUDIT_LOGS_READ_ONLY: 'Audit logs are read-only and cannot be edited or deleted.',
-  BUYER_CONFIGURATION_INFO: 'Buyer is configuration data. Add any Buyer Key you need; MongoDB collections remain shared by business domain. Existing Buyer Keys cannot be changed.',
   BUYER_WORKFLOW_NOT_ASSIGNED: 'This Buyer is configured and can use shared Order data, but no PO/Carton operational workflow module has been assigned yet.',
   SELECT_PO_TO_LOAD_CARTON_QUEUE: 'Select a Purchase Order to load its carton queue.',
   POSITIVE_CARTON_QTY_MATCH_REQUIRED: 'Enter a positive quantity matching the carton plan.',
@@ -210,7 +208,7 @@ export const createPackingListImportCompletedMessage = (created, updated) => `Pa
 export const createBarcodeAssignedMessage = (barcode, cartonLabel, completedMessage = '') => `Assigned ${barcode} to ${cartonLabel}.${completedMessage}`;
 export const createBarcodeUnassignedMessage = (barcode) => `Factory Barcode ${barcode} was unassigned. Order assignment returned to IN PROGRESS.`;
 export const createWeightResetMessage = (cartonLabel) => `Weight Check was reset for ${cartonLabel || 'the selected carton'}. Its Factory Barcode remains assigned; unassign it only when the barcode mapping must be corrected.`;
-export const createCartonMasterGeneratedMessage = (message, createdCartons) => `${message} Generated ${Number(createdCartons || 0).toLocaleString('en-US')} physical cartons. Use View Physical Cartons on a Master row to scan and assign barcodes.`;
+export const createCartonMasterGeneratedMessage = (message, createdCartons) => `${message} Generated ${Number(createdCartons || 0).toLocaleString(FORMAT_LOCALE.EN_US)} physical cartons. Use View Physical Cartons on a Master row to scan and assign barcodes.`;
 export const createPackingListGenerationSummary = (message, created, skipped) => `${message || APP_MESSAGES.PACKING_LIST_GENERATED} Created: ${created || 0}; skipped: ${skipped || 0}.`;
 export const createJobWaitingMessage = (jobId) => `Job ${jobId} is still waiting for PLC weight.`;
 export const createRestoredPlcJobMessage = (jobId) => `Restored PLC Job ${jobId}.`;

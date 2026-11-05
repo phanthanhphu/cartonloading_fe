@@ -1,4 +1,4 @@
-import { BARCODE_CARTON_STATUS, SCALE_WEIGHT_STATUS, LOOKUP_PAGE_SIZE, WEIGHT_SOURCE, PROGRESS_STATUS, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
+import { BARCODE_CARTON_STATUS, SCALE_WEIGHT_STATUS, LOOKUP_PAGE_SIZE, WEIGHT_SOURCE, PROGRESS_STATUS, DEFAULT_PALLET_CODE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -53,7 +53,7 @@ import {
 
 const formatWeight = (value) => value == null
   ? '—'
-  : `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg`;
+  : `${Number(value).toLocaleString(FORMAT_LOCALE.EN_US, { maximumFractionDigits: 3 })} kg`;
 const stationStorageKey = (buyerCode) => `cartonLoading.station.${buyerCode || 'default'}`;
 const orderStorageKey = (buyerCode) => `cartonLoading.order.${buyerCode || 'default'}`;
 const modeStorageKey = (buyerCode) => `cartonLoading.weightMode.${buyerCode || 'default'}`;
@@ -80,7 +80,7 @@ function StatCard({ label, value, icon, color = 'primary.main' }) {
         <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{icon}</Box>
         <Box minWidth={0}>
           <Typography variant="caption" color="text.secondary">{label}</Typography>
-          <Typography variant="h5" fontWeight={950}>{Number(value || 0).toLocaleString('en-US')}</Typography>
+          <Typography variant="h5" fontWeight={950}>{Number(value || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</Typography>
         </Box>
       </Stack>
     </Paper>
@@ -629,7 +629,7 @@ export default function CartonLoadingMobilePage() {
               label="QR / Item Barcode"
               value={barcodeInput}
               onChange={(event) => setBarcodeInput(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); performLookup(barcodeInput); } }}
+              onKeyDown={(event) => { if (event.key === KEYBOARD_KEY.ENTER) { event.preventDefault(); performLookup(barcodeInput); } }}
               disabled={waiting || busy}
               placeholder="Example 0000000000008589132-0000000040-0001571490-00000000000000000000"
               inputProps={{ autoComplete: 'off', inputMode: 'text' }}

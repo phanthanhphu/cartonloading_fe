@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useEffect, useRef, useState } from 'react';
@@ -27,6 +28,7 @@ export default function PackingShipmentExecutionPage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [pollError, setPollError] = useState('');
   const [stationBlocked, setStationBlocked] = useState(false);
   const [revision, setRevision] = useState(0);

@@ -1,3 +1,5 @@
+import { KEYBOARD_KEY } from '../../../constants/appConstants';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Button, Chip, Collapse, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
 import { ExpandLess, ExpandMore, QrCodeScannerOutlined, Refresh, Sensors } from '@mui/icons-material';
@@ -8,7 +10,7 @@ import {
   finishCartonRfidSession,
   reopenCartonRfidSession
 } from '../services/weighing';
-import { decodeTrueVueEpc, getUniqueEpcRows, getUniqueInvalidEpcRows } from '../utils/trueVueEpc';
+import { decodeTrueVueEpc, getUniqueEpcRows, getUniqueInvalidEpcRows, getWrongSkuDisplayCount } from '../utils/trueVueEpc';
 import RfidPdaManager from './RfidPdaManager';
 import { readyForAutomaticRfidFinish } from '../../../common/rfid/rfidWorkflow';
 
@@ -47,6 +49,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
   const [busy, setBusy] = useState(false);
   const [deviceCapturing, setDeviceCapturing] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [note, setNote] = useState('');
   const currentSessionId = useRef(null);
   const sscc = carton?.sscc18 || carton?.sscc || '';
@@ -100,7 +103,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
   const invalidUnique = invalidRows.length;
   const invalidReadEvents = session?.invalidReads?.length || 0;
   const matched = rows.filter((x) => x.status === 'MATCH').length;
-  const wrong = rows.filter((x) => x.status === 'WRONG_SKU').length;
+  const wrong = getWrongSkuDisplayCount(rows, invalidRows);
   const cross = rows.filter((x) => x.status === 'DUPLICATE_CARTON').length;
   const invalid = session?.invalidReads?.length || 0;
   const missing = Math.max(0, expectedQty - matched);
@@ -283,6 +286,9 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
           </Stack>
 
           {missing > 0 ? <Chip label={`${missing} missing`} color="warning" size="small" variant="outlined" /> : null}
+          {invalidUnique > 0 && <Typography variant="caption" color="error.main" fontWeight={700}>
+            Wrong SKU includes {invalidUnique} unsupported tag(s) · {invalidReadEvents} read(s)
+          </Typography>}
           {matched > expectedQty && expectedQty > 0 ? (
             <Typography variant="caption" color="warning.dark" fontWeight={800}>
               {matched - expectedQty} extra matching EPC(s)
@@ -302,9 +308,9 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
         <Box sx={{ mt: compact ? 0.35 : 0.8 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} gap={0.65} alignItems={{ sm: 'center' }}>
             <TextField autoFocus size="small" fullWidth value={singleEpc} onChange={(event) => setSingleEpc(event.target.value)}
-              label="Enter EPC (press Enter to add)" placeholder="30003BD000002626CB52BC5B017E"
+              label="EPC" placeholder="30003BD000002626CB52BC5B017E"
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                if (event.key === KEYBOARD_KEY.ENTER && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   submitReads(singleEpc, () => setSingleEpc(''));
                 }
@@ -322,11 +328,11 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
               {singlePreview.error ? singlePreview.error : `Preview: SKU ${singlePreview.productCode.padStart(12, '0')} · Serial ${singlePreview.serialNumber} (press Enter to submit)`}
             </Typography>
           )}
-          {import.meta.env.DEV ? <Button size="small" color="inherit" onClick={() => setBatchOpen((x) => !x)}
+          {import.meta.env.DEV && detailsOpen ? <Button size="small" color="inherit" onClick={() => setBatchOpen((x) => !x)}
             endIcon={batchOpen ? <ExpandLess /> : <ExpandMore />} sx={{ textTransform: 'none', px: 0.5, mt: 0.3, fontSize: 12 }}>
-            Paste Multiple EPCs (Test)
+            Test EPC batch
           </Button> : null}
-          {import.meta.env.DEV ? <Collapse in={batchOpen} unmountOnExit>
+          {import.meta.env.DEV && detailsOpen ? <Collapse in={batchOpen} unmountOnExit>
             <Stack spacing={0.6} sx={{ mt: 0.4 }}>
               <TextField multiline rows={3} fullWidth size="small" value={batchEpcs}
                 onChange={(event) => setBatchEpcs(event.target.value)}
@@ -343,7 +349,6 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
 
       {session?.status === 'FAILED' && (
         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 0.8 }}>
-          <Typography variant="caption" color="error.main">{(session.reason || 'RFID check failed.').replace('RFID quantity ', 'Total unique TrueVUE EPCs ')}</Typography>
           <Button size="small" startIcon={<Refresh />} variant="outlined" onClick={restart} disabled={busy}>Rescan Carton</Button>
         </Stack>
       )}
@@ -357,22 +362,20 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
       )}
       {session?.status !== 'FAILED' && (invalid > 0 || cross > 0) && (
         <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.4 }}>
-          {invalid ? `${invalid} non-TrueVUE read(s). ` : ''}{cross ? `${cross} EPC(s) already verified in another carton.` : ''}
+          {invalid ? `${invalidUnique} unsupported tag(s) counted in Wrong SKU (${invalid} read events). ` : ''}{cross ? `${cross} EPC(s) already verified in another carton.` : ''}
         </Typography>
       )}
       {error && <Alert severity="error" sx={{ mt: 0.6, py: 0 }}>{error}</Alert>}
-      {note && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4 }}>{note}</Typography>}
+      {note && (/partial|error|failed|retry/i.test(note) || detailsOpen) &&
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4 }}>{note}</Typography>}
 
       {Boolean(session?.id) && (
         <Box sx={{ mt: 0.7, borderTop: '1px solid', borderColor: 'divider', pt: 0.5 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={0.5}>
-            <Typography variant="caption" color="text.secondary">
-              {displayRows.length} raw unique tag(s) ({rows.length} TrueVUE, {invalidUnique} unsupported) · {session?.readCount ?? 0} read(s)
-            </Typography>
+          <Stack direction="row" alignItems="center" justifyContent="flex-end" flexWrap="wrap" gap={0.5}>
             <Button size="small" color="inherit" onClick={() => setDetailsOpen((x) => !x)}
               endIcon={detailsOpen ? <ExpandLess /> : <ExpandMore />}
               sx={{ fontSize: 11, textTransform: 'none', minWidth: 0, px: 0.5 }}>
-              {detailsOpen ? 'Show less' : 'Show more EPCs'}
+              {detailsOpen ? 'Hide EPC details' : 'EPC details'}
             </Button>
           </Stack>
           <Collapse in={detailsOpen} unmountOnExit>
@@ -414,7 +417,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
                         {row.sku || '—'}
                       </TableCell>
                       <TableCell sx={{ fontSize: 11, color: row.status === 'MATCH' ? 'success.main' : 'error.main' }}>
-                        {row.status === 'MATCH' ? 'Matched' : row.status === 'WRONG_SKU' ? 'Wrong SKU' : row.status === 'DUPLICATE_CARTON' ? 'Duplicate in Another Carton' : `Unsupported / Invalid (${row.readCount} read${row.readCount === 1 ? '' : 's'})`}
+                        {row.status === 'MATCH' ? 'Matched' : row.status === 'WRONG_SKU' ? 'Wrong SKU' : row.status === 'DUPLICATE_CARTON' ? 'Duplicate in Another Carton' : `Wrong SKU — Unsupported / Invalid (${row.readCount} read${row.readCount === 1 ? '' : 's'})`}
                       </TableCell>
                     </TableRow>
                   ))}

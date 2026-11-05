@@ -14,7 +14,9 @@ export default function OperationWorkspaceDialog({
   allowMaximize = false,
   startMaximized = false,
   fitViewport = false,
-  contentSx = {}
+  contentSx = {},
+  onEntered,
+  onExited
 }) {
   const handheld = useMediaQuery('(max-width:768px)');
   const [maximized, setMaximized] = useState(false);
@@ -38,6 +40,8 @@ export default function OperationWorkspaceDialog({
       fullWidth
       fullScreen={fullScreen}
       keepMounted
+      // The scanner must take focus only after the MUI Dialog entrance transition.
+      TransitionProps={{ onEntered, onExited }}
       disableEscapeKeyDown={disableClose}
       PaperProps={{
         sx: {

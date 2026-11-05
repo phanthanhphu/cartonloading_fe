@@ -1,3 +1,15 @@
+// Shared wire values and interaction keys (the values must stay unchanged).
+export const FORMAT_LOCALE = Object.freeze({ EN_US: 'en-US' });
+export const KEYBOARD_KEY = Object.freeze({ ENTER: 'Enter' });
+export const DEVICE_CONNECTION_TYPE = Object.freeze({
+  SIMULATOR: 'SIMULATOR',
+  MODBUS_TCP: 'MODBUS_TCP'
+});
+export const DEVICE_CONNECTION_STATE = Object.freeze({
+  CONNECTED: 'CONNECTED',
+  DISCONNECTED: 'DISCONNECTED'
+});
+
 // Shared keys for the Factory & Department page navigation.
 export const ORGANIZATION_MANAGEMENT_TAB = Object.freeze({
   FACTORIES: 'factories',
@@ -8,11 +20,22 @@ export const ORGANIZATION_REALTIME = Object.freeze({
   FACTORY: 'FACTORY',
   DEPARTMENT: 'DEPARTMENT',
   USER: 'USER',
+  ACCOUNT: 'ACCOUNT',
+  DEVICE: 'DEVICE',
+  HISTORY: 'HISTORY',
+  ACCOUNT_TOPIC: '/user/queue/account-change',
   SYNC: 'SYNC',
   FACTORIES_TOPIC: '/topic/organization-factories',
   ADMIN_TOPIC: '/topic/organization-admin',
   RETRY_MS: 1500,
   MAX_RETRY_MS: 30000,
+});
+
+// Shared, exact string contract with backend AppConstants.SystemType.
+export const SYSTEM_TYPE = Object.freeze({
+  RFID: 'RFID',
+  UNRFID: 'UNRFID',
+  FACTORY_USE_ONLY: 'FACTORY_USE_ONLY'
 });
 
 export const BUYER_CODE = Object.freeze({
@@ -52,8 +75,13 @@ export const ACCESS_PERMISSION = Object.freeze({
   PICK_PO: 'PICK_PO',
   ASSIGN_WEIGHT: 'ASSIGN_WEIGHT',
   WEIGHT_CHECK: 'WEIGHT_CHECK',
-  PRINT_ROOM: 'PRINT_ROOM',
-  VIEW_SYSTEM: 'VIEW_SYSTEM'
+  VIEW_SYSTEM: 'VIEW_SYSTEM',
+  LULU_UPLOAD_EDIT_DATA: 'UPLOAD_EDIT_DATA',
+  LULU_SHIPPING_SCHEDULER: 'SHIPPING_SCHEDULER',
+  LULU_SHIPPING_SCHEDULE_CREATE: 'SHIPPING_SCHEDULE_CREATE',
+  LULU_SHIPPING_SCHEDULE_REOPEN: 'SHIPPING_SCHEDULE_REOPEN',
+  LULU_SCAN_RFID_SSCC_SKU_WEIGHT: 'SCAN_RFID_SSCC_SKU_WEIGHT',
+  LULU_VIEW_ONLY: 'VIEW_ONLY'
 });
 
 
@@ -116,8 +144,25 @@ export const ACCESS_PERMISSION_LABEL = Object.freeze({
   [ACCESS_PERMISSION.PICK_PO]: 'Pick / Unpick PO',
   [ACCESS_PERMISSION.ASSIGN_WEIGHT]: 'Send / Assign Carton Weight',
   [ACCESS_PERMISSION.WEIGHT_CHECK]: 'Weight Check',
-  [ACCESS_PERMISSION.PRINT_ROOM]: 'Print Room',
   [ACCESS_PERMISSION.VIEW_SYSTEM]: 'View Only'
+});
+
+export const LULULEMON_ACCESS_PERMISSIONS = Object.freeze([
+  ACCESS_PERMISSION.LULU_UPLOAD_EDIT_DATA,
+  ACCESS_PERMISSION.LULU_SHIPPING_SCHEDULER,
+  ACCESS_PERMISSION.LULU_SHIPPING_SCHEDULE_CREATE,
+  ACCESS_PERMISSION.LULU_SHIPPING_SCHEDULE_REOPEN,
+  ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT,
+  ACCESS_PERMISSION.LULU_VIEW_ONLY
+]);
+
+export const LULULEMON_PERMISSION_LABEL = Object.freeze({
+  [ACCESS_PERMISSION.LULU_UPLOAD_EDIT_DATA]: 'Upload / Edit Data',
+  [ACCESS_PERMISSION.LULU_SHIPPING_SCHEDULER]: 'Shipping Scheduler (Edit / Submit)',
+  [ACCESS_PERMISSION.LULU_SHIPPING_SCHEDULE_CREATE]: 'Create Shipping Schedule',
+  [ACCESS_PERMISSION.LULU_SHIPPING_SCHEDULE_REOPEN]: 'Reopen Submitted Shipping Schedule (Unsubmit)',
+  [ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT]: 'Scan RFID / SSCC / SKU / Weight',
+  [ACCESS_PERMISSION.LULU_VIEW_ONLY]: 'View Only'
 });
 
 export const USER_ACCESS_PERMISSIONS = Object.freeze([
@@ -136,8 +181,7 @@ export const ADMIN_ACCESS_PERMISSIONS = Object.freeze([
   ACCESS_PERMISSION.ASSIGN_BARCODE,
   ACCESS_PERMISSION.PICK_PO,
   ACCESS_PERMISSION.ASSIGN_WEIGHT,
-  ACCESS_PERMISSION.WEIGHT_CHECK,
-  ACCESS_PERMISSION.PRINT_ROOM
+  ACCESS_PERMISSION.WEIGHT_CHECK
 ]);
 
 export const ALLOWED_ACCESS_PERMISSIONS = Object.freeze([
@@ -151,8 +195,8 @@ export const buyerPoColumnStorageKey = (buyerCode) => `${String(buyerCode || '')
 export const buyerWorkspaceColumnStorageKey = (buyerCode) => `cartonloading.${String(buyerCode || '').trim().toLowerCase()}.order-workspace.visible-columns.v1`;
 
 export const DEFAULT_BUYERS = Object.freeze([
-  { code: BUYER_CODE.LULULEMON, slug: 'lululemon', label: BUYER_LABEL[BUYER_CODE.LULULEMON], active: true, sequence: 10, supportedTypes: ['RFID'] },
-  { code: BUYER_CODE.ENGELBERT_STRAUSS, slug: 'engelbert-strauss', label: BUYER_LABEL[BUYER_CODE.ENGELBERT_STRAUSS], active: true, sequence: 20, supportedTypes: ['FACTORY_USE_ONLY'] }
+  { code: BUYER_CODE.LULULEMON, slug: 'lululemon', label: BUYER_LABEL[BUYER_CODE.LULULEMON], active: true, sequence: 10, supportedTypes: [SYSTEM_TYPE.RFID] },
+  { code: BUYER_CODE.ENGELBERT_STRAUSS, slug: 'engelbert-strauss', label: BUYER_LABEL[BUYER_CODE.ENGELBERT_STRAUSS], active: true, sequence: 20, supportedTypes: [SYSTEM_TYPE.FACTORY_USE_ONLY] }
 ]);
 
 export const CARTON_STATUS = Object.freeze({
@@ -237,9 +281,23 @@ export const SHIPMENT_LIFECYCLE_STATUS = Object.freeze({
   CANCELLED: 'CANCELLED'
 });
 
-export const WEIGHING_RESULT = Object.freeze({
+/** Final RFID verdict. Separate from RFID_STATUS lifecycle and QC FAIL. */
+export const RFID_CHECK_RESULT = Object.freeze({
   PASS: 'PASS',
-  FAILED: 'FAILED'
+  FAILED: 'FAILED',
+  HOLD: 'HOLD'
+});
+
+export const FINAL_INSPECTION_RESULT = Object.freeze({
+  PASS: RFID_CHECK_RESULT.PASS,
+  FAILED: RFID_CHECK_RESULT.FAILED,
+  PENDING: 'PENDING'
+});
+
+export const WEIGHING_RESULT = Object.freeze({
+  PASS: RFID_CHECK_RESULT.PASS,
+  FAILED: RFID_CHECK_RESULT.FAILED,
+  HOLD: RFID_CHECK_RESULT.HOLD
 });
 
 export const ITEM_STATUS = Object.freeze({
@@ -411,8 +469,7 @@ export const CODE128_PATTERNS = Object.freeze([
 export const ALL_BP_KNOWN_HEADERS = Object.freeze([
   'HOD (Hand over date)', 'SGS testing', 'GB testing', 'BV inspection', 'DC Code', 'Destination', 'Chanel',
   'Master PO', 'PO', 'Packing Plan', 'SO (PTS)', 'Style#', 'Description', 'Color description', "Q'ty", 'Pcs/ctn',
-  'lẻ', 'Ctns', 'Dư', 'Remark', 'FOB Price', 'Care & Content Label', 'China Inspection Tag', 'FOB Amount',
-  'Total FOB+Prcie Tag', 'FOB Fty Price', 'FOB Fty Amount', 'Ship mode', 'Season', 'DP%', 'MPR NUMBER',
+  'lẻ', 'Ctns', 'Dư', 'Remark', 'Ship mode', 'Season', 'DP%', 'MPR NUMBER',
   'FWD', 'Carton Box Size', 'NW', 'GW', 'Remark 2'
 ]);
 
@@ -455,24 +512,20 @@ export const ALL_BP_SOURCE_ALIAS = Object.freeze({
   REMARK2: 'REMARK_2', REMARK02: 'REMARK_2'
 });
 
-export const ALL_BP_FORMULA_KEYS = Object.freeze([
-  'ODD_RATIO',
-  'CTNS',
-  'REMAINDER',
-  'FOB_AMOUNT',
-  'TOTAL_FOB_PRICE_TAG',
-  'FOB_FTY_PRICE',
-  'FOB_FTY_AMOUNT'
+// Keep old header aliases for parsing historical records, but never display
+// retired price/label columns or accept them as new editable fields.
+export const ALL_BP_RETIRED_KEYS = Object.freeze([
+  'FOB_PRICE', 'CARE_CONTENT_LABEL', 'CHINA_INSPECTION_TAG', 'FOB_AMOUNT',
+  'TOTAL_FOB_PRICE_TAG', 'FOB_FTY_PRICE', 'FOB_FTY_AMOUNT'
 ]);
 
+export const ALL_BP_FORMULA_KEYS = Object.freeze(['ODD_RATIO', 'CTNS', 'REMAINDER']);
+
+// Read-only carton math, not the removed pricing formulas.
 export const ALL_BP_FORMULA_TEXT = Object.freeze({
-  ODD_RATIO: '=O/P',
-  CTNS: '=ROUNDDOWN(Q,0)',
-  REMAINDER: '=O-(R*P)',
-  FOB_AMOUNT: '=O*U',
-  TOTAL_FOB_PRICE_TAG: '=O*(U+V+W)',
-  FOB_FTY_PRICE: '=ROUND((U+V+W)*AD,2)',
-  FOB_FTY_AMOUNT: '=O*Z'
+  ODD_RATIO: "Q'ty / Pcs/ctn",
+  CTNS: 'ROUNDDOWN(Carton Ratio, 0)',
+  REMAINDER: "Q'ty - (Full Ctns * Pcs/ctn)" 
 });
 
 // English captions used by the LULULEMON UI for the three carton math columns.
@@ -617,4 +670,28 @@ export const DEFAULT_SCALE_STATION_FORM = Object.freeze({
   active: true,
   minimumWeightKg: DEFAULT_SCALE_MINIMUM_WEIGHT_KG,
   stabilityToleranceKg: DEFAULT_SCALE_STABILITY_TOLERANCE_KG
+});
+
+/** Browser-selected Factory scope header, validated by the API. */
+export const ACTIVE_FACTORY_HEADER = 'X-Active-Factory';
+
+// Operation feedback only. Persistent warnings, system status and confirmations must not auto-dismiss.
+export const FEEDBACK_DURATION_MS = Object.freeze({
+  SUCCESS: 4000,
+  ERROR: 6000,
+  INFO: 4500,
+});
+
+// ALL_BP duplicate identity business errors returned by the shared backend.
+export const PO_IMPORT_ERROR_CODE = Object.freeze({ ALL_BP_DUPLICATE_PO: 'ALL_BP_DUPLICATE_PO' });
+
+// Exported existing PO data keeps its original Lululemon template layout.
+export const LULULEMON_EXCEL_MODE = Object.freeze({
+  NEW: 'NEW',
+  EDIT: 'EDIT'
+});
+
+export const LULULEMON_EXCEL_EXPORT = Object.freeze({
+  PREFIX: 'lululemon_',
+  TIME_ZONE: 'Asia/Ho_Chi_Minh'
 });

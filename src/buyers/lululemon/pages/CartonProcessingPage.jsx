@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Chip, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
 import { CheckCircleOutline, QrCodeScanner, Refresh, ScaleOutlined, SensorsOutlined } from '@mui/icons-material';
@@ -5,11 +6,11 @@ import CartonRfidPanel from '../components/CartonRfidPanel';
 import { getProcessingSummary, identifyProcessingCarton, saveProcessingManualWeight } from '../services/cartonProcessing';
 import { listMyScalePlcDevices } from '../services/scalePlcDevices';
 import { getFinalCartonStatus } from '../utils/finalCartonStatus';
-import { BUYER_CODE } from '../../../constants/appConstants';
+import { BUYER_CODE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT, KEYBOARD_KEY } from '../../../constants/appConstants';
 import { useSelectedFactory } from 'utils/factorySelection';
 
 const messageOf = (err) => err?.response?.data?.message || err?.message || 'Request failed.';
-const isFinished = (status) => status === 'PASS' || status === 'FAILED';
+const isFinished = (status) => status === RFID_CHECK_RESULT.PASS || status === RFID_CHECK_RESULT.FAILED;
 const numberText = (value) => (value === undefined || value === null || !Number.isFinite(Number(value))) ? '—' : Number(value).toFixed(3);
 
 /** Inline per-Carton workspace based on the original PO carton list / weight UI.
@@ -28,7 +29,9 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
   const [saved, setSaved] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [note, setNote] = useState('');
+  useAutoDismissFeedback(note, setNote, '', 'info');
   const skuRef = useRef(null);
   const ssccRef = useRef(null);
   const cartonId = carton?.id || '';
@@ -119,8 +122,8 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
       <Chip variant="outlined" label={`Expected Weight: ${numberText(expected)} kg`} />
       <Chip variant="outlined" label={`Allowed: ${numberText(allowedMin)} – ${numberText(allowedMax)} kg`} />
       <Chip variant="outlined" label={`SSCC: ${active?.carton?.sscc18 || carton.cartonIdentity || 'Not assigned'}`} />
-      <Chip variant="outlined" color={rfidStatus === 'PASS' ? 'success' : rfidStatus === 'FAILED' ? 'error' : 'default'} label={`RFID: ${rfidStatus || 'PENDING'}`} />
-      <Chip variant="outlined" color={weightStatus === 'PASS' ? 'success' : weightStatus === 'FAILED' ? 'error' : 'default'} label={`Weight: ${weightStatus || 'PENDING'}`} />
+      <Chip variant="outlined" color={rfidStatus === RFID_CHECK_RESULT.PASS ? 'success' : rfidStatus === RFID_CHECK_RESULT.FAILED ? 'error' : 'default'} label={`RFID: ${rfidStatus || 'PENDING'}`} />
+      <Chip variant="outlined" color={weightStatus === WEIGHING_RESULT.PASS ? 'success' : weightStatus === WEIGHING_RESULT.FAILED ? 'error' : 'default'} label={`Weight: ${weightStatus || 'PENDING'}`} />
     </Stack>
     <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mb: 1.5 }}>
       {assignedScaleStations.length ? <TextField select SelectProps={{ native: true }} size="small"
@@ -141,10 +144,10 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
       <Stack spacing={1}>
         <TextField inputRef={ssccRef} autoFocus size="small" label="SSCC-18 (or GS1 (00) barcode)" value={scan.sscc}
           onChange={(e) => setScan((s) => ({ ...s, sscc: e.target.value }))}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); skuRef.current?.focus(); } }}/>
+          onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) { e.preventDefault(); skuRef.current?.focus(); } }}/>
         <TextField inputRef={skuRef} size="small" label="SKU on carton label" value={scan.sku}
           onChange={(e) => setScan((s) => ({ ...s, sku: e.target.value }))}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); identify(); } }}/>
+          onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) { e.preventDefault(); identify(); } }}/>
         <Button variant="contained" onClick={identify} disabled={busy || factoryLoading || !stationCode.trim() || Boolean(carton.weightStatus) || !factoryCode || !scan.sscc.trim() || !scan.sku.trim()}>
           {carton.cartonIdentity ? 'Confirm SSCC + SKU' : 'Assign SSCC + Confirm SKU'}</Button>
         <Typography variant="caption" color="text.secondary">Selected Carton {carton.cartonNo} has Qty {plannedQty}. SSCC will only be assigned to this row, never another FIFO carton. Already-assigned SSCCs are verified; duplicates across POs are rejected.</Typography>
@@ -159,7 +162,7 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
       <Divider/>
       <Box>
         <Typography fontWeight={800} sx={{ mb: 1 }}><ScaleOutlined sx={{ verticalAlign: 'middle', mr: 0.8 }}/>3. Weight — Manual Save</Typography>
-        {rfid?.status === 'FAILED' && <Alert severity="warning" sx={{ mb: 1 }}>RFID FAILED. Weight may be recorded, but Final PASS requires RFID PASS and Weight PASS.</Alert>}
+        {rfid?.status === RFID_CHECK_RESULT.FAILED && <Alert severity="warning" sx={{ mb: 1 }}>RFID FAILED. Weight may be recorded, but Final PASS requires RFID PASS and Weight PASS.</Alert>}
         <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 1 }}>
           <Chip label={`Expected: ${numberText(expected)} kg`} />
           <Chip label={`Min: ${numberText(allowedMin)} kg`} />
@@ -171,7 +174,7 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
             disabled={Boolean(saved)} onChange={(e) => setActualWeightKg(e.target.value)} inputProps={{ min: 0, step: 0.001 }}/>
           <Button variant="contained" onClick={saveWeight} disabled={busy || !isFinished(rfid?.status) || Boolean(saved) || !(Number(actualWeightKg) > 0) || !stationCode.trim()}>
             Save Weight</Button>
-          {saved && <Chip color={saved.carton.weightStatus === 'PASS' ? 'success' : 'error'} label={`Weight ${saved.carton.weightStatus}`}/>}
+          {saved && <Chip color={saved.carton.weightStatus === WEIGHING_RESULT.PASS ? 'success' : 'error'} label={`Weight ${saved.carton.weightStatus}`}/>}
         </Stack>
         {!isFinished(rfid?.status) && <Typography variant="caption" color="text.secondary">Finish RFID scan before entering Weight result. PLC auto-save is not enabled.</Typography>}
         {saved && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -179,7 +182,7 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
       </Box>
       {saved && <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
-          <Box><Typography fontWeight={900}>FINAL {finalStatus === 'PASS' ? 'PASS' : 'FAILED / HOLD'}</Typography>
+          <Box><Typography fontWeight={900}>FINAL {finalStatus === FINAL_INSPECTION_RESULT.PASS ? 'PASS' : 'FAILED / HOLD'}</Typography>
             <Typography variant="caption" color="text.secondary">Processed {summary?.processed ?? '—'}/{summary?.total ?? '—'} · Remaining {summary?.remaining ?? '—'} · RFID and Weight must both PASS.</Typography></Box>
           <Button variant="contained" startIcon={<CheckCircleOutline/>} onClick={markNext}>{summary?.end ? 'END · Back to Carton List' : 'Next Carton · Back to List'}</Button>
         </Stack>

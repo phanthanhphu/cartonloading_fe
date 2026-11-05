@@ -1,4 +1,4 @@
-import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../../../constants/appConstants';
+import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT } from '../../../../constants/appConstants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Breadcrumbs, Button, Chip, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
 import { CheckCircleOutlineRounded, ErrorOutlineRounded, AccessTimeRounded, VisibilityOutlined } from '@mui/icons-material';
@@ -31,6 +31,7 @@ export default function BuyerPoCartonsPage() {
   const { factoryCode: selectedFactory, loading: factoryLoading } = useSelectedFactory(buyer?.code);
   // PO-level scan station: one toolbar action for the entire PO, no per-carton action buttons.
   const [scanOpen, setScanOpen] = useState(false);
+  const [scanDialogReady, setScanDialogReady] = useState(false);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
   const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
@@ -82,12 +83,14 @@ export default function BuyerPoCartonsPage() {
     const rfid = String(row?.rfidStatus || '').toUpperCase();
     const weight = String(row?.weightStatus || '').toUpperCase();
     // FINAL status exists only after BOTH operations have finished.
-    if (!['PASS', 'FAILED'].includes(rfid) || !['PASS', 'FAILED'].includes(weight)) return 'PENDING';
-    return rfid === 'PASS' && weight === 'PASS' ? 'PASS' : 'FAILED';
+    if (![RFID_CHECK_RESULT.PASS, RFID_CHECK_RESULT.FAILED].includes(rfid)
+      || ![WEIGHING_RESULT.PASS, WEIGHING_RESULT.FAILED].includes(weight)) return FINAL_INSPECTION_RESULT.PENDING;
+    return rfid === RFID_CHECK_RESULT.PASS && weight === WEIGHING_RESULT.PASS
+      ? FINAL_INSPECTION_RESULT.PASS : FINAL_INSPECTION_RESULT.FAILED;
   };
   const statusIcon = (status) => {
-    if (status === 'PASS') return <CheckCircleOutlineRounded color="success" sx={{ fontSize: 17 }} />;
-    if (status === 'FAILED') return <ErrorOutlineRounded color="error" sx={{ fontSize: 17 }} />;
+    if (status === FINAL_INSPECTION_RESULT.PASS) return <CheckCircleOutlineRounded color="success" sx={{ fontSize: 17 }} />;
+    if (status === FINAL_INSPECTION_RESULT.FAILED) return <ErrorOutlineRounded color="error" sx={{ fontSize: 17 }} />;
     return <AccessTimeRounded color="disabled" sx={{ fontSize: 16 }} />;
   };
   const openCarton = (row) => navigate(`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}/cartons/${row.id}`);
@@ -99,7 +102,7 @@ export default function BuyerPoCartonsPage() {
       render: (row) => <Tooltip arrow title={`RFID: ${row.rfidStatus || 'PENDING'} · Matched EPC / Expected Qty · Wrong SKU: ${row.rfidWrongSkuQty ?? 0}`}>
         <Stack direction="row" alignItems="center" spacing={0.5} sx={{ whiteSpace: 'nowrap' }}>
           {statusIcon(row.rfidStatus)}
-          <Typography sx={{ fontSize: 12, fontWeight: 750, fontVariantNumeric: 'tabular-nums' }}>{row.rfidMatchedQty ?? (row.rfidStatus === 'PASS' ? row.rfidVerifiedQty : null) ?? '—'}/{row.plannedQty ?? '—'}</Typography>
+          <Typography sx={{ fontSize: 12, fontWeight: 750, fontVariantNumeric: 'tabular-nums' }}>{row.rfidMatchedQty ?? (row.rfidStatus === RFID_CHECK_RESULT.PASS ? row.rfidVerifiedQty : null) ?? '—'}/{row.plannedQty ?? '—'}</Typography>
         </Stack>
       </Tooltip> },
     { key: 'weightKg', label: 'Weight (kg)', minWidth: 126,
@@ -132,23 +135,34 @@ export default function BuyerPoCartonsPage() {
     { key: 'status', label: 'Status', minWidth: 130, render: (r) => <StatusChip status={r.status || CARTON_STATUS.READY_TO_PACK} /> }
   ];
 
+  const poBreadcrumbs = (
+    <Breadcrumbs separator="/">
+      <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders`} underline="hover" color="inherit">{buyer.label}</Link>
+      <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}`} underline="hover" color="inherit">{order?.orderName || 'Order'}</Link>
+      <Typography color="text.primary">PO {po?.poNumber || ''}</Typography>
+    </Breadcrumbs>
+  );
+
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
-      <Stack spacing={1}>
+      <Stack spacing={isLulu ? 0.75 : 1}>
         <CompactPageHeader
           title={`PO ${v(po?.poNumber)}`}
           subtitle={isLulu ? 'PO station: Scan / Assign SSCC + SKU → RFID → Weight. One scan button per PO; no PO picking or conveyor.' : 'Cartons are generated on first open; Items are generated only when a Carton is opened.'}
-          breadcrumbs={(
-            <Breadcrumbs separator="/">
-              <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders`} underline="hover" color="inherit">{buyer.label}</Link>
-              <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}`} underline="hover" color="inherit">{order?.orderName || 'Order'}</Link>
-              <Typography color="text.primary">PO {po?.poNumber || ''}</Typography>
-            </Breadcrumbs>
-          )}
+          breadcrumbs={isLulu ? (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" useFlexGap>
+              {poBreadcrumbs}
+              {!mismatch && canProcess && (
+                <Button variant="contained" onClick={() => setScanOpen(true)} sx={{ flexShrink: 0 }}>
+                  Scan RFID / Weight
+                </Button>
+              )}
+            </Stack>
+          ) : poBreadcrumbs}
           meta={<Chip size="small" variant="outlined" label={`${state.count} Carton${state.count === 1 ? '' : 's'}`} />}
           details={(
             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-              <CompactStat label="Factory" value={v(po?.factoryCode)} />
+              {!isLulu && <CompactStat label="Factory" value={v(po?.factoryCode)} />}
               <CompactStat label="Style" value={v(po?.styleNumber)} />
               <CompactStat label="Qty" value={v(po?.totalQty)} />
               <CompactStat label="Pcs/Ctn" value={v(po?.qtyPerCarton)} />
@@ -156,6 +170,7 @@ export default function BuyerPoCartonsPage() {
               <CompactStat label="Destination" value={v(po?.destination)} />
             </Stack>
           )}
+          dense={isLulu}
         />
 
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
@@ -163,22 +178,20 @@ export default function BuyerPoCartonsPage() {
           This PO belongs to Factory {po.factoryCode}, but your selected Factory is {selectedFactory || 'not set'}. Switch Factory to continue.
         </Alert>}
         {!mismatch && isLulu && !canProcess && <Alert severity="info">RFID and Weight processing requires the assigned Weight operator permission. You can inspect cartons here.</Alert>}
-        {!mismatch && isLulu && canProcess && <Box>
-          <Button variant="contained" onClick={() => setScanOpen(true)}>
-            Scan RFID / Weight
-          </Button>
-        </Box>}
         {isLulu && canProcess && <OperationWorkspaceDialog
           open={Boolean(scanOpen && !mismatch && po?.id)}
           onClose={closeScan}
           title={`Carton Weighing · PO ${v(po?.poNumber)}`}
-          subtitle={`Order ${v(order?.orderName)} · PO ${v(po?.poNumber)} · Factory ${v(po?.factoryCode)} · Scan SSCC + SKU → RFID → Weight`}
+          subtitle={`Order ${v(order?.orderName)} · Factory ${v(po?.factoryCode)}`}
           allowMaximize
           startMaximized
           fitViewport
+          onEntered={() => setScanDialogReady(true)}
+          onExited={() => setScanDialogReady(false)}
           contentSx={{ bgcolor: '#F8FAFC' }}
         >
           {scanOpen && po?.id && <PoRfidWeightWorkspace
+            dialogReady={scanDialogReady}
             buyerCode={buyer.code} orderId={orderId} poId={po.id} poKey={poKey}
             po={po} factoryCode={selectedFactory}
             onCartonSaved={() => load(paginationRef.current.page, paginationRef.current.size)}

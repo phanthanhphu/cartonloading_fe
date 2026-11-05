@@ -1,7 +1,8 @@
+import { FORMAT_LOCALE } from '../../../constants/appConstants';
 import { Box, LinearProgress, Stack, Tooltip, Typography } from '@mui/material';
 
 const asQty = (value) => Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
-const fmt = (value) => Math.round(asQty(value)).toLocaleString('en-US');
+const fmt = (value) => Math.round(asQty(value)).toLocaleString(FORMAT_LOCALE.EN_US);
 
 /** The PO-level read-only counters are based on current persisted Carton inspections.
  * - Cartons: BOTH RFID PASS and Weight PASS on the same carton.

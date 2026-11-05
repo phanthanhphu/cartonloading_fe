@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, Breadcrumbs, Button, Chip, Link, Paper, Stack, Typography } from '@mui/material';
-import { RefreshRounded, Inventory2Outlined } from '@mui/icons-material';
+import { Alert, Box, Breadcrumbs, Chip, Link, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import ManagementTable from 'components/ManagementTable';
 import StatusChip from 'components/StatusChip';
@@ -81,7 +80,6 @@ export default function BuyerCartonItemsPage() {
   if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
   const isLululemon = buyer.code === BUYER_CODE.LULULEMON;
-  const assignedSku = state.rows.find((r) => r.sku)?.sku || null;
 
   const columns = [
     { key: '__stt', label: 'STT', minWidth: 60 },
@@ -89,7 +87,7 @@ export default function BuyerCartonItemsPage() {
     { key: 'sku', label: isLululemon ? 'Assigned SKU' : 'Scanned SKU', minWidth: 150, render: (r) => r.sku ? <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 750, color: '#1663BE', letterSpacing: '0.01em' }}>{r.sku}</Typography> : <Typography color="text.disabled" variant="body2">—</Typography> },
     { key: 'style', label: 'Style', minWidth: 110 },
     { key: 'color', label: 'Color', minWidth: 110 },
-    { key: 'size', label: 'Size', minWidth: 80 },
+    ...(!isLululemon ? [{ key: 'size', label: 'Size', minWidth: 80 }] : []),
     { key: 'quantity', label: 'Qty', minWidth: 70 },
     { key: 'status', label: 'Status', minWidth: 100, render: (r) => <StatusChip status={r.status || 'PENDING'} /> },
     { key: 'scannedBy', label: isLululemon ? 'Recorded By' : 'Scanned By', minWidth: 120 },
@@ -105,40 +103,8 @@ export default function BuyerCartonItemsPage() {
               <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders`} underline="hover" color="primary">{buyer.label}</Link>
               <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}`} underline="hover" color="inherit">{order?.orderName || 'Order'}</Link>
               <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}`} underline="hover" color="inherit">PO {po?.poNumber || ''}</Link>
-              <Typography color="text.primary" fontWeight={700}>Carton {v(carton?.cartonNo)}</Typography>
+              <Typography color="text.primary" fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>{carton?.cartonIdentity || `Carton ${v(carton?.cartonNo)}`}</Typography>
             </Breadcrumbs>
-            <Paper variant="outlined" sx={{ px: { xs: 1.6, md: 2.2 }, py: 1.7, borderRadius: 2.5, borderColor: '#D6E4F1', background: 'linear-gradient(110deg, #F3F8FF 0%, #FFFFFF 66%)' }}>
-              <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={1.25}>
-                <Stack direction="row" alignItems="center" spacing={1.1}>
-                  <Box sx={{ display: 'grid', placeItems: 'center', width: 42, height: 42, borderRadius: 2, color: '#1664C0', bgcolor: '#E3F0FF' }}>
-                    <Inventory2Outlined />
-                  </Box>
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.25 }}>Carton {v(carton?.cartonNo)} · Items</Typography>
-                    <Typography variant="body2" color="text.secondary">SKU assigned from carton label · RFID verification is separate</Typography>
-                  </Box>
-                </Stack>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <StatusChip status={carton?.status || 'PENDING'} />
-                  <Button size="small" variant="outlined" startIcon={<RefreshRounded />} disabled={state.loading} onClick={() => load(paginationRef.current.page, paginationRef.current.size, true)} sx={{ borderRadius: 1.6, fontWeight: 700 }}>
-                    Refresh
-                  </Button>
-                </Stack>
-              </Stack>
-              <Box sx={{ mt: 1.6, display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', md: 'repeat(4, minmax(0,1fr))' }, gap: 1 }}>
-                {[
-                  { label: 'PO', value: v(po?.poNumber) },
-                  { label: 'Planned Qty', value: `${v(carton?.plannedQty)} pcs` },
-                  { label: 'SSCC-18', value: v(carton?.cartonIdentity), mono: true },
-                  { label: 'Assigned SKU', value: v(assignedSku), mono: true }
-                ].map((stat) => (
-                  <Box key={stat.label} sx={{ minWidth: 0, border: '1px solid #E1EAF3', bgcolor: '#FFFFFF', borderRadius: 1.7, px: 1.3, py: 1.05 }}>
-                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>{stat.label}</Typography>
-                    <Typography variant="body2" noWrap title={stat.value} sx={{ mt: 0.2, fontWeight: 800, fontFamily: stat.mono ? 'monospace' : 'inherit', color: '#1D3551' }}>{stat.value}</Typography>
-                  </Box>
-                ))}
-              </Box>
-            </Paper>
           </Stack>
         ) : (
           <CompactPageHeader
@@ -165,8 +131,6 @@ export default function BuyerCartonItemsPage() {
 
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
 
-        
-
         <Box sx={isLululemon ? {
           '& .MuiPaper-root': { borderRadius: '12px', borderColor: '#D6E4F1' },
           '& .MuiTableHead-root .MuiTableCell-root': { bgcolor: '#EDF4FC', color: '#324F70', fontWeight: 800, borderBottom: '1px solid #D6E4F1' },
@@ -181,7 +145,7 @@ export default function BuyerCartonItemsPage() {
             { key: 'sku', label: 'SKU' },
             { key: 'style', label: 'Style' },
             { key: 'color', label: 'Color' },
-            { key: 'sizeValue', label: 'Size' },
+            ...(!isLululemon ? [{ key: 'sizeValue', label: 'Size' }] : []),
             { key: 'status', label: 'Status' },
             { key: 'scannedBy', label: 'Scanned By' }
           ]}

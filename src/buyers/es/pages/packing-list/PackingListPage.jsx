@@ -16,7 +16,7 @@ import { getActiveBuyer } from 'utils/buyerAccess';
 import { getApiError } from 'utils/apiError';
 import { createPackingOrder, deletePackingOrder, listPackingOrders, updatePackingOrder } from 'buyers/es/services/packingListService';
 import PackingOrderFormDialog from './PackingOrderFormDialog';
-import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE } from '../../../../constants/appConstants';
+import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 
 const emptyFilters = { orderDate: '', orderName: '', createdBy: '', status: '', completed: '' };
 
@@ -128,8 +128,8 @@ export default function PackingListPage() {
       <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.75, overflow: 'hidden', bgcolor: '#fff' }}>
         <Stack direction={{ xs: 'column', xl: 'row' }} spacing={0.8} alignItems={{ xl: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
           <TextField size="small" type="date" label="Start Order" value={filters.orderDate} onChange={(e) => changeFilter('orderDate', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ minWidth: { xl: 150 } }} />
-          <TextField size="small" label="Order Name" value={filters.orderName} onChange={(e) => changeFilter('orderName', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && applySearch()} sx={{ flex: 1, minWidth: { xl: 210 } }} />
-          <TextField size="small" label="Created By" value={filters.createdBy} onChange={(e) => changeFilter('createdBy', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && applySearch()} sx={{ minWidth: { xl: 170 } }} />
+          <TextField size="small" label="Order Name" value={filters.orderName} onChange={(e) => changeFilter('orderName', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { xl: 210 } }} />
+          <TextField size="small" label="Created By" value={filters.createdBy} onChange={(e) => changeFilter('createdBy', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ minWidth: { xl: 170 } }} />
           <TextField size="small" select label="Status" value={filters.status} onChange={(e) => changeFilter('status', e.target.value)} sx={{ minWidth: { xl: 145 } }}>
             <MenuItem value="">All Status</MenuItem><MenuItem value={PROGRESS_STATUS.DRAFT}>Draft</MenuItem><MenuItem value={PROGRESS_STATUS.NOT_STARTED}>Not Started</MenuItem><MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>In Progress</MenuItem><MenuItem value={PROGRESS_STATUS.COMPLETED}>Completed</MenuItem>
           </TextField>
@@ -158,7 +158,7 @@ export default function PackingListPage() {
                   <TableCell>{row.createdBy || '—'}</TableCell>
                   <TableCell><Chip label={statusLabel(row.status)} sx={statusSx(row.status)} /></TableCell>
                   <TableCell><Chip label={statusLabel(row.assignmentStatus)} sx={statusSx(row.assignmentStatus)} /></TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 750 }}>{Number(row.assignedCartonCount || 0).toLocaleString('en-US')} / {Number(row.plannedCartonCount || 0).toLocaleString('en-US')}</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 750 }}>{Number(row.assignedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)} / {Number(row.plannedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</TableCell>
                   <TableCell><Chip label={statusLabel(row.weightStatus)} sx={statusSx(row.weightStatus)} /></TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title="Open"><IconButton size="small" color="primary" onClick={() => openOrder(row)}><OpenInNewOutlinedIcon fontSize="small" /></IconButton></Tooltip>

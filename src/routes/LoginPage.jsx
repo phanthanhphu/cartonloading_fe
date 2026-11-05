@@ -5,6 +5,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import {
+  Alert,
   Box,
   Button,
   IconButton,
@@ -192,6 +193,23 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [accountNotice] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('accountChanged') !== 'true') return '';
+    return query.get('accountDisabled') === 'true'
+      ? 'Your account is no longer available for this session. It may have been disabled, deleted, or its email address may have changed. Please contact your administrator for assistance.'
+      : 'An administrator has updated your account or access permissions. You have been signed out automatically. Please sign in again.';
+  });
+
+  // A successful self-service password change invalidates all existing JWTs.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const passwordChanged = params.get('passwordChanged') === 'true';
+    const accountChanged = params.get('accountChanged') === 'true';
+    if (!passwordChanged && !accountChanged) return;
+    window.history.replaceState(null, '', '/login');
+    if (passwordChanged) toast.success('Password changed successfully. Please sign in with your new password.');
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem(STORAGE_KEY.TOKEN);
@@ -524,6 +542,8 @@ export default function LoginPage() {
               Order Scan & PLC Weight System
             </Typography>
 
+            {accountNotice && <Alert severity="warning" sx={{ mt: 2, lineHeight: 1.5 }}>{accountNotice}</Alert>}
+
             <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3.25 }}>
               <Stack spacing={2}>
                 <TextField
@@ -650,7 +670,7 @@ export default function LoginPage() {
                     saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE, e.target.value);
                     if (loginError) setLoginError('');
                   }}
-                  helperText="Chọn RFID, UnRFID hoặc Factory Use Only. Quyền được kiểm tra khi đăng nhập."
+                  helperText="Select RFID, UnRFID, or Factory Use Only. Your access permissions are checked when you sign in."
                   InputLabelProps={{ sx: { fontWeight: 750 } }}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5, backgroundColor: '#FFFFFF' } }}
                 >

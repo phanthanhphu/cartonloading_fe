@@ -1,5 +1,5 @@
 import StandardTableViewport from 'components/StandardTableViewport';
-import { DEFAULT_TABLE_PAGE_SIZE, OPERATION_ROUTE, BARCODE_CARTON_STATUS, COMMON_FILTER, PROGRESS_STATUS } from '../../../../constants/appConstants';
+import { DEFAULT_TABLE_PAGE_SIZE, OPERATION_ROUTE, BARCODE_CARTON_STATUS, COMMON_FILTER, PROGRESS_STATUS, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { quantityMatchesPlan } from 'buyers/es/domain/workflow';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -60,7 +60,7 @@ const getErrorMessage = (error, fallback) => (
 
 const valueText = (value) => value === null || value === undefined || value === '' ? '—' : String(value);
 
-const numberText = (value) => Number(value || 0).toLocaleString('en-US');
+const numberText = (value) => Number(value || 0).toLocaleString(FORMAT_LOCALE.EN_US);
 
 const statusLabel = (value) => String(value || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ');
 
@@ -500,7 +500,7 @@ export default function BarcodeAssignmentPage() {
                             setDetailNotice('');
                           }}
                           onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
+                            if (event.key === KEYBOARD_KEY.ENTER) {
                               event.preventDefault();
                               checkBarcode();
                             }

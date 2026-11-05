@@ -1,6 +1,6 @@
 // LULULEMON API: purchaseOrders.
 import { apiRawClient } from '../../../routes/globalApi';
-import { BUYER_API_SEGMENT, BUYER_CODE } from '../../../constants/appConstants';
+import { BUYER_API_SEGMENT, BUYER_CODE, LULULEMON_EXCEL_MODE } from '../../../constants/appConstants';
 import { unwrap, scopedRoot } from './client';
 
 const flattenPoSummary = (row = {}) => {
@@ -93,4 +93,19 @@ export const importSharedAllBp = (orderId, file, buyer = BUYER_CODE.LULULEMON, o
   const form = new FormData();
   form.append('file', file);
   return unwrap(apiRawClient.post(`${scopedRoot(orderId, buyer)}/all-bp/import-shared`, form, { onUploadProgress }));
+};
+
+// Lululemon Excel ACTION management: preview always happens before apply.
+const excelActionsRoot = (orderId, buyer = BUYER_CODE.LULULEMON) => `${scopedRoot(orderId, buyer)}/excel-actions`;
+export const downloadLululemonExcel = async (orderId, kind = 'template', buyer = BUYER_CODE.LULULEMON) => {
+  const result = await apiRawClient.get(`${excelActionsRoot(orderId, buyer)}/${kind}`, { responseType: 'blob' });
+  return result.data;
+};
+export const previewLululemonExcel = (orderId, file, buyer = BUYER_CODE.LULULEMON, mode = LULULEMON_EXCEL_MODE.NEW) => {
+  const form = new FormData(); form.append('file', file);
+  return unwrap(apiRawClient.post(`${excelActionsRoot(orderId, buyer)}/preview`, form, { params: { mode } }));
+};
+export const applyLululemonExcel = (orderId, file, buyer = BUYER_CODE.LULULEMON, mode = LULULEMON_EXCEL_MODE.NEW) => {
+  const form = new FormData(); form.append('file', file);
+  return unwrap(apiRawClient.post(`${excelActionsRoot(orderId, buyer)}/apply`, form, { params: { mode } }));
 };

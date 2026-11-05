@@ -18,3 +18,16 @@ export const unassignSscc = (orderId, cartonId, reason, buyer = BUYER_CODE.LULUL
 export const traceWorkflow = (orderId, keyword, buyer = BUYER_CODE.LULULEMON) => unwrap(
   apiRawClient.get(`${scopedRoot(orderId, buyer)}/trace`, { params: { keyword } })
 );
+
+// Lightweight, server-side Factory-scoped History list and on-demand detail.
+export const listCartonHistory = (orderId, filters = {}, page = 0, size = 50) => unwrap(
+  apiRawClient.get(`${scopedRoot(orderId, BUYER_CODE.LULULEMON)}/history/cartons`, {
+    params: { ...filters, page, size }
+  })
+);
+export const listCartonHistoryFilters = (orderId) => unwrap(
+  apiRawClient.get(`${scopedRoot(orderId, BUYER_CODE.LULULEMON)}/history/filters`)
+);
+export const getCartonHistoryDetail = (orderId, cartonId) => unwrap(
+  apiRawClient.get(`${scopedRoot(orderId, BUYER_CODE.LULULEMON)}/history/cartons/${encodeURIComponent(cartonId)}`)
+);

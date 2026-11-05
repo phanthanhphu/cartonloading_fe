@@ -1,0 +1,389 @@
+import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Add, AutoAwesome, ContentCopy, Delete, Edit, EmailOutlined, LockReset } from '@mui/icons-material';
+import ManagementTable from 'components/ManagementTable';
+import TableFilterBar from 'components/TableFilterBar';
+import { createUser, deleteUser, generateUserPassword, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
+import { ACCESS_PERMISSION, ACCESS_PERMISSION_LABEL, ROLE, USER_ACCESS_PERMISSIONS, LULULEMON_ACCESS_PERMISSIONS, LULULEMON_PERMISSION_LABEL, BUYER_CODE, SYSTEM_TYPE, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
+import useActiveFactories from '../../common/factory/useActiveFactories';
+import useOrganizationRealtime from '../../common/realtime/useOrganizationRealtime';
+import { ORGANIZATION_REALTIME } from '../../constants/appConstants';
+import { APP_MESSAGES, createDeleteUserConfirmMessage } from '../../constants/appMessages';
+import { supportedSystemTypes } from '../../utils/systemTypes';
+
+
+export default function UserManagementPage() {
+  const [state, setState] = useState({ rows: [], count: 0, page: 0, size: DEFAULT_TABLE_PAGE_SIZE, loading: false });
+  const [filters, setFilters] = useState({ username: '', email: '', phone: '', role: '', departmentId: '', enabled: '' });
+  const [dialog, setDialog] = useState(null);
+  const [reset, setReset] = useState(null);
+  const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
+  const [departments, setDepartments] = useState([]);
+  const [buyers, setBuyers] = useState([]);
+  const { codes: activeFactoryCodes } = useActiveFactories();
+
+  const load = async (page = state.page, size = state.size) => {
+    setState((s) => ({ ...s, loading: true }));
+    try {
+      const r = await listUsers({ ...filters, enabled: filters.enabled === '' ? undefined : filters.enabled === 'true', page, size });
+      setState({ rows: r.content || [], count: r.totalElements || 0, page, size, loading: false });
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message);
+      setState((s) => ({ ...s, loading: false }));
+    }
+  };
+
+  useEffect(() => { load(0, state.size); }, [filters]);
+  const reloadDepartments = () => listDepartments({ page: 0, size: 200 }).then((r) => setDepartments(r.content || [])).catch((e) => setError(e?.response?.data?.message || e.message));
+  useEffect(() => { reloadDepartments(); }, []);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.DEPARTMENT, reloadDepartments);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.USER, () => load(state.page, state.size));
+  useEffect(() => { listBuyersAdmin({ active: true, page: 0, size: 200 }).then((r) => setBuyers(r.content || [])).catch(() => {}); }, []);
+
+  const save = async (body) => {
+    try {
+      dialog?.id ? await updateUser(dialog.id, body) : await createUser(body);
+      setDialog(null);
+      load(0, state.size);
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message);
+    }
+  };
+
+  const remove = async (row) => {
+    if (!row || !confirm(createDeleteUserConfirmMessage(row.username))) return;
+    try {
+      await deleteUser(row.id);
+      load(state.page, state.size);
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message);
+    }
+  };
+
+  const doReset = async (password) => {
+    try {
+      await resetUserPassword(reset.id, password);
+      return true;
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message);
+      throw e;
+    }
+  };
+
+  const doGenerateReset = async () => {
+    try {
+      const result = await generateUserPassword(reset.id);
+      const generated = String(result?.password || '');
+      if (!generated) throw new Error(APP_MESSAGES.GENERATED_PASSWORD_MISSING);
+      return generated;
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message);
+      throw e;
+    }
+  };
+
+  const columns = [
+    { key: 'username', label: 'Username' },
+    { key: 'email', label: 'Email' },
+    { key: 'role', label: 'Role' },
+    { key: 'enabled', label: 'Status', render: (r) => r.enabled ? 'Enabled' : 'Disabled' },
+    { key: 'buyerPermissions', label: 'Buyer / Type', render: (r) =>
+      (r.buyerTypePermissions || []).map((grant) => `${grant.buyerCode}: ${(grant.types || []).join('/')}`).join(', ') || '—' },
+    { key: 'accessPermissions', label: 'Permissions', render: (r) => [...(r.buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || []).map((v) => `LULULEMON: ${LULULEMON_PERMISSION_LABEL[v] || v}`), ...((r.buyerPermissions || []).includes(BUYER_CODE.ENGELBERT_STRAUSS) ? (r.accessPermissions || []).map((v) => `ES: ${ACCESS_PERMISSION_LABEL[v] || v}`) : [])].join(', ') || '—' },
+    { key: 'departmentId', label: 'Department', render: (r) => { const d = departments.find((x) => x.id === r.departmentId); return d ? `${d.factory || '—'} · ${d.departmentName}` : (r.departmentId || '—'); } },
+    {
+      key: 'actions',
+      label: 'Actions',
+      minWidth: 132,
+      render: (r) => (
+        <Stack direction="row" spacing={0.25} alignItems="center" onClick={(e) => e.stopPropagation()}>
+          <Tooltip title="Edit User"><IconButton size="small" onClick={() => setDialog(r)}><Edit fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Reset Password"><IconButton size="small" color="primary" onClick={() => setReset(r)}><LockReset fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="Delete User"><IconButton size="small" color="error" onClick={() => remove(r)}><Delete fontSize="small" /></IconButton></Tooltip>
+        </Stack>
+      )
+    }
+  ];
+
+  return (
+    <Box sx={{ p: { xs: 0.75, md: 1 } }}>
+      <Stack spacing={1}>
+        <Stack direction="row" justifyContent="flex-end" gap={1}>
+          <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add User</Button>
+        </Stack>
+        {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        
+        <ManagementTable
+          filterBar={<TableFilterBar
+          fields={[
+            { key: 'username', label: 'Username' },
+            { key: 'email', label: 'Email' },
+            { key: 'phone', label: 'Phone' },
+            { key: 'role', label: 'Role' },
+            { key: 'departmentId', label: 'Department', options: departments.map((d) => ({ value: d.id, label: d.departmentName })) },
+            { key: 'enabled', label: 'Status', options: [{ value: 'true', label: 'Enabled' }, { value: 'false', label: 'Disabled' }] }
+          ]}
+          values={filters}
+          onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+          onClear={() => setFilters({ username: '', email: '', phone: '', role: '', departmentId: '', enabled: '' })}
+          disabled={state.loading}
+        />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
+        {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers} activeFactoryCodes={activeFactoryCodes} onClose={() => setDialog(null)} onSave={save} /> : null}
+        {reset ? <PasswordDialog user={reset} onClose={() => setReset(null)} onSave={doReset} onGenerateReset={doGenerateReset} /> : null}
+      </Stack>
+    </Box>
+  );
+}
+
+function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onSave }) {
+  const editing = Boolean(row.id);
+  const [f, setF] = useState({
+    username: row.username || '',
+    email: row.email || '',
+    password: '',
+    address: row.address || '',
+    phone: row.phone || '',
+    role: row.role || ROLE.USER,
+    enabled: row.enabled !== false,
+    departmentId: row.departmentId || '',
+    accessPermissions: row.accessPermissions || [],
+    buyerAccessPermissions: row.buyerAccessPermissions || {},
+    buyerPermissions: row.buyerPermissions || [],
+    buyerTypePermissions: row.buyerTypePermissions || [],
+    factoryPermissions: row.factoryPermissions || [],
+    weighingFactoryPermissions: row.weighingFactoryPermissions || []
+  });
+
+  // A Department is selectable only when it belongs to an assigned, ACTIVE Factory.
+  const eligibleDepartments = departments.filter((d) => activeFactoryCodes.includes(d.factory) && f.factoryPermissions.includes(d.factory));
+  const missingSelectedDepartment = Boolean(f.departmentId) && !eligibleDepartments.some((d) => d.id === f.departmentId);
+
+  const toggle = (key, v) => setF((s) => {
+    if (key === 'accessPermissions') {
+      const current = Array.isArray(s[key]) ? s[key] : [];
+      if (v === ACCESS_PERMISSION.VIEW_SYSTEM) {
+        return { ...s, [key]: current.includes(v) ? [] : [ACCESS_PERMISSION.VIEW_SYSTEM] };
+      }
+      const withoutView = current.filter((x) => x !== ACCESS_PERMISSION.VIEW_SYSTEM);
+      return { ...s, [key]: withoutView.includes(v) ? withoutView.filter((x) => x !== v) : [...withoutView, v] };
+    }
+    if (key === 'buyerPermissions') {
+      const enabled = !s.buyerPermissions.includes(v);
+      const nextBuyers = enabled ? [...s.buyerPermissions, v] : s.buyerPermissions.filter((x) => x !== v);
+      const supportedType = v === BUYER_CODE.LULULEMON ? SYSTEM_TYPE.RFID
+        : v === BUYER_CODE.ENGELBERT_STRAUSS ? SYSTEM_TYPE.FACTORY_USE_ONLY : null;
+      const nextGrants = enabled
+        ? (supportedType ? [...s.buyerTypePermissions.filter((g) => g.buyerCode !== v), { buyerCode: v, types: [supportedType] }] : s.buyerTypePermissions)
+        : s.buyerTypePermissions.filter((g) => g.buyerCode !== v);
+      return { ...s, buyerPermissions: nextBuyers, buyerTypePermissions: nextGrants,
+        buyerAccessPermissions: enabled ? s.buyerAccessPermissions
+          : Object.fromEntries(Object.entries(s.buyerAccessPermissions || {}).filter(([code]) => code !== v)),
+        accessPermissions: v === BUYER_CODE.ENGELBERT_STRAUSS && enabled ? []
+          : !enabled && v === BUYER_CODE.ENGELBERT_STRAUSS ? [] : s.accessPermissions };
+    }
+    return { ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] };
+  });
+  const toggleLuluPermission = (permission) => setF((s) => {
+    const current = s.buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || [];
+    const next = permission === ACCESS_PERMISSION.LULU_VIEW_ONLY
+      ? (current.includes(permission) ? [] : [permission])
+      : (() => { const writable = current.filter((code) => code !== ACCESS_PERMISSION.LULU_VIEW_ONLY);
+          return writable.includes(permission) ? writable.filter((code) => code !== permission) : [...writable, permission]; })();
+    return { ...s, buyerAccessPermissions: { ...s.buyerAccessPermissions, [BUYER_CODE.LULULEMON]: next } };
+  });
+  const toggleType = (buyerCode, type) => setF((s) => {
+    const existing = s.buyerTypePermissions.find((g) => g.buyerCode === buyerCode);
+    const types = existing?.types || [];
+    const nextTypes = types.includes(type) ? types.filter((value) => value !== type) : [...types, type];
+    return {
+      ...s,
+      buyerTypePermissions: [
+        ...s.buyerTypePermissions.filter((g) => g.buyerCode !== buyerCode),
+        { buyerCode, types: nextTypes }
+      ]
+    };
+  });
+  const body = useMemo(() => ({
+    ...f,
+    password: f.password || undefined,
+    buyerAccessPermissions: f.buyerPermissions.includes(BUYER_CODE.LULULEMON)
+      ? { [BUYER_CODE.LULULEMON]: f.buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || [] } : {},
+    buyerTypePermissions: f.buyerPermissions.map((code) => {
+      const existing = f.buyerTypePermissions.find((grant) => grant.buyerCode === code);
+      const fixedType = code === BUYER_CODE.LULULEMON ? SYSTEM_TYPE.RFID
+        : code === BUYER_CODE.ENGELBERT_STRAUSS ? SYSTEM_TYPE.FACTORY_USE_ONLY : null;
+      return { buyerCode: code, types: fixedType ? [fixedType] : (existing?.types || []) };
+    }),
+    factoryPermissions: Array.isArray(f.factoryPermissions) ? f.factoryPermissions : String(f.factoryPermissions || '').split(',').map((v) => v.trim()).filter(Boolean)
+  }), [f]);
+
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle>{editing ? 'Edit' : 'Add'} User</DialogTitle>
+      <DialogContent>
+        <Stack spacing={1.5} sx={{ mt: 1 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+            <TextField fullWidth label="Username" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />
+            <TextField fullWidth label="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+          </Stack>
+          {!editing ? <TextField type="password" label="Password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /> : null}
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+            <TextField select fullWidth label="Role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value, ...(f.role === ROLE.ADMIN && e.target.value === ROLE.USER ? { buyerAccessPermissions: {}, accessPermissions: [] } : {}) })}>
+              <MenuItem value="USER">USER</MenuItem>
+              <MenuItem value="ADMIN">ADMIN</MenuItem>
+            </TextField>
+            <TextField select fullWidth label="Department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}
+              helperText={eligibleDepartments.length === 0 ? 'No eligible Department. Assign an ACTIVE Factory and create its Department first.' : 'Only Departments in assigned ACTIVE Factories are shown.'}>
+              <MenuItem value="">None</MenuItem>
+              {missingSelectedDepartment ? <MenuItem value={f.departmentId} disabled>Previously assigned Department unavailable</MenuItem> : null}
+              {eligibleDepartments.map((d) => <MenuItem key={d.id} value={d.id}>{d.factory || '—'} · {d.division} — {d.departmentName}</MenuItem>)}
+            </TextField>
+          </Stack>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+            <TextField fullWidth label="Phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+            <TextField fullWidth label="Address" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
+          </Stack>
+          <FormControlLabel control={<Checkbox checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />} label="Enabled" />
+          <Typography fontWeight={800}>Buyer permissions</Typography>
+          <Stack direction="row" flexWrap="wrap">{buyers.map((buyer) => { const v = buyer.buyerKey; return <FormControlLabel key={buyer.id || v} control={<Checkbox checked={f.buyerPermissions.includes(v)} onChange={() => toggle('buyerPermissions', v)} />} label={buyer.buyerName || v} />; })}</Stack>
+          <Typography fontWeight={800}>Buyer / Type permissions</Typography>
+          {f.buyerPermissions.length === 0 ? <Typography color="text.disabled" variant="body2">Select a Buyer to enable System Type and Access Permissions.</Typography> : null}
+          {buyers.filter((buyer) => f.buyerPermissions.includes(buyer.buyerKey)).map((buyer) => {
+            const types = supportedSystemTypes(buyer).filter((type) =>
+              buyer.buyerKey === BUYER_CODE.LULULEMON ? type === SYSTEM_TYPE.RFID
+                : buyer.buyerKey === BUYER_CODE.ENGELBERT_STRAUSS ? type === SYSTEM_TYPE.FACTORY_USE_ONLY : true);
+            return <Box key={buyer.buyerKey} sx={{ p: 1.25, border: '1px solid #DFE7EF', borderRadius: 2 }}>
+              <Typography fontWeight={700} fontSize="0.86rem">{buyer.buyerName || buyer.buyerKey}</Typography>
+              <Stack direction="row" flexWrap="wrap">
+                {types.map((type) => <FormControlLabel key={type} control={<Checkbox
+                  checked={(f.buyerTypePermissions.find((g) => g.buyerCode === buyer.buyerKey)?.types || []).includes(type)}
+                  disabled={types.length === 1}
+                  onChange={() => toggleType(buyer.buyerKey, type)} />} label={type.replaceAll('_', ' ')} />)}
+              </Stack>
+            </Box>;
+          })}
+          <Typography fontWeight={800}>Access permissions</Typography>
+          {f.buyerPermissions.length === 0 ? (
+            <Box sx={{ opacity: 0.55, p: 1.25, border: '1px dashed #CBD5E1', borderRadius: 2 }}>
+              <Typography variant="body2" color="text.secondary">Disabled — select a Buyer first</Typography>
+              <Stack direction="row" flexWrap="wrap">{LULULEMON_ACCESS_PERMISSIONS.map((v) => <FormControlLabel key={v} control={<Checkbox disabled checked={false} />} label={LULULEMON_PERMISSION_LABEL[v]} />)}</Stack>
+            </Box>
+          ) : null}
+          {f.buyerPermissions.includes(BUYER_CODE.LULULEMON) && <Box sx={{ p: 1.25, border: '1px solid #DFE7EF', borderRadius: 2 }}>
+            <Typography fontWeight={700}>LULULEMON</Typography>
+            <Stack direction="row" flexWrap="wrap">{LULULEMON_ACCESS_PERMISSIONS.map((v) => <FormControlLabel key={v} control={<Checkbox
+              disabled={f.role === ROLE.ADMIN}
+              checked={(f.buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || []).includes(v)}
+              onChange={() => toggleLuluPermission(v)} />} label={LULULEMON_PERMISSION_LABEL[v]} />)}</Stack>
+          </Box>}
+          {f.buyerPermissions.includes(BUYER_CODE.ENGELBERT_STRAUSS) && <Box sx={{ p: 1.25, border: '1px solid #DFE7EF', borderRadius: 2 }}>
+            <Typography fontWeight={700}>ENGELBERT STRAUSS</Typography>
+            <Stack direction="row" flexWrap="wrap">{USER_ACCESS_PERMISSIONS.map((v) => <FormControlLabel key={v} control={<Checkbox
+              disabled={f.role === ROLE.ADMIN} checked={f.accessPermissions.includes(v)}
+              onChange={() => toggle('accessPermissions', v)} />} label={ACCESS_PERMISSION_LABEL[v] || v} />)}</Stack>
+          </Box>}
+          {f.role === ROLE.ADMIN ? <Typography variant="caption" color="text.secondary">ADMIN: Full system access. User permission checkboxes are disabled.</Typography> : null}
+          <Typography fontWeight={800}>Factory assignments (only ACTIVE)</Typography>
+          <Stack direction="row" flexWrap="wrap" gap={0.6}>
+            {activeFactoryCodes.map((factory) => (
+              <FormControlLabel key={factory} control={<Checkbox checked={f.factoryPermissions.includes(factory)}
+                onChange={() => setF((current) => {
+                  const factoryPermissions = current.factoryPermissions.includes(factory)
+                    ? current.factoryPermissions.filter((v) => v !== factory) : [...current.factoryPermissions, factory];
+                  return { ...current, factoryPermissions,
+                    weighingFactoryPermissions: current.weighingFactoryPermissions.filter((v) => factoryPermissions.includes(v)),
+                    departmentId: current.departmentId && !factoryPermissions.includes(departments.find((d) => d.id === current.departmentId)?.factory) ? '' : current.departmentId };
+                })} />} label={factory} />
+            ))}
+          </Stack>
+          {f.buyerPermissions.includes(BUYER_CODE.ENGELBERT_STRAUSS) ? <>
+            <Typography fontWeight={800}>Weighing scope (subset of assigned Factory)</Typography>
+            <Stack direction="row" flexWrap="wrap" gap={0.6}>
+              {activeFactoryCodes.filter((code) => f.factoryPermissions.includes(code)).map((factory) => (
+                <FormControlLabel key={factory} control={<Checkbox checked={f.weighingFactoryPermissions.includes(factory)}
+                  onChange={() => toggle('weighingFactoryPermissions', factory)} />} label={factory} />
+              ))}
+            </Stack>
+          </> : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" onClick={() => onSave(body)} disabled={!f.username.trim() || !f.email.trim() || (!editing && f.password.length < 8)}>Save</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function PasswordDialog({ user, onClose, onSave, onGenerateReset }) {
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const generate = async () => {
+    setSaving(true);
+    setCopied(false);
+    try {
+      const generated = await onGenerateReset();
+      setPassword(generated);
+      setDone(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    setSaving(true);
+    try {
+      await onSave(password);
+      setDone(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(password);
+    setCopied(true);
+  };
+
+  const emailUser = () => {
+    const subject = encodeURIComponent('Temporary password');
+    const body = encodeURIComponent(`Hello ${user?.username || ''},\n\nYour temporary password is: ${password}\n\nPlease sign in and change it after login.`);
+    window.location.href = `mailto:${encodeURIComponent(user?.email || '')}?subject=${subject}&body=${body}`;
+  };
+
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Reset Password · {user?.username}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={1.5} sx={{ mt: 1 }}>
+          <Alert severity={done ? 'success' : 'info'}>
+            {done ? 'Password reset successfully. This is the exact temporary password stored by the server. Copy it now.' : 'Use Generate & Reset for a server-generated password, or enter a custom password and click Reset Password.'}
+          </Alert>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Temporary Password"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setDone(false); }}
+            inputProps={{ autoComplete: 'new-password' }}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button variant="outlined" startIcon={<AutoAwesome />} onClick={generate} disabled={saving}>{saving ? 'Generating…' : 'Generate & Reset'}</Button>
+            <Button variant="outlined" startIcon={<ContentCopy />} onClick={copy} disabled={!password}>{copied ? 'Copied' : 'Copy'}</Button>
+            <Button variant="outlined" startIcon={<EmailOutlined />} onClick={emailUser} disabled={!done || !password || !user?.email}>Email User</Button>
+          </Stack>
+          {user?.email ? <Typography variant="caption" color="text.secondary">User email: {user.email}</Typography> : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{done ? 'Close' : 'Cancel'}</Button>
+        {!done ? <Button variant="contained" disabled={password.length < 8 || saving} onClick={resetPassword}>{saving ? 'Resetting…' : 'Reset Password'}</Button> : null}
+      </DialogActions>
+    </Dialog>
+  );
+}

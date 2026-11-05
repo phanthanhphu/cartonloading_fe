@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { ROLE, STORAGE_KEY } from '../../constants/appConstants';
+import { BUYER_CODE, ROLE, STORAGE_KEY } from '../../constants/appConstants';
 import { APP_MESSAGES } from '../../constants/appMessages';
 
 import {
@@ -11,7 +11,9 @@ import {
   canManageBarcodes,
   canManageSales,
   canUseBuyerWorkspace,
-  canWeightCheck
+  canWeightCheck,
+  canManageShipping,
+  canCreateShippingSchedule
 } from 'utils/accessControl';
 import {
   canAccessBuyer,
@@ -85,7 +87,7 @@ export function BuyerWorkspaceRoute({ children }) {
   const session = readJwtSession();
   const allowed = Boolean(buyer && canAccessBuyer(buyer.code, user)
     && supportedSystemTypes(buyer).includes(session.type)
-    && (canUseBuyerWorkspace() || (buyer.code === 'LULULEMON' && (canAssignBarcode() || canWeightCheck()))));
+    && (canUseBuyerWorkspace() || (buyer.code === BUYER_CODE.LULULEMON && (canAssignBarcode() || canWeightCheck()))));
 
   useEffect(() => {
     if (allowed && buyer) saveSelectedBuyer(buyer);
@@ -99,7 +101,7 @@ export function BuyerWorkspaceRoute({ children }) {
 export function BuyerOrdersAccessRoute({ children }) {
   const { buyerSlug } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
-  const allowed = Boolean(buyer && (buyer.code !== 'LULULEMON' || canManageSales() || canAssignBarcode() || canWeightCheck()));
+  const allowed = Boolean(buyer && (buyer.code !== BUYER_CODE.LULULEMON || canUseBuyerWorkspace()));
   useEffect(() => { if (!allowed) toast.error('Orders requires Sales, Packing or Weight operator permission.'); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }
@@ -143,7 +145,7 @@ export function PoPickingAccessRoute({ children }) {
 }
 
 export function ShippingAccessRoute({ children }) {
-  const allowed = canAssignBarcode() || canManageSales() || canAssignWeight();
+  const allowed = canCreateShippingSchedule() || canManageShipping() || canAssignBarcode() || canManageSales() || canAssignWeight();
   useEffect(() => { if (!allowed) toast.error(APP_MESSAGES.PACKING_PERMISSION_REQUIRED); }, [allowed]);
   return allowed ? children : <BuyerHomeRedirect />;
 }

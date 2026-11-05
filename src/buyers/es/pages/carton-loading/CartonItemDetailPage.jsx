@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -9,7 +10,7 @@ import {   getCartonTransaction, getCurrentStationTransaction, listCartonsForIte
 import TableFilterBar from 'components/TableFilterBar';
 import { getPackingOrder } from 'buyers/es/services/packingListService';
 import { getBuyerBySlug } from 'utils/buyerAccess';
-import { CARTON_FINAL_STATUSES, BARCODE_CARTON_STATUS, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE, SCAN_INPUT_MODE, WEIGHT_SOURCE } from '../../../../constants/appConstants';
+import { CARTON_FINAL_STATUSES, BARCODE_CARTON_STATUS, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE, SCAN_INPUT_MODE, WEIGHT_SOURCE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 
 
 const getErrorMessage = (error, fallback) => (
@@ -59,7 +60,7 @@ const scanMeta = (value) => {
 
 const kg = (value) => value == null
   ? '—'
-  : `${Number(value).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
+  : `${Number(value).toLocaleString(FORMAT_LOCALE.EN_US, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
 
 export default function CartonItemDetailPage() {
   const { buyerSlug, orderId, masterLineId } = useParams();
@@ -98,8 +99,10 @@ export default function CartonItemDetailPage() {
   const [scanSubmitting, setScanSubmitting] = useState(false);
   const [weightSubmitting, setWeightSubmitting] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
 
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const focusScanner = useCallback(() => {
     window.setTimeout(() => scanInputRef.current?.focus(), 100);
   }, []);
@@ -477,7 +480,7 @@ export default function CartonItemDetailPage() {
               value={barcode}
               onChange={(event) => setBarcode(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && scanInputMode === SCAN_INPUT_MODE.ZEBRA) {
+                if (event.key === KEYBOARD_KEY.ENTER && scanInputMode === SCAN_INPUT_MODE.ZEBRA) {
                   event.preventDefault();
                   submitScan();
                 }
@@ -589,7 +592,7 @@ export default function CartonItemDetailPage() {
                         value={manualWeight}
                         onChange={(event) => setManualWeight(event.target.value)}
                         onKeyDown={(event) => {
-                          if (event.key === 'Enter' && manualWeight) {
+                          if (event.key === KEYBOARD_KEY.ENTER && manualWeight) {
                             event.preventDefault();
                             submitWeightManually();
                           }
@@ -665,7 +668,7 @@ export default function CartonItemDetailPage() {
           </Box>
           <Box sx={{ flex: 1 }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800 }}>
-            Showing {filtered.length.toLocaleString('en-US')} of {rows.length.toLocaleString('en-US')} cartons
+            Showing {filtered.length.toLocaleString(FORMAT_LOCALE.EN_US)} of {rows.length.toLocaleString(FORMAT_LOCALE.EN_US)} cartons
           </Typography>
         </Stack>
       </Paper>
@@ -727,7 +730,7 @@ export default function CartonItemDetailPage() {
           <Typography variant="caption" color="text.secondary">
             The Factory Barcode is a one-to-one carton ID. The backend opens only the carton mapped to the scanned code; it never chooses another carton by sequence.
           </Typography>
-          <Typography variant="caption" fontWeight={850}>{filtered.length.toLocaleString('en-US')} rows</Typography>
+          <Typography variant="caption" fontWeight={850}>{filtered.length.toLocaleString(FORMAT_LOCALE.EN_US)} rows</Typography>
         </Box>
       </Paper>
 

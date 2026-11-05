@@ -1,12 +1,17 @@
 import axios from 'axios';
 import { API_BASE_URL, API_ROOT, FILE_ROOT } from '../config';
-import { AUTH_STORAGE_KEYS, ROUTE_PATH, STORAGE_KEY, REDIRECT_REASON } from '../constants/appConstants';
+import { AUTH_STORAGE_KEYS, ROUTE_PATH, STORAGE_KEY, REDIRECT_REASON, ACTIVE_FACTORY_HEADER } from '../constants/appConstants';
 import { APP_MESSAGES } from '../constants/appMessages';
+import { readSelectedFactory } from '../utils/activeFactoryStorage';
 
 window.API_BASE_URL = API_BASE_URL;
 
 export const clearAuthSession = () => {
   AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  // Older clients sometimes stored tokens in sessionStorage; do not let a
+  // revoked token be reused after the targeted WebSocket logout.
+  sessionStorage.removeItem(STORAGE_KEY.TOKEN);
+  sessionStorage.removeItem(STORAGE_KEY.ACCESS_TOKEN);
 };
 
 export const redirectToLogin = (reason = REDIRECT_REASON.SESSION_EXPIRED) => {
@@ -86,6 +91,9 @@ const applyRequestAuth = (config = {}) => {
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    // Factory is a VIEW filter. Server validates this value against JWT + permissions.
+    const activeFactory = readSelectedFactory();
+    if (activeFactory) config.headers[ACTIVE_FACTORY_HEADER] = activeFactory;
   }
 
   if (config.data instanceof FormData) {
@@ -101,7 +109,24 @@ const applyRequestAuth = (config = {}) => {
 
 const handleRequestError = (error) => Promise.reject(error);
 
-const handleResponseError = (error) => {
+// Direct Axios call bypasses app interceptors. The backend verifies the JWT signature;
+// stale token is ONLY used for a read-only notice, never for authorized operations.
+const probeAccountChange = async () => {
+  const token = getStoredToken();
+  if (!token) return false;
+  try {
+    const response = await axios.get(`${API_BASE_URL}/api/auth/account-change`, {
+      headers: { Authorization: `Bearer ${token}` }, timeout: 8000
+    });
+    if (response.data?.changed) {
+      window.dispatchEvent(new CustomEvent('bsl:account-change', { detail: response.data }));
+      return true;
+    }
+  } catch { /* Normal logout path handles expired/bad token. */ }
+  return false;
+};
+
+const handleResponseError = async (error) => {
   const status = error.response?.status;
   const url = error.config?.url || '';
 
@@ -109,8 +134,8 @@ const handleResponseError = (error) => {
 
   const isLoginRequest = String(url).includes('/login');
 
-  if (status === 401 && !isLoginRequest) {
-    redirectToLogin(REDIRECT_REASON.SESSION_EXPIRED);
+  if (status === 401 && !isLoginRequest && !String(url).includes('/auth/account-change')) {
+    if (!(await probeAccountChange())) redirectToLogin(REDIRECT_REASON.SESSION_EXPIRED);
   }
 
   return Promise.reject(error);
@@ -177,6 +202,8 @@ if (!window.__BSL_FETCH_AUTH_INTERCEPTOR_INSTALLED__) {
 
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
+      const activeFactory = readSelectedFactory();
+      if (activeFactory) headers.set(ACTIVE_FACTORY_HEADER, activeFactory);
     }
 
     const config = {
@@ -189,8 +216,8 @@ if (!window.__BSL_FETCH_AUTH_INTERCEPTOR_INSTALLED__) {
 
     const isLoginRequest = String(normalizedUrl).includes('/login');
 
-    if (response.status === 401 && !isLoginRequest) {
-      redirectToLogin(REDIRECT_REASON.SESSION_EXPIRED);
+    if (response.status === 401 && !isLoginRequest && !String(normalizedUrl).includes('/auth/account-change')) {
+      if (!(await probeAccountChange())) redirectToLogin(REDIRECT_REASON.SESSION_EXPIRED);
     }
 
     return response;
@@ -216,7 +243,9 @@ window.addEventListener('unhandledrejection', (event) => {
     const url = err?.config?.url || '';
     const isLoginRequest = String(url).includes('/login');
 
-    if (!isLoginRequest) {
+    // Response interceptors already handle 401 and inspect the account-change
+    // reason first. Do not race a forced logout or a change-notice redirect.
+    if (!isLoginRequest && !err?.config) {
       redirectToLogin(REDIRECT_REASON.GLOBAL_ERROR);
     }
   }

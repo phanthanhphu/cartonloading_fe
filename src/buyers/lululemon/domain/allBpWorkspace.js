@@ -107,23 +107,12 @@ export const recalculateAllBpPreview = (sourceRow) => {
   const pcs = Math.max(0, Math.trunc(numberValue(canonicalRowValue(next, 'PCS_CTN'))));
   if (!qty || !pcs) return next;
 
-  const fob = numberValue(canonicalRowValue(next, 'FOB_PRICE'));
-  const care = numberValue(canonicalRowValue(next, 'CARE_CONTENT_LABEL'));
-  const tag = numberValue(canonicalRowValue(next, 'CHINA_INSPECTION_TAG'));
-  const dp = numberValue(canonicalRowValue(next, 'DP_PERCENT'), true);
   const odd = qty / pcs;
   const cartons = Math.floor(odd);
   const remainder = qty - (cartons * pcs);
-  const combinedPrice = fob + care + tag;
-  const ftyPrice = Math.round((combinedPrice * dp + Number.EPSILON) * 100) / 100;
-
   next = setCanonicalPreview(next, 'ODD_RATIO', displayNumber(odd));
   next = setCanonicalPreview(next, 'CTNS', String(cartons));
   next = setCanonicalPreview(next, 'REMAINDER', String(remainder));
-  next = setCanonicalPreview(next, 'FOB_AMOUNT', displayNumber(qty * fob));
-  next = setCanonicalPreview(next, 'TOTAL_FOB_PRICE_TAG', displayNumber(qty * combinedPrice));
-  next = setCanonicalPreview(next, 'FOB_FTY_PRICE', ftyPrice.toFixed(2));
-  next = setCanonicalPreview(next, 'FOB_FTY_AMOUNT', displayNumber(qty * ftyPrice));
   return next;
 };
 

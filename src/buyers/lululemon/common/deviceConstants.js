@@ -1,4 +1,4 @@
-export const DEVICE_TAB = Object.freeze({ SCALE: 'scale', RFID: 'rfid' });
+export const DEVICE_TAB = Object.freeze({ SCALE: 'scale', RFID: 'rfid', CONVEYOR: 'conveyor', ASSIGNMENT: 'assignment' });
 export const MODBUS = Object.freeze({
   PORT: 502, UNIT_ID: 1, REGISTER_ADDRESS: 0, ENCODING: 'UINT16', KG_PER_UNIT: 0.001,
   ENCODINGS: [

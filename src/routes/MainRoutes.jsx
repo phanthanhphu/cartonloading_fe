@@ -5,15 +5,14 @@ import { toast } from 'react-toastify';
 import Loadable from 'components/Loadable';
 import DashboardLayout from 'layout/Dashboard';
 import LoginPage from './LoginPage';
+import AccountChangeDialog from '../components/AccountChangeDialog';
 import { BuyerHomeRedirect, BuyerWorkspaceRoute, BuyerOrdersAccessRoute } from 'buyers/core/BuyerRouteGuards';
 import { isAdmin } from 'utils/accessControl';
-import barcodePackingRoutes from 'buyers/es/routes/routes';
+import buyerOperationalRoutes from 'buyers/core/buyerRoutes';
 import { AUTH_STORAGE_KEYS, BUYER_CODE, ROUTE_PATH, STORAGE_KEY } from '../constants/appConstants';
 import { APP_MESSAGES } from '../constants/appMessages';
 import { readJwtSession } from '../utils/systemTypes';
-import ssccPackingRoutes from 'buyers/lululemon/routes/routes';
 
-const WorkflowHomePage = Loadable(lazy(() => import('pages/workflow/WorkflowHomePage')));
 const DashboardPage = Loadable(lazy(() => import('pages/dashboard/DashboardPage')));
 const BuyerOrdersPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerOrdersPage')));
 const BuyerOrderWorkspacePage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerOrderWorkspacePage')));
@@ -78,7 +77,7 @@ function ProtectedRoute() {
     if (token && !expired && !readJwtSession().buyer) clearAuthSession();
     return <Navigate to={ROUTE_PATH.LOGIN} replace state={{ from: location }} />;
   }
-  return <Outlet />;
+  return <><AccountChangeDialog /><Outlet /></>;
 }
 
 const MainRoutes = {
@@ -91,14 +90,14 @@ const MainRoutes = {
       children: [{
         element: <DashboardLayout />,
         children: [
-          { index: true, element: <WorkflowHomePage /> },
+          { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: 'dashboard', element: <DashboardPage /> },
-          { path: 'workflow', element: <WorkflowHomePage /> },
+          { path: 'workflow', element: <Navigate to="/dashboard" replace /> },
           { path: 'orders-management', element: <Navigate to={`/buyers/${String(BUYER_CODE.LULULEMON).toLowerCase()}/orders`} replace /> },
           { path: 'users', element: <AdminRoute><UserManagementPage /></AdminRoute> },
           { path: 'departments', element: <AdminRoute><DepartmentManagementPage /></AdminRoute> },
           { path: 'buyers', element: <AdminRoute><BuyerManagementPage /></AdminRoute> },
-          { path: 'audit-logs', element: <AdminRoute><AuditLogPage /></AdminRoute> },
+          { path: 'audit-logs', element: <AuditLogPage /> },
 
           // Unified Buyer hierarchy: Buyer → Order → PO → Carton → Item.
           { path: 'buyers/:buyerSlug/orders', element: <BuyerWorkspaceRoute><BuyerOrdersAccessRoute><BuyerOrdersPage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute> },
@@ -107,8 +106,7 @@ const MainRoutes = {
           { path: 'buyers/:buyerSlug/orders/:orderId/pos/:poKey/cartons/:cartonId', element: <BuyerWorkspaceRoute><BuyerOrdersAccessRoute><BuyerCartonItemsPage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute> },
 
           // Buyer-owned operational routes.
-          ...barcodePackingRoutes,
-          ...ssccPackingRoutes,
+          ...buyerOperationalRoutes,
 
           { path: '*', element: <BuyerHomeRedirect /> }
         ]

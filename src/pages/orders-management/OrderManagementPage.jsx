@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
 import { Add, Delete, Edit, Refresh } from '@mui/icons-material';
@@ -32,6 +33,7 @@ export default function OrderManagementPage() {
   const [cartonFilters, setCartonFilters] = useState(emptyCartonFilters());
   const [itemFilters, setItemFilters] = useState(emptyItemFilters());
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [dialog, setDialog] = useState(null);
   const writable = canManageSales();
 

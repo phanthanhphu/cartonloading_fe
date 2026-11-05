@@ -9,7 +9,7 @@ import { listPackingOrders } from 'buyers/es/services/packingListService';
 import { getApiError } from 'utils/apiError';
 import { getAccessibleBuyers, readSelectedBuyer, saveSelectedBuyer } from 'utils/buyerAccess';
 import { readStoredUser } from 'utils/accessControl';
-import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE } from '../../../../constants/appConstants';
+import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 
 
 const formatDate = (value) => {
@@ -35,7 +35,7 @@ const statusChipSx = (value) => {
   };
 };
 
-const progressText = (done, total) => `${Number(done || 0).toLocaleString('en-US')} / ${Number(total || 0).toLocaleString('en-US')}`;
+const progressText = (done, total) => `${Number(done || 0).toLocaleString(FORMAT_LOCALE.EN_US)} / ${Number(total || 0).toLocaleString(FORMAT_LOCALE.EN_US)}`;
 
 export default function WeightCheckPage() {
   const navigate = useNavigate();
@@ -136,7 +136,7 @@ export default function WeightCheckPage() {
             label="Search Order"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && applySearch()}
+            onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && applySearch()}
             placeholder="Order name, status, user..."
             sx={{ flex: 1, minWidth: { lg: 260 } }}
           />
@@ -154,9 +154,9 @@ export default function WeightCheckPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 0.75, p: 0.85, borderBottom: '1px solid #E7EDF3', bgcolor: '#F8FAFC' }}>
           {[
             ['Orders on page', rows.length, <ScaleOutlined key="a" fontSize="small" />],
-            ['Assigned cartons', `${pageAssigned.toLocaleString('en-US')} / ${pageCartons.toLocaleString('en-US')}`, <CheckCircleOutlineOutlined key="b" fontSize="small" />],
-            ['Weight PASS', pagePass.toLocaleString('en-US'), <CheckCircleOutlineOutlined key="c" fontSize="small" />],
-            ['Weight FAIL', pageFail.toLocaleString('en-US'), <ScaleOutlined key="d" fontSize="small" />]
+            ['Assigned cartons', `${pageAssigned.toLocaleString(FORMAT_LOCALE.EN_US)} / ${pageCartons.toLocaleString(FORMAT_LOCALE.EN_US)}`, <CheckCircleOutlineOutlined key="b" fontSize="small" />],
+            ['Weight PASS', pagePass.toLocaleString(FORMAT_LOCALE.EN_US), <CheckCircleOutlineOutlined key="c" fontSize="small" />],
+            ['Weight FAIL', pageFail.toLocaleString(FORMAT_LOCALE.EN_US), <ScaleOutlined key="d" fontSize="small" />]
           ].map(([label, value, icon]) => (
             <Stack key={label} direction="row" spacing={0.8} alignItems="center" sx={{ p: 0.8, bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 1.35 }}>
               <Box sx={{ color: '#0A6ED1', display: 'grid', placeItems: 'center' }}>{icon}</Box>
@@ -202,9 +202,9 @@ export default function WeightCheckPage() {
                     <TableCell><Chip label={statusLabel(row.weightStatus)} sx={statusChipSx(row.weightStatus)} /></TableCell>
                     <TableCell sx={{ fontWeight: 750 }}>{progressText(weighed, row.plannedCartonCount)}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Typography component="span" sx={{ color: '#168052', fontWeight: 800, fontSize: '0.76rem' }}>{Number(row.passWeightCartonCount || 0).toLocaleString('en-US')}</Typography>
+                      <Typography component="span" sx={{ color: '#168052', fontWeight: 800, fontSize: '0.76rem' }}>{Number(row.passWeightCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</Typography>
                       <Typography component="span" sx={{ color: '#94A3B8', mx: 0.7 }}>/</Typography>
-                      <Typography component="span" sx={{ color: '#C73A3A', fontWeight: 800, fontSize: '0.76rem' }}>{Number(row.failWeightCartonCount || 0).toLocaleString('en-US')}</Typography>
+                      <Typography component="span" sx={{ color: '#C73A3A', fontWeight: 800, fontSize: '0.76rem' }}>{Number(row.failWeightCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</Typography>
                     </TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Tooltip title={weightAvailable ? (assignmentReady ? 'Open Weight Check for this Order' : 'Weight Check is already in progress; continue assigned cartons while carton-level correction is completed') : 'Complete barcode assignment for all physical cartons before starting Weight Check'}>

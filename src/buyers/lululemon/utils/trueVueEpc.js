@@ -88,3 +88,20 @@ export function getRawInventoryPreviewRows(preview) {
   }
   return [...tags.values()];
 }
+
+/**
+ * UI-only Wrong SKU counter: unsupported/invalid raw tags are wrong carton
+ * contents too, but three reads of the same unsupported tag are ONE mistake.
+ * Keep raw diagnostics and eligible EPC quantity separate.
+ */
+export function getWrongSkuDisplayCount(validRows, invalidUniqueRows) {
+  const wrong = new Set();
+  for (const item of (validRows || [])) {
+    if (item.status === 'WRONG_SKU') wrong.add(String(item.epc || item.raw || '').replace(/\s+/g, '').toUpperCase());
+  }
+  for (const item of (invalidUniqueRows || [])) {
+    const raw = String(item.raw || item.epc || '').replace(/\s+/g, '').toUpperCase();
+    if (raw) wrong.add(raw);
+  }
+  return wrong.size;
+}

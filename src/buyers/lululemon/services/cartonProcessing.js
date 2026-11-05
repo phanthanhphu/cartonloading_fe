@@ -7,6 +7,8 @@ const root = `/api/buyers/${encodeURIComponent(BUYER_CODE.LULULEMON)}/${BUYER_AP
 export const getProcessingSummary = (factoryCode, orderId, poId) => unwrap(apiRawClient.get(`${root}/summary`, {
   params: { factoryCode: factoryCode || undefined, orderId: orderId || undefined, poId: poId || undefined }
 }));
+// Read-only check against ALL assigned cartons; never allocate a carton or change SSCC state.
+export const checkProcessingSscc = (params) => unwrap(apiRawClient.get(`${root}/sscc/check`, { params }));
 export const identifyProcessingCarton = (body) => unwrap(apiRawClient.post(`${root}/identify`, body));
 // Undo a newly assigned SSCC + carton-label SKU before RFID/Weight begins.
 export const unassignProcessingIdentity = (orderId, cartonId, reason) => unwrap(
@@ -20,11 +22,3 @@ export const saveProcessingAutoWeight = (body) => unwrap(apiRawClient.post(`${ro
 export const saveProcessingManualWeight = (body) => unwrap(apiRawClient.post(`${root}/manual-weight`, body));
 export const reopenProcessingManualWeight = (body) => unwrap(apiRawClient.post(`${root}/reopen-weight`, body));
 
-export const listFactoryPackingImports = (factoryCode) => unwrap(
-  apiRawClient.get(`${root}/imports`, { params: { factoryCode } })
-);
-export const importFactoryPacking = (orderId, factoryCode, file) => {
-  const form = new FormData();
-  form.append('file', file);
-  return unwrap(apiRawClient.post(`${root}/imports`, form, { params: { orderId, factoryCode } }));
-};

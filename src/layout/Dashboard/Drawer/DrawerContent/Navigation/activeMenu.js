@@ -1,7 +1,7 @@
 /**
  * Resolve the SINGLE sidebar entry that owns the current page.
  * - Buyer menu URLs own their nested pages (Order -> PO -> Carton -> Items).
- * - Home/admin URLs are exact; activePaths are exact aliases by default (e.g. Weight History), and may use
+ * - Home/admin URLs are exact; activePaths are exact aliases by default (e.g. legacy route aliases), and may use
  *   a trailing /* to explicitly include nested alias pages.
  * - Most-specific path wins, with Shipment Management owning its review/detail subroutes.
  * - Segment boundaries prevent /orders from matching /orders-archive.

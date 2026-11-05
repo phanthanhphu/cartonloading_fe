@@ -1,19 +1,9 @@
 import { useEffect, useState } from 'react';
 import { BUYER_CODE } from '../constants/appConstants';
-import { readStoredUser } from './accessControl';
 import { listFactories } from '../services/factoryService';
 
-const factoryKey = () => {
-  const user = readStoredUser();
-  return `selected-factory:${BUYER_CODE.LULULEMON}:${user.id || user.email || user.username || 'session'}`;
-};
-export const readSelectedFactory = () => localStorage.getItem(factoryKey()) || '';
-export const saveSelectedFactory = (code) => {
-  const normalized = String(code || '').trim().toUpperCase();
-  if (normalized) localStorage.setItem(factoryKey(), normalized);
-  else localStorage.removeItem(factoryKey());
-  window.dispatchEvent(new CustomEvent('factory:selected', { detail: { factoryCode: normalized } }));
-};
+import { readSelectedFactory, saveSelectedFactory } from './activeFactoryStorage';
+export { readSelectedFactory, saveSelectedFactory };
 /** Active server-authorized Factory catalog; never default to hardcoded F1. */
 export function useSelectedFactory(buyerCode) {
   const [state, setState] = useState({ factoryCode: '', factories: [], loading: true, error: '' });

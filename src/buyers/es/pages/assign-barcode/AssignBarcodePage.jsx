@@ -9,7 +9,7 @@ import { listPackingOrders } from 'buyers/es/services/packingListService';
 import { getApiError } from 'utils/apiError';
 import { getAccessibleBuyers, readSelectedBuyer } from 'utils/buyerAccess';
 import { readStoredUser } from 'utils/accessControl';
-import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE } from '../../../../constants/appConstants';
+import { COMMON_PAGE_SIZE_OPTIONS, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 
 
 const formatDate = (value) => {
@@ -104,7 +104,7 @@ export default function AssignBarcodePage() {
 
       <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.75, overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={0.8} alignItems={{ lg: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
-          <TextField size="small" label="Search Order" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && applySearch()} sx={{ flex: 1, minWidth: { lg: 260 } }} />
+          <TextField size="small" label="Search Order" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { lg: 260 } }} />
           <TextField select size="small" label="Barcode Assignment Status" value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 170 } }}>
             <MenuItem value="">All</MenuItem>
             <MenuItem value={PROGRESS_STATUS.NOT_STARTED}>Not Started</MenuItem>
@@ -119,9 +119,9 @@ export default function AssignBarcodePage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 0.75, p: 0.85, borderBottom: '1px solid #E7EDF3', bgcolor: '#F8FAFC' }}>
           {[
             ['Orders on page', rows.length, <QrCode2Outlined key="a" />],
-            ['Physical cartons', cartons.toLocaleString('en-US'), <Inventory2Outlined key="b" />],
-            ['Barcode Assigned', `${assigned.toLocaleString('en-US')} / ${cartons.toLocaleString('en-US')}`, <QrCode2Outlined key="c" />],
-            ['Assignment completed', completedOrders.toLocaleString('en-US'), <QrCode2Outlined key="d" />]
+            ['Physical cartons', cartons.toLocaleString(FORMAT_LOCALE.EN_US), <Inventory2Outlined key="b" />],
+            ['Barcode Assigned', `${assigned.toLocaleString(FORMAT_LOCALE.EN_US)} / ${cartons.toLocaleString(FORMAT_LOCALE.EN_US)}`, <QrCode2Outlined key="c" />],
+            ['Assignment completed', completedOrders.toLocaleString(FORMAT_LOCALE.EN_US), <QrCode2Outlined key="d" />]
           ].map(([title, value, icon]) => (
             <Stack key={title} direction="row" spacing={0.8} alignItems="center" sx={{ p: 0.8, bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 1.35 }}>
               <Box sx={{ color: '#0A6ED1', display: 'grid', placeItems: 'center', '& svg': { fontSize: 20 } }}>{icon}</Box>
@@ -156,9 +156,9 @@ export default function AssignBarcodePage() {
                     <Typography sx={{ fontSize: '0.79rem', color: '#173B63', fontWeight: 800 }}>{row.orderName}</Typography>
                     <Typography sx={{ fontSize: '0.67rem', color: '#8291A3' }}>{row.productionFacility || row.supplierName || '—'}</Typography>
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 750 }}>{Number(row.plannedCartonCount || 0).toLocaleString('en-US')}</TableCell>
-                  <TableCell sx={{ color: '#168052', fontWeight: 800 }}>{Number(row.assignedCartonCount || 0).toLocaleString('en-US')}</TableCell>
-                  <TableCell sx={{ color: Number(row.unassignedCartonCount || 0) > 0 ? '#C77B00' : '#64748B', fontWeight: 800 }}>{Number(row.unassignedCartonCount || 0).toLocaleString('en-US')}</TableCell>
+                  <TableCell sx={{ fontWeight: 750 }}>{Number(row.plannedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</TableCell>
+                  <TableCell sx={{ color: '#168052', fontWeight: 800 }}>{Number(row.assignedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</TableCell>
+                  <TableCell sx={{ color: Number(row.unassignedCartonCount || 0) > 0 ? '#C77B00' : '#64748B', fontWeight: 800 }}>{Number(row.unassignedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</TableCell>
                   <TableCell><Chip label={label(row.assignmentStatus)} sx={statusSx(row.assignmentStatus)} /></TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     <Button

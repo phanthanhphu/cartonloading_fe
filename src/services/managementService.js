@@ -5,6 +5,8 @@ export const getLululemonOperationsDashboard = () => apiClient.get('/api/buyers/
 export const listManagedOrders = (buyer, q = {}) => apiClient.get('/api/order-management/orders', cfg({ buyer, ...q }));
 export const getManagedOrder = (buyer, id) => apiClient.get(`/api/order-management/orders/${id}`, cfg({ buyer }));
 export const createManagedOrder = (buyer, body) => apiClient.post('/api/order-management/orders', body, cfg({ buyer }));
+export const checkManagedOrderName = (buyer, factoryCode, orderName, excludeOrderId) =>
+  apiClient.get('/api/order-management/orders/check-name', cfg({ buyer, factoryCode, orderName, excludeOrderId }));
 export const updateManagedOrder = (buyer, id, body) => apiClient.put(`/api/order-management/orders/${id}`, body, cfg({ buyer }));
 export const deleteManagedOrder = (buyer, id) => apiClient.delete(`/api/order-management/orders/${id}`, cfg({ buyer }));
 export const listManagedPos = (buyer, orderId, q = {}) => apiClient.get(`/api/order-management/orders/${orderId}/pos`, cfg({ buyer, ...q }));

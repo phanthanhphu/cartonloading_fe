@@ -1,18 +1,20 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Checkbox, Chip, CircularProgress, Collapse, Dialog, DialogTitle, DialogContent, DialogActions, Divider, IconButton, InputAdornment, ListItemText, Menu, MenuItem,
   Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   TextField, Tooltip, Typography
 } from '@mui/material';
-import { CheckCircleOutline, ErrorOutline, LinkOff, QrCodeScannerOutlined, Refresh, Sensors, RestartAltRounded, ScaleOutlined, ExpandLess, ExpandMore, SettingsOutlined, ReplayRounded, VisibilityOutlined, VisibilityOffOutlined, ViewColumnOutlined, FilterListOutlined } from '@mui/icons-material';
+import { CheckCircleOutline, ErrorOutline, LinkOff, QrCodeScannerOutlined, Sensors, RestartAltRounded, ScaleOutlined, ReplayRounded, VisibilityOutlined, VisibilityOffOutlined, ViewColumnOutlined, FilterListOutlined } from '@mui/icons-material';
 import CartonRfidPanel from './CartonRfidPanel';
-import { identifyProcessingCarton, getProcessingSummary, armProcessingAutoWeight, saveProcessingAutoWeight, reopenProcessingManualWeight, unassignProcessingIdentity, recallFailedProcessingCarton } from '../services/cartonProcessing';
-import { listMyScalePlcDevices, readScalePlcWeight } from '../services/scalePlcDevices';
+import ConveyorSimControl from './ConveyorSimControl';
+import { checkProcessingSscc, identifyProcessingCarton, getProcessingSummary, armProcessingAutoWeight, saveProcessingAutoWeight, reopenProcessingManualWeight, unassignProcessingIdentity, recallFailedProcessingCarton } from '../services/cartonProcessing';
+import { listMyScalePlcDevices, readScalePlcWeight, sendSimulatorWeight } from '../services/scalePlcDevices';
 import { startCartonRfidSession, reopenCartonRfidSession, getCartonRfidSession } from '../services/weighing';
-import { getUniqueEpcRows, getUniqueInvalidEpcRows } from '../utils/trueVueEpc';
+import { getUniqueEpcRows, getUniqueInvalidEpcRows, getWrongSkuDisplayCount } from '../utils/trueVueEpc';
 import { isAdmin, canWeightCheck } from '../../../utils/accessControl';
 import { listManagedCartons } from 'services/managementService';
-import { ALL_BP_KNOWN_HEADERS, ALL_BP_UI_LABELS } from '../../../constants/appConstants';
+import { ALL_BP_KNOWN_HEADERS, ALL_BP_RETIRED_KEYS, ALL_BP_UI_LABELS, BUYER_CODE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT, DEVICE_CONNECTION_TYPE, KEYBOARD_KEY } from '../../../constants/appConstants';
 import { canonicalSourceKey, sourceValue } from '../domain/allBpWorkspace';
 
 // Keep the original WeighingPage's one-popup layout and status tables, but show
@@ -23,14 +25,14 @@ const sscc18 = (value) => {
   const code = String(value ?? '').trim().replace(/[()\s-]/g, '');
   return code.length === 20 && code.startsWith('00') ? code.slice(2) : code;
 };
-const done = (status) => status === 'PASS' || status === 'FAILED';
+const done = (status) => status === RFID_CHECK_RESULT.PASS || status === RFID_CHECK_RESULT.FAILED;
 const kg = (value) => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toFixed(3);
-const statusColor = (status) => status === 'PASS' ? 'success' : status === 'FAILED' ? 'error' : 'default';
+const statusColor = (status) => status === RFID_CHECK_RESULT.PASS ? 'success' : status === RFID_CHECK_RESULT.FAILED ? 'error' : 'default';
 // Matched EPCs / original carton planned Qty. Wrong-SKU or invalid tags
 // are displayed as separate failure reasons, never added to the denominator.
 const cartonRfidDisplay = (row) => {
   const planned = row?.plannedQty ?? '—';
-  const count = row?.rfidMatchedQty ?? (row?.rfidStatus === 'PASS' ? (row?.rfidVerifiedQty ?? planned) : null);
+  const count = row?.rfidMatchedQty ?? (row?.rfidStatus === RFID_CHECK_RESULT.PASS ? (row?.rfidVerifiedQty ?? planned) : null);
   return {
     label: `${count ?? '—'}/${planned}`,
     detail: count == null ? 'Matching EPC count unavailable. Deploy the updated backend.'
@@ -55,7 +57,7 @@ function RfidInspectionEvidence({ row, orderId, poId }) {
     session?.wrongSkuEpcs, session?.crossCartonEpcs), [session, row.labelConfirmedSku]);
   const invalid = useMemo(() => getUniqueInvalidEpcRows(session?.invalidReads), [session]);
   const matched = epcs.filter((epc) => epc.status === 'MATCH').length;
-  const wrong = epcs.filter((epc) => epc.status === 'WRONG_SKU').length;
+  const wrong = getWrongSkuDisplayCount(epcs, invalid);
   const cross = epcs.filter((epc) => epc.status === 'DUPLICATE_CARTON').length;
   const expected = Number(session?.expectedQty ?? row.plannedQty ?? 0);
   return <Stack spacing={0.6} sx={{ mt: 0.6 }}>
@@ -67,12 +69,12 @@ function RfidInspectionEvidence({ row, orderId, poId }) {
         <Chip size="small" variant="outlined" label={`Matched ${matched}/${expected}`} />
         {matched < expected && <Chip size="small" color="error" variant="outlined" label={`Missing ${expected - matched}`} />}
         {matched > expected && <Chip size="small" color="error" variant="outlined" label={`Excess ${matched - expected}`} />}
-        {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={`Wrong SKU ${wrong}`} />}
+        {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={`Wrong SKU ${wrong}${invalid.length ? ` (incl. ${invalid.length} unsupported)` : ''}`} />}
         {cross > 0 && <Chip size="small" color="error" variant="outlined" label={`Cross-carton ${cross}`} />}
         {invalid.length > 0 && <Chip size="small" color="error" variant="outlined" label={`Invalid ${invalid.length}`} />}
         <Chip size="small" variant="outlined" label={`Read events ${session.readCount ?? 0}`} />
       </Stack>
-      {session.status === 'FAILED' && <Alert severity="error" sx={{ py: 0 }}>
+      {session.status === RFID_CHECK_RESULT.FAILED && <Alert severity="error" sx={{ py: 0 }}>
         <b>RFID FAILED.</b> {session.reason || 'Quantity, SKU or EPC validation failed.'}
       </Alert>}
       <TableContainer sx={{ maxHeight: 190, overflowY: 'auto' }}>
@@ -85,7 +87,7 @@ function RfidInspectionEvidence({ row, orderId, poId }) {
               <TableCell>{tag.sku || '—'}</TableCell>
               <TableCell sx={{ color: tag.status === 'MATCH' ? 'success.main' : 'error.main', fontWeight: 750 }}>
                 {tag.status === 'MATCH' ? 'MATCH' : tag.status === 'WRONG_SKU' ? 'WRONG SKU'
-                  : tag.status === 'DUPLICATE_CARTON' ? 'CROSS-CARTON' : `INVALID${tag.reason ? ': ' + tag.reason : ''}`}
+                  : tag.status === 'DUPLICATE_CARTON' ? 'CROSS-CARTON' : `WRONG SKU — UNSUPPORTED${tag.reason ? ': ' + tag.reason : ''}`}
               </TableCell>
             </TableRow>)}
             {!epcs.length && !invalid.length && <TableRow><TableCell colSpan={4} align="center">No EPCs recorded.</TableCell></TableRow>}
@@ -96,8 +98,9 @@ function RfidInspectionEvidence({ row, orderId, poId }) {
   </Stack>;
 }
 const cartonFinal = (row) => {
-  if (!done(row?.rfidStatus) || !done(row?.weightStatus)) return 'PENDING';
-  return row.rfidStatus === 'PASS' && row.weightStatus === 'PASS' ? 'PASS' : 'FAILED';
+  if (!done(row?.rfidStatus) || !done(row?.weightStatus)) return FINAL_INSPECTION_RESULT.PENDING;
+  return row.rfidStatus === RFID_CHECK_RESULT.PASS && row.weightStatus === WEIGHING_RESULT.PASS
+    ? FINAL_INSPECTION_RESULT.PASS : FINAL_INSPECTION_RESULT.FAILED;
 };
 
 // Carton Picker is scoped to the OPEN PO. Columns from ALL_BP describe that PO;
@@ -147,7 +150,7 @@ const pickerCellValue = (column, carton, po, factoryCode) => {
   }
 };
 
-export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId, po, poKey, factoryCode, onCartonSaved }) {
+export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON, orderId, po, poKey, factoryCode, onCartonSaved, dialogReady = true }) {
   const [sscc, setSscc] = useState('');
   const [sku, setSku] = useState('');
   const [cartonId, setCartonId] = useState('');
@@ -158,26 +161,33 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
   const [pickerColumnsAnchor, setPickerColumnsAnchor] = useState(null);
   const [cartonPickerOpen, setCartonPickerOpen] = useState(false);
   const [pickerDismissedFor, setPickerDismissedFor] = useState('');
+  const [ssccPrecheck, setSsccPrecheck] = useState({ sscc: '', status: 'idle', cartonId: null, message: '' });
   const [cartons, setCartons] = useState([]);
   const [summary, setSummary] = useState(null);
   const [active, setActive] = useState(null);
   const [rfid, setRfid] = useState(null);
   const [savedWeight, setSavedWeight] = useState(null);
   const [scaleReading, setScaleReading] = useState(null);
+  // Only completed/permanently stale event ids are ignored. Transient POST failures
+  // must be retried, otherwise the screen can remain WAITING FOR SCALE forever.
   const lastScaleEvent = useRef(null);
+  const [scaleArmed, setScaleArmed] = useState(false);
+  const [simulatorTestKg, setSimulatorTestKg] = useState('');
+  const [sendingTestKg, setSendingTestKg] = useState(false);
   const [devices, setDevices] = useState([]);
   const [stationCode, setStationCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'info');
   const [resultDetailsOpen, setResultDetailsOpen] = useState({});
   const [showEnd, setShowEnd] = useState(false);
   const [confirmUnassign, setConfirmUnassign] = useState(false);
   const [unassignReason, setUnassignReason] = useState('');
   const [resetPanel, setResetPanel] = useState(''); // 'assign', 'rfid', 'weight'
   const [resetReason, setResetReason] = useState('');
-  const [showStationSettings, setShowStationSettings] = useState(false);
   const [recallTarget, setRecallTarget] = useState(null);
   const [recallReason, setRecallReason] = useState('');
   const [rfidMountKey, setRfidMountKey] = useState(0);
@@ -231,8 +241,9 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
         const available = (Array.isArray(scales) ? scales : []).filter((row) =>
           String(row.factoryCode || '').toUpperCase() === String(factoryCode).toUpperCase());
         setDevices(available);
-        // Device selected by assignment; no manual station entry for operators.
-        const preferred = available.find((d) => d.connectionType === 'SIMULATOR') || available[0];
+        // A configured Modbus PLC takes priority over legacy internal simulators.
+        // The backend remains the authority for permissions and the live reading.
+        const preferred = available.find((d) => d.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP) || available[0];
         setStationCode(preferred?.stationCode || '');
       } catch (e) { if (!cancelled) setError(errText(e)); }
       finally { if (!cancelled) setLoading(false); }
@@ -240,24 +251,109 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
     return () => { cancelled = true; };
   }, [buyerCode, factoryCode, orderId, poId, poKey]);
 
+  // Device Management may save a different scale configuration while this
+  // workstation remains mounted (for example, in another tab). Refresh the
+  // assigned devices on focus and periodically without resetting carton data.
+  // Never switch stations in the middle of an active carton when the existing
+  // station is still assigned; doing so could claim a different device's event.
+  useEffect(() => {
+    if (!factoryCode) return undefined;
+    let cancelled = false;
+    let checking = false;
+    const refreshAssignedDevices = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const scales = await listMyScalePlcDevices();
+        if (cancelled) return;
+        const available = (Array.isArray(scales) ? scales : []).filter((row) =>
+          String(row.factoryCode || '').toUpperCase() === String(factoryCode).toUpperCase());
+        setDevices((previous) => JSON.stringify(previous) === JSON.stringify(available) ? previous : available);
+        setStationCode((previous) => {
+          const stillAssigned = available.some((d) => d.stationCode === previous);
+          if (active?.carton?.sscc18 && stillAssigned) return previous;
+          return (available.find((d) => d.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP) || available[0])?.stationCode || '';
+        });
+      } catch (_error) {
+        // A transient connection failure should not clear a running station.
+        // The existing read/arm poll surfaces device and permission failures.
+      } finally { checking = false; }
+    };
+    window.addEventListener('focus', refreshAssignedDevices);
+    const timer = window.setInterval(refreshAssignedDevices, 20000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshAssignedDevices);
+      window.clearInterval(timer);
+    };
+  }, [factoryCode, active?.carton?.sscc18]);
+
   // A previously assigned SSCC identifies its own carton. For ANY new SSCC
   // the operator MUST choose the physical Carton No. from this PO's unassigned
   // cartons (even if only one remains). SKU cannot identify the carton because
   // every carton in a PO may share the same SKU.
-  // Opening the PO workstation should be ready for the scanner immediately.
+  // Focus SSCC after the workstation dialog has entered and data has loaded.
+  // Re-arm when moving to the next carton, without polling or stealing focus
+  // while the operator is already entering SSCC/SKU or viewing another dialog.
   useEffect(() => {
-    if (loading || active) return undefined;
-    const frame = window.requestAnimationFrame(() => ssccRef.current?.focus());
+    if (!dialogReady || loading || active || sscc.trim() || cartonPickerOpen || recallTarget) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      if (ssccRef.current && !ssccRef.current.disabled) ssccRef.current.focus();
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, [loading]);
+  }, [dialogReady, loading, active, sscc]);
 
   const normalizedSscc = sscc18(sscc);
   const validSscc = /^\d{18}$/.test(normalizedSscc);
   const existingCarton = useMemo(() => cartons.find((row) => sscc18(row.cartonIdentity) === normalizedSscc && validSscc), [cartons, normalizedSscc, validSscc]);
+  // A PO-scoped carton list is NOT enough to detect a SSCC already used by
+  // another PO. Validate against MongoDB as soon as the scanner finishes.
+  useEffect(() => {
+    if (!validSscc || !poId || !orderId || !factoryCode || active) return undefined;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (cancelled) return;
+      setSsccPrecheck({ sscc: normalizedSscc, status: 'checking', cartonId: null, message: '' });
+      try {
+        const result = await checkProcessingSscc({ sscc: normalizedSscc, orderId, poId, factoryCode });
+        if (cancelled) return;
+        // An SSCC with no assignment is AVAILABLE: proceed to the Carton picker.
+        // A conflict is different from an HTTP 404 (missing API), which must not
+        // be mistaken for an available SSCC.
+        if (result?.status === 'CONFLICT') {
+          setSsccPrecheck({ sscc: normalizedSscc, status: 'error', cartonId: null,
+            message: result?.message || 'SSCC is already assigned to another Carton.' });
+          setCartonPickerOpen(false);
+          return;
+        }
+        if (result?.status !== 'AVAILABLE' && result?.status !== 'CURRENT_PO') {
+          throw new Error('SSCC verification returned an unknown result. Please contact Admin.');
+        }
+        setSsccPrecheck({ sscc: normalizedSscc, status: 'ok',
+          cartonId: result.cartonId || null, message: '' });
+      } catch (failure) {
+        if (cancelled) return;
+        const message = failure?.response?.status === 404
+          ? 'SSCC check API was not found. Update the Backend to the matching version; no assignment was changed.'
+          : errText(failure);
+        setSsccPrecheck({ sscc: normalizedSscc, status: 'error', cartonId: null, message });
+        // The picker must never open if the API itself failed.
+        setCartonPickerOpen(false);
+      }
+    }, 280); // Lets 18-digit and GS1 (00)+18-digit scanner input finish.
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [normalizedSscc, validSscc, factoryCode, orderId, poId, active]);
+  const ssccVerified = validSscc && ssccPrecheck.sscc === normalizedSscc && ssccPrecheck.status === 'ok';
+  const ssccRejected = validSscc && ssccPrecheck.sscc === normalizedSscc && ssccPrecheck.status === 'error';
+  const ssccListOutOfDate = ssccVerified && (
+    (ssccPrecheck.cartonId && ssccPrecheck.cartonId !== existingCarton?.id)
+    || (!ssccPrecheck.cartonId && Boolean(existingCarton))
+  );
+
   const unassigned = useMemo(() => cartons
     .filter((row) => !String(row.cartonIdentity || '').trim() && !row.weightStatus && !row.rfidStatus)
     .sort((a, b) => Number(a.cartonNo || 0) - Number(b.cartonNo || 0)), [cartons]);
-  const needCartonChoice = Boolean(validSscc && !existingCarton && !active);
+  const needCartonChoice = Boolean(ssccVerified && !ssccPrecheck.cartonId && !existingCarton && !active);
   // Use the same ALL_BP schema as Order → PO columns, including imported custom headers.
   // The fixed Choose action is intentionally NOT hideable.
   const pickerColumnsCatalog = useMemo(() => {
@@ -267,6 +363,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
     const extras = [];
     headers.forEach((header) => {
       const canonical = canonicalSourceKey(header);
+      if (ALL_BP_RETIRED_KEYS.includes(canonical)) return;
       if (!seen.has(canonical)) {
         seen.add(canonical);
         extras.push({ key: `bp:${canonical}`, label: ALL_BP_UI_LABELS[canonical] || header,
@@ -332,14 +429,21 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
     setCartonQuery('');
     setPickerFilters({ ...PICKER_FILTER_EMPTY });
     setError('');
-    window.requestAnimationFrame(() => skuRef.current?.focus());
   };
 
-  // The SKU field was disabled until an unassigned physical carton was chosen.
-  // Focus after React has rendered the now-enabled input (not inside onClick).
+  // Auto-focus SKU after a known SSCC, or after the operator selects the
+  // physical Carton No. (required for a new SSCC). Wait until the picker dialog
+  // has finished closing so its focus trap cannot return focus to the button.
+  // Delaying the known-SSCC path also allows GS1 (00) + 18 digits to finish.
   useEffect(() => {
-    if (needCartonChoice && chosenCarton && !active) skuRef.current?.focus();
-  }, [needCartonChoice, chosenCarton?.id, active]);
+    if (!dialogReady || loading || busy || active || !ssccVerified || ssccListOutOfDate || cartonPickerOpen
+      || (!existingCarton && !chosenCarton)) return undefined;
+    const timer = window.setTimeout(() => {
+      if (skuRef.current && !skuRef.current.disabled) skuRef.current.focus();
+    }, chosenCarton ? 320 : 280);
+    return () => window.clearTimeout(timer);
+  }, [dialogReady, loading, busy, active, ssccVerified, ssccListOutOfDate, existingCarton?.id,
+    chosenCarton?.id, cartonPickerOpen]);
   const activeCarton = active?.carton;
   const qty = Number(activeCarton?.plannedQty || 0);
   const expected = po?.grossWeightKg != null && Number(po.grossWeightKg) > 0 && qty > 0 ? Number(po.grossWeightKg) * qty : null;
@@ -348,16 +452,26 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
   const maxWeight = expected == null ? null : expected + tolerance;
   const weightResult = savedWeight?.carton?.weightStatus || activeCarton?.weightStatus || null;
   const rfidResult = rfid?.status || activeCarton?.rfidStatus || null;
+  const selectedScale = devices.find((device) => device.stationCode === stationCode);
+  const isAssignedSimulator = selectedScale?.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR
+    && scaleReading?.mode !== DEVICE_CONNECTION_TYPE.MODBUS_TCP;
   const canUnassignNewIdentity = Boolean(activeCarton?.id && activeCarton?.sscc18 && activeCarton?.labelConfirmedAt
     && !activeCarton?.rfidSessionId && !activeCarton?.rfidStatus && !activeCarton?.weightStatus
     && !rfid?.id && !rfid?.startedAt && !savedWeight && !Number(activeCarton?.scannedQty || 0));
-  const completedRows = useMemo(() => cartons.filter((row) => cartonFinal(row) !== 'PENDING'), [cartons]);
-  const passRows = completedRows.filter((row) => cartonFinal(row) === 'PASS');
-  const failedRows = completedRows.filter((row) => cartonFinal(row) === 'FAILED');
+  const completedRows = useMemo(() => cartons.filter((row) => cartonFinal(row) !== FINAL_INSPECTION_RESULT.PENDING), [cartons]);
+  const passRows = completedRows.filter((row) => cartonFinal(row) === FINAL_INSPECTION_RESULT.PASS);
+  const failedRows = completedRows.filter((row) => cartonFinal(row) === FINAL_INSPECTION_RESULT.FAILED);
 
   const identify = async () => {
     if (busy || loading || active || !factoryCode) return;
     if (!/^\d{18}$/.test(normalizedSscc)) { setError('Scan an SSCC-18 or GS1 (00) + SSCC-18.'); return; }
+    if (!ssccVerified || ssccListOutOfDate) {
+      setError(ssccRejected ? ssccPrecheck.message : ssccListOutOfDate
+        ? 'SSCC assignment changed since this PO was loaded. Refresh the PO before continuing.'
+        : 'Checking SSCC against existing assignments. Please wait.');
+      ssccRef.current?.focus();
+      return;
+    }
     if (!sku.trim()) { setError('Scan the SKU on the carton label.'); skuRef.current?.focus(); return; }
     if (!stationCode.trim()) { setError('Select the assigned Scale station first.'); return; }
     // A NEW SSCC always requires an explicit Carton No. selection; no FIFO
@@ -377,7 +491,8 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
       const identified = await identifyProcessingCarton({ sscc: sscc.trim(), sku: sku.trim(), factoryCode,
         orderId, poId, cartonId: row.id });
       if (identified?.carton?.id !== row.id) throw new Error('Server returned a different Carton; operation stopped.');
-      setActive(identified); setRfid(null); setSavedWeight(null); setScaleReading(null); lastScaleEvent.current = null;
+      setActive(identified); setRfid(null); setSavedWeight(null); setScaleReading(null);
+      lastScaleEvent.current = null; setScaleArmed(false); setSimulatorTestKg('');
       setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); setResetReason('');
       setRfidMountKey((key) => key + 1);
       setNotice(`Carton ${identified.carton.cartonNo}: SSCC/SKU confirmed. Scan RFID first, then Scale auto-captures a NEW reading.`);
@@ -410,6 +525,27 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
     if (done(session?.status)) reload().catch((e) => setError(errText(e)));
   }, [reload]);
 
+  // Simulator testing is an explicit Admin action, never an automatic weight
+  // fabricated on RFID failure. Backend checks the active SSCC, Factory and
+  // finished RFID attempt and creates a single-use scale event for this carton.
+  const publishSimulatorTestWeight = async () => {
+    if (!admin || !isAssignedSimulator || !done(rfidResult) || weightResult || !scaleArmed || sendingTestKg) return;
+    const value = String(simulatorTestKg).trim();
+    const num = Number(value);
+    if (!/^\d+(?:\.\d{1,3})?$/.test(value) || !Number.isFinite(num) || num <= 0 || num > 10000) {
+      setError('Enter a test weight greater than 0 and at most 10000 kg (maximum 3 decimal places).');
+      return;
+    }
+    setSendingTestKg(true); setError('');
+    try {
+      await sendSimulatorWeight(stationCode, num);
+      setNotice(`New ${num.toFixed(3)} kg simulator event sent for carton ${activeCarton.cartonNo}. Waiting for automatic capture…`);
+      // The existing polling effect claims this event and preserves normal
+      // RFID, tolerance, FINAL PASS/FAILED and audit rules on the backend.
+    } catch (e) { setError(errText(e)); }
+    finally { setSendingTestKg(false); }
+  };
+
   // The scale value comes ONLY from the assigned device, never from the carton input.
   // Polling receives simulated events. A server-side single-use claim protects the
   // event from duplicate submissions and verifies the correct Factory + completed RFID (PASS or FAILED).
@@ -418,38 +554,64 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
     let cancelled = false;
     let working = false;
     let lastArmedAt = 0;
+    setScaleArmed(false);
     const poll = async () => {
       if (working || cancelled) return;
       working = true;
       try {
+        // Arm before sampling: Modbus requires a NEW unstable -> stable edge for THIS carton.
+        const scale = devices.find(d => d.stationCode === stationCode);
+        const previewOnly = scale?.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && !scale?.stableConfigured;
+        if (!previewOnly && Date.now() - lastArmedAt > 20000) {
+          await armProcessingAutoWeight({ sscc: activeCarton.sscc18, stationCode });
+          lastArmedAt = Date.now();
+          if (!cancelled) setScaleArmed(true);
+        }
+        if (previewOnly && !cancelled) setScaleArmed(false);
         const reading = await readScalePlcWeight(stationCode);
         if (cancelled) return;
         setScaleReading(reading);
-        if (reading?.mode === 'SIMULATOR' && Date.now() - lastArmedAt > 20000) {
-          lastArmedAt = Date.now();
-          await armProcessingAutoWeight({ sscc: activeCarton.sscc18, stationCode });
-        }
-        if (reading?.mode === 'SIMULATOR' && reading?.stable && !reading?.consumed && reading?.eventId
+        if ((reading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR || reading?.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP)
+            && reading?.stable && !reading?.consumed && reading?.eventId
             && reading?.weightKg != null && lastScaleEvent.current !== reading.eventId) {
-          lastScaleEvent.current = reading.eventId;
           try {
             const saved = await saveProcessingAutoWeight({ sscc: activeCarton.sscc18, stationCode, eventId: reading.eventId });
+            // Mark claimed only once the server has confirmed the save. A failed
+            // network request must NOT permanently discard an otherwise valid event.
+            lastScaleEvent.current = reading.eventId;
             if (cancelled) return;
             setSavedWeight(saved);
-            setNotice(`Carton ${activeCarton.cartonNo}: RFID ${rfidResult} · Scale ${Number(reading.weightKg).toFixed(3)} kg · Weight ${saved.carton.weightStatus} · Final ${rfidResult === 'PASS' && saved.carton.weightStatus === 'PASS' ? 'PASS' : 'FAILED'}.`);
+            setNotice(`Carton ${activeCarton.cartonNo}: RFID ${rfidResult} · Scale ${Number(reading.weightKg).toFixed(3)} kg · Weight ${saved.carton.weightStatus} · Final ${rfidResult === RFID_CHECK_RESULT.PASS && saved.carton.weightStatus === WEIGHING_RESULT.PASS ? 'PASS' : 'FAILED'}.`);
             await reload(); onCartonSaved?.();
           } catch (e) {
-            if (!cancelled && !/Send a NEW simulator weight|already used or replaced/i.test(errText(e))) setError(errText(e));
+            const message = errText(e);
+            // Permanently stale/claimed samples cannot be reused. Wait for a
+            // NEW scale event; do not repeatedly POST the old one every 1.5s.
+            if (/Send a NEW simulator weight|already used or replaced|already used or belongs to another carton|does not belong to this active carton|fresh stable weight/i.test(message)) {
+              lastScaleEvent.current = reading.eventId;
+            }
+            if (!cancelled) {
+              if (/Weight already saved/i.test(message)) {
+                // POST may have committed but response was lost. Show a useful
+                // warning instead of silently swallowing the request.
+                setError('Weight may already have been saved. Refresh the carton before retrying.');
+              } else if (!/already used or replaced|already used or belongs to another carton/i.test(message)) {
+                setError(message);
+              }
+            }
           }
         }
       } catch (e) {
-        if (!cancelled) setScaleReading({ status: 'OFFLINE', error: errText(e) });
+        if (!cancelled) {
+          setScaleReading({ status: 'OFFLINE', error: errText(e) });
+          setScaleArmed(false);
+        }
       } finally { working = false; }
     };
     poll();
     const timer = window.setInterval(poll, 1500);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [activeCarton?.sscc18, activeCarton?.cartonNo, rfidResult, weightResult, stationCode, reload, onCartonSaved]);
+  }, [activeCarton?.sscc18, activeCarton?.cartonNo, rfidResult, weightResult, stationCode, devices, reload, onCartonSaved]);
 
   // Reset semantics: never erase server history. Unsaved weight is local-only.
   // Completed RFID can be reopened only by Admin; failed RFID may be rescanned
@@ -457,15 +619,15 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
   // RFID capture must be finished/stopped before resetting the session.
   const resetRfid = async () => {
     if (!activeCarton?.id || busy || savedWeight || weightResult || !done(rfidResult)) return;
-    if (rfidResult === 'PASS' && !admin) {
+    if (rfidResult === RFID_CHECK_RESULT.PASS && !admin) {
       setError('Only Admin may reopen a PASS RFID inspection.'); return;
     }
-    if (rfidResult === 'PASS' && resetReason.trim().length < 5) {
+    if (rfidResult === RFID_CHECK_RESULT.PASS && resetReason.trim().length < 5) {
       setError('Enter at least 5 characters describing why RFID PASS must be reopened.'); return;
     }
     setBusy(true); setError('');
     try {
-      if (rfidResult === 'PASS') {
+      if (rfidResult === RFID_CHECK_RESULT.PASS) {
         await reopenCartonRfidSession(orderId, poId, activeCarton.sscc18, resetReason.trim());
       }
       const fresh = await startCartonRfidSession(orderId, poId,
@@ -490,7 +652,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
       const reopened = await reopenProcessingManualWeight({ sscc: activeCarton.sscc18, reason: resetReason.trim() });
       setActive((previous) => previous ? { ...previous, carton: reopened } : previous);
       setSavedWeight(null); setScaleReading(null); lastScaleEvent.current = null; setResetPanel(''); setResetReason('');
-      setNotice(`Carton ${activeCarton.cartonNo}: weight reopened. Send a NEW simulator reading after RFID finishes.`);
+      setNotice(`Carton ${activeCarton.cartonNo}: weight reopened. Use a NEW weight reading after RFID finishes.`);
       await reload(); onCartonSaved?.();
     } catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
@@ -556,7 +718,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
           label={`${rows.length} carton · ${rows.reduce((acc, row) => acc + Number(row.plannedQty || 0), 0)} pcs`} />
       </Stack>
       <TableContainer sx={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', overflowX: 'auto',
-        scrollbarGutter: 'stable', bgcolor: '#FFFFFF' }}>
+        bgcolor: '#FFFFFF' }}>
       <Table stickyHeader size="small" aria-label={`${title} carton results`} sx={{ minWidth: 730, tableLayout: 'fixed', width: '100%',
         '& .MuiTableCell-root': { px: 0.7, py: 0.55, verticalAlign: 'middle', borderColor: 'divider' },
         '& .MuiChip-root': { height: 21, fontSize: 10.5, fontWeight: 800 },
@@ -573,7 +735,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
         <TableBody>
           {rows.map((row, index) => {
             const expanded = Boolean(resultDetailsOpen[row.id]);
-            const statusIcon = (status) => status === 'PASS'
+            const statusIcon = (status) => status === RFID_CHECK_RESULT.PASS
               ? <CheckCircleOutline color="success" sx={{ fontSize: 16, flexShrink: 0 }} />
               : <ErrorOutline color="error" sx={{ fontSize: 16, flexShrink: 0 }} />;
             return <Fragment key={row.id}>
@@ -661,92 +823,70 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
     '@media (max-height: 680px)': { height: 'auto', overflowY: 'visible' },
     color: '#14264A'
   }}>
-    {/* Summary is shown only once. Detailed reader/station configuration is available on demand. */}
-    <Paper variant="outlined" sx={{ px: 1.2, py: 0.35, borderRadius: 1.8, borderColor: '#E2E8F0', bgcolor: '#fff' }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap" useFlexGap>
-        <Stack direction="row" alignItems="center" gap={0.8} flexWrap="wrap" useFlexGap>
-          <Typography variant="subtitle2" fontWeight={900}>Carton Processing</Typography>
-          <Chip size="small" color="primary" variant="outlined" label={`Inspected ${summary?.processed ?? 0} / ${summary?.total ?? cartons.length}`} />
-          <Chip size="small" color="success" variant="outlined" label={`PASS ${summary?.passed ?? passRows.length}`} />
-          <Chip size="small" color="error" variant="outlined" label={`FAILED ${summary?.failed ?? failedRows.length}`} />
-          {active && <Chip size="small" variant="outlined" label={`Carton ${activeCarton?.cartonNo ?? '—'} · ${qty} pcs`} />}
-          {notice && <Tooltip arrow title={notice}>
-            <Typography color="info.main" noWrap sx={{ fontSize: 11.5, maxWidth: { xs: 260, md: 480 }, fontWeight: 600 }}>
-              {notice}
-            </Typography>
-          </Tooltip>}
-        </Stack>
-        <Stack direction="row" alignItems="center" gap={0.5}>
-          <Button size="small" variant="text" startIcon={<SettingsOutlined fontSize="small" />}
-            onClick={() => setShowStationSettings((value) => !value)}
-            endIcon={showStationSettings ? <ExpandLess /> : <ExpandMore />}
-            aria-expanded={showStationSettings}>Scale: {devices.find((d) => d.stationCode === stationCode)?.stationName || stationCode || 'Not assigned'}</Button>
-          <Button size="small" variant="text" startIcon={<Refresh />}
-            onClick={() => reload().catch((e) => setError(errText(e)))} disabled={busy}>Refresh</Button>
-          {summary?.end && !active && <Button size="small" variant="contained" onClick={() => setShowEnd(true)}>END</Button>}
-        </Stack>
-      </Stack>
-      <Collapse in={showStationSettings} unmountOnExit>
-        <Stack direction="row" spacing={1} sx={{ pt: 0.8 }} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Chip size="small" variant="outlined" icon={<QrCodeScannerOutlined />} label="RFID Reader · Device Management" />
-          <Chip size="small" variant="outlined" icon={<Sensors />} label={`Assigned Scale · ${stationCode || 'Not assigned'}`} />
-          <Typography variant="caption" color="text.secondary">Device assignments are managed by Admin.</Typography>
-        </Stack>
-      </Collapse>
-    </Paper>
+    {/* One compact device bar; carton workflow and separate PASS / FAILED tables below stay unchanged. */}
+    <ConveyorSimControl factoryCode={factoryCode} notice={notice}
+      endAction={summary?.end && !active
+        ? <Button size="small" variant="contained" onClick={() => setShowEnd(true)}>END</Button>
+        : null} />
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ py: 0, minHeight: 30,
       '& .MuiAlert-message': { py: 0.35, maxHeight: 46, overflowY: 'auto' },
       '& .MuiAlert-icon': { py: 0.35 }, '& .MuiAlert-action': { py: 0 } }}>{error}</Alert>}
     <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'visible', position: 'relative', borderColor: '#DFE7F2',
       boxShadow: '0 4px 16px rgba(15,23,42,0.03)' }}>
       <Box sx={{ p: { xs: 1, md: 0.75 }, position: 'relative' }}>
-        <Stack direction="row" gap={0.7} alignItems="center" sx={{ mb: { xs: 0.7, md: 0.35 } }}>
+        <Stack direction="row" gap={0.7} alignItems="center" sx={{ mb: 2 }}>
           <QrCodeScannerOutlined color="primary" fontSize="small" />
           <Typography variant="subtitle2" fontWeight={900}>1. Carton Identification</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>SSCC → SKU → Assign</Typography>
         </Stack>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.65} alignItems="stretch">
-          <TextField inputRef={ssccRef} fullWidth label="Carton SSCC-18" InputLabelProps={{ shrink: true }}
-            placeholder="Scan GS1 (00) barcode or SSCC-18, then Enter" value={sscc}
+          <TextField inputRef={ssccRef} autoFocus fullWidth label="Carton SSCC-18" InputLabelProps={{ shrink: true }}
+            placeholder="Scan SSCC-18" value={sscc}
             onChange={(e) => {
               setSscc(e.target.value.replace(/\s+/g, ''));
+              setSsccPrecheck({ sscc: '', status: 'idle', cartonId: null, message: '' });
               // Changing the SSCC invalidates both the prior carton and SKU scans.
               setCartonId(''); setCartonQuery(''); setSku(''); setError('');
               setCartonPickerOpen(false); setPickerDismissedFor('');
             }}
-            onKeyDown={(e) => { if (e.key === 'Enter') {
+            onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) {
               e.preventDefault();
               if (!validSscc) setError('Scan a valid SSCC-18 or GS1 (00) + SSCC-18.');
-              else if (existingCarton) skuRef.current?.focus();
+              else if (!ssccVerified) {
+                if (ssccRejected) setError(ssccPrecheck.message);
+                // Validation effect opens the Carton picker / focuses SKU when ready.
+              } else if (ssccListOutOfDate) {
+                setError('SSCC assignment changed. Refresh Cartons before continuing.');
+              } else if (existingCarton) skuRef.current?.focus();
               else { setPickerDismissedFor(''); setCartonPickerOpen(true); }
             } }}
+            error={ssccRejected} helperText={ssccRejected ? ssccPrecheck.message : undefined}
             disabled={Boolean(active) || busy} size="small"
             InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeScannerOutlined color="primary" /></InputAdornment>,
               sx: { fontSize: 16, fontWeight: 800, letterSpacing: 0.5 } }} sx={{ flex: 1.2, '& .MuiOutlinedInput-root': { minHeight: { xs: 48, md: 40 } } }} />
           <TextField inputRef={skuRef} fullWidth label="Scan SKU" InputLabelProps={{ shrink: true }}
-            placeholder={needCartonChoice && !chosenCarton ? 'Select Carton No. from list first' : 'Scan carton SKU, then Enter'} value={sku}
+            placeholder={needCartonChoice && !chosenCarton ? 'Select carton first' : 'Scan SKU'} value={sku}
             onChange={(e) => { setSku(e.target.value.replace(/\s+/g, '')); setError(''); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); identify(); } }}
-            disabled={Boolean(active) || busy || !validSscc || (needCartonChoice && !chosenCarton)} size="small"
+            onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) { e.preventDefault(); identify(); } }}
+            disabled={Boolean(active) || busy || !ssccVerified || ssccListOutOfDate || (needCartonChoice && !chosenCarton)} size="small"
             InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeScannerOutlined color="primary" /></InputAdornment>,
               sx: { fontSize: 16, fontWeight: 800, letterSpacing: 0.35 } }} sx={{ flex: 1, '& .MuiOutlinedInput-root': { minHeight: { xs: 48, md: 40 } } }} />
-          <Button variant="contained" size="small" onClick={identify} disabled={busy || loading || Boolean(active) || !validSscc || !sku.trim() || !stationCode.trim() || (needCartonChoice && !chosenCarton)}
+          <Button variant="contained" size="small" onClick={identify} disabled={busy || loading || Boolean(active) || !ssccVerified || ssccListOutOfDate || !sku.trim() || !stationCode.trim() || (needCartonChoice && !chosenCarton)}
             sx={{ minWidth: 146, whiteSpace: 'nowrap' }}>{busy ? 'Saving…' : 'Assign / Identify'}</Button>
         </Stack>
+        {ssccListOutOfDate && <Alert severity="warning" sx={{ mt: 0.5, py: 0 }}>
+          SSCC assignment differs from the loaded Carton list. Refresh Cartons and rescan before continuing.
+        </Alert>}
         {needCartonChoice && !chosenCarton && <Stack direction="row" alignItems="center" gap={0.5} sx={{ mt: 0.35 }}>
-          <Typography variant="caption" color="text.secondary">
-            New SSCC · Select the Carton No. on its physical label before scanning SKU.
-          </Typography>
           <Button size="small" variant="text" sx={{ minHeight: 26, whiteSpace: 'nowrap' }}
             onClick={() => { setPickerDismissedFor(''); setCartonPickerOpen(true); }}>
             Select Carton ({unassigned.length})
           </Button>
         </Stack>}
         {chosenCarton && !active && <Typography variant="caption" color="success.main" sx={{ mt: 0.2, display: 'block' }}>
-          Selected Carton {chosenCarton.cartonNo} · {chosenCarton.plannedQty} pcs · Scan SKU to confirm.
+          Carton {chosenCarton.cartonNo} · {chosenCarton.plannedQty} pcs
         </Typography>}
         {!stationCode && <Alert severity="warning" sx={{ mt: 0.6, py: 0 }}>
-          No Scale assigned for Factory {factoryCode}. Ask Admin to assign PLC Scale Simulator in Device Management.
+          No Scale assigned for Factory {factoryCode}.
         </Alert>}
         {active && <Stack spacing={0.45} sx={{ mt: 0.25 }}>
           <Box sx={{ pt: 0.4, mt: 0.25, borderTop: '1px solid #E7EDF5' }}>
@@ -758,7 +898,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
                   Reset Assign
                 </Button>
                 <Button size="small" variant="outlined" startIcon={<RestartAltRounded />}
-                  disabled={busy || Boolean(weightResult) || Boolean(savedWeight) || !done(rfidResult) || (rfidResult === 'PASS' && !admin)}
+                  disabled={busy || Boolean(weightResult) || Boolean(savedWeight) || !done(rfidResult) || (rfidResult === RFID_CHECK_RESULT.PASS && !admin)}
                   onClick={() => { setConfirmUnassign(false); setResetPanel('rfid'); setResetReason(''); }}>
                   Reset RFID
                 </Button>
@@ -779,11 +919,11 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
             <Typography variant="caption" color="text.secondary" display="block">
               A completed attempt stays in history. Stop / finish an active capture before resetting. Saved Weight must be reopened first.
             </Typography>
-            {rfidResult === 'PASS' && <TextField size="small" fullWidth sx={{ my: 0.7 }}
+            {rfidResult === RFID_CHECK_RESULT.PASS && <TextField size="small" fullWidth sx={{ my: 0.7 }}
               label="Admin reason (minimum 5 characters)" value={resetReason}
               onChange={(e) => setResetReason(e.target.value)} inputProps={{ maxLength: 250 }} />}
             <Stack direction="row" gap={0.8} sx={{ mt: 0.7 }}>
-              <Button size="small" color="warning" variant="contained" disabled={busy || (rfidResult === 'PASS' && resetReason.trim().length < 5)}
+              <Button size="small" color="warning" variant="contained" disabled={busy || (rfidResult === RFID_CHECK_RESULT.PASS && resetReason.trim().length < 5)}
                 onClick={resetRfid}>Confirm Reset RFID</Button>
               <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>Cancel</Button>
             </Stack>
@@ -844,7 +984,6 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
           : <Box sx={{ py: 1.1, px: 0.8, textAlign: 'center', borderRadius: 1.5, border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}>
             <QrCodeScannerOutlined color="disabled" sx={{ fontSize: 23, mb: 0.2 }}/>
             <Typography variant="body2" fontWeight={850} color="text.secondary">Waiting for carton</Typography>
-            <Typography variant="caption" color="text.secondary">Scan SSCC and SKU above to start RFID.</Typography>
           </Box>}
       </Box>
       <Box component="section" aria-label="Weight" sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
@@ -875,30 +1014,42 @@ export default function PoRfidWeightWorkspace({ buyerCode = 'LULULEMON', orderId
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: weightResult ? '1fr' : 'minmax(110px, 0.8fr) minmax(0, 1.2fr)' },
           gap: 0.7, alignItems: 'stretch' }}>
-          <Box sx={{ py: 0.65, px: 0.8, border: '1px solid', borderColor: weightResult === 'PASS' ? 'success.main' : weightResult === 'FAILED' ? 'error.main' : 'primary.light',
-            borderRadius: 1.5, bgcolor: weightResult === 'PASS' ? 'success.lighter' : weightResult === 'FAILED' ? 'error.lighter' : 'background.paper',
+          <Box sx={{ py: 0.65, px: 0.8, border: '1px solid', borderColor: weightResult === WEIGHING_RESULT.PASS ? 'success.main' : weightResult === WEIGHING_RESULT.FAILED ? 'error.main' : 'primary.light',
+            borderRadius: 1.5, bgcolor: weightResult === WEIGHING_RESULT.PASS ? 'success.lighter' : weightResult === WEIGHING_RESULT.FAILED ? 'error.lighter' : 'background.paper',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <Typography variant="caption" color="text.secondary" fontWeight={900}>ACTUAL WEIGHT</Typography>
             <Typography sx={{ fontSize: 26, lineHeight: 1.15, fontWeight: 950, letterSpacing: -0.5, fontVariantNumeric: 'tabular-nums' }}>
               {weightResult ? kg(savedWeight?.event?.actualWeightKg ?? savedWeight?.carton?.actualWeightKg ?? activeCarton?.actualWeightKg)
-                : done(rfidResult) && scaleReading?.mode === 'SIMULATOR' && !scaleReading?.consumed && scaleReading?.weightKg != null ? kg(scaleReading.weightKg) : '—'}
+                : done(rfidResult) && scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR && !scaleReading?.consumed && scaleReading?.weightKg != null ? kg(scaleReading.weightKg) : '—'}
               <Typography component="span" sx={{ ml: 0.45, fontSize: 12, fontWeight: 900 }}>kg</Typography>
             </Typography>
           </Box>
           {!weightResult && <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, justifyContent: 'center' }}>
-            <Typography variant="caption" fontWeight={850} color="text.secondary">AUTOMATIC SCALE</Typography>
+            <Typography variant="caption" fontWeight={850} color="text.secondary">SCALE</Typography>
             <Chip size="small" color={scaleReading?.status === 'OFFLINE' ? 'error' : stationCode ? 'info' : 'default'}
-              label={!stationCode ? 'NOT ASSIGNED' : scaleReading?.mode === 'SIMULATOR' ? 'SIMULATED / CONNECTED' : scaleReading?.status || 'WAITING FOR SCALE'} />
-            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
-              {!done(rfidResult) ? 'Finish RFID scan first (PASS or FAILED).' :
-                scaleReading?.mode === 'SIMULATOR' ? 'RFID result recorded. Send a NEW weight from Admin → Devices → Scale (PLC).' :
-                scaleReading?.mode === 'MODBUS_TCP' ? 'Real PLC preview only; stable auto-capture is not enabled yet.' : 'Waiting for your assigned Scale simulator.'}
-            </Typography>
+              label={!stationCode ? 'NOT ASSIGNED' : scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED / CONNECTED' : scaleReading?.status || 'WAITING FOR SCALE'} />
+            {scaleReading?.status === 'OFFLINE' &&
+              <Typography variant="caption" color="error.main" sx={{ lineHeight: 1.3 }}>
+                {scaleReading?.error || 'Scale disconnected'}
+              </Typography>}
+            {scaleReading?.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP && scaleReading?.weightKg != null &&
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
+                Live: <b>{kg(scaleReading.weightKg)} kg</b>
+              </Typography>}
           </Box>}
         </Box>
-        {!weightResult && <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25 }}>
-          {active ? 'RFID finished (PASS or FAILED) → NEW Scale Simulator reading → Weight saved automatically.' : 'Scan SSCC and SKU above to begin.'}
-        </Typography>}
+        {admin && active && done(rfidResult) && !weightResult && isAssignedSimulator &&
+          <Stack direction="row" gap={0.7} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+            <TextField size="small" type="number" label="Test weight (kg)" value={simulatorTestKg}
+              onChange={(event) => setSimulatorTestKg(event.target.value)} disabled={!scaleArmed || sendingTestKg}
+              inputProps={{ min: 0.001, max: 10000, step: 0.001 }}
+              sx={{ width: 170, '& .MuiInputBase-root': { height: 36 } }}/>
+            <Button size="small" variant="outlined" disabled={!scaleArmed || sendingTestKg || !simulatorTestKg.trim()}
+              onClick={publishSimulatorTestWeight}>
+              {sendingTestKg ? 'Sending…' : 'Send test weight'}
+            </Button>
+            {!scaleArmed && <Typography variant="caption" color="text.secondary">Arming scale for this carton…</Typography>}
+          </Stack>}
       </Box>
     </Box>
     {showEnd && summary?.end && <Alert severity="success">END · All {summary.total} cartons processed. FINAL PASS: {summary.passed} · FINAL FAILED: {summary.failed}. Review FAILED cartons before closing the PO.</Alert>}

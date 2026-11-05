@@ -10,11 +10,19 @@ export const listRfidPdaDevices = (orderId, poId, stationCode, factoryCode) => u
   apiRawClient.get(root(orderId, poId), { params: { stationCode, factoryCode } })
 );
 const managementRoot = `/api/buyers/${encodeURIComponent(BUYER_CODE.LULULEMON)}/lululemon/rfid-pda-management`;
-export const listManagedRfidPdas = () => unwrap(
-  apiRawClient.get(managementRoot)
+export const listManagedRfidPdas = (config = {}) => unwrap(
+  apiRawClient.get(managementRoot, config)
+);
+export const testManagedRfidPda = (serial) => unwrap(
+  apiRawClient.post(`${managementRoot}/${encodeURIComponent(serial)}/test`)
 );
 export const saveManagedRfidPda = (serial, settings) => unwrap(
   apiRawClient.put(`${managementRoot}/${encodeURIComponent(serial)}`, settings)
+);
+// Safely replace one Factory's saved RFID serial without creating a second reader.
+export const rebindFactoryRfidPda = (oldSerial, newSerial, factoryCode, settings) => unwrap(
+  apiRawClient.post(`${managementRoot}/${encodeURIComponent(oldSerial)}/rebind`,
+    { newSerial, factoryCode, settings })
 );
 export const deleteManagedRfidPda = (serial) => unwrap(
   apiRawClient.delete(`${managementRoot}/${encodeURIComponent(serial)}`)

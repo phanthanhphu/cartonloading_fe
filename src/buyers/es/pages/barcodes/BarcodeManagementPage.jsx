@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -6,7 +7,7 @@ import {   AddOutlined, BlockOutlined, PrintOutlined, QrCode2Outlined, RefreshOu
 import { APP_MESSAGES, createBarcodeVoidedMessage, createBarcodesGeneratedMessage, createPrintPreparedMessage, createVoidFactoryBarcodeReasonMessage } from '../../../../constants/appMessages';
 import {   generateFactoryBarcodes, getFactoryBarcodeSequence, listFactoryBarcodes, markFactoryBarcodesPrinted, voidFactoryBarcode } from 'buyers/es/services/factoryBarcodeService';
 import { buildCode128Svg } from 'utils/code128';
-import { DEFAULT_FACTORY_BARCODE_CODE, FACTORY_BARCODE_STATUS, COMMON_FILTER, DEFAULT_BARCODE_GENERATION_QUANTITY, LARGE_TABLE_PAGE_SIZE } from '../../../../constants/appConstants';
+import { DEFAULT_FACTORY_BARCODE_CODE, FACTORY_BARCODE_STATUS, COMMON_FILTER, DEFAULT_BARCODE_GENERATION_QUANTITY, LARGE_TABLE_PAGE_SIZE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 
 const getErrorMessage = (error, fallback) => (
   error?.response?.data?.message
@@ -90,8 +91,10 @@ export default function BarcodeManagementPage() {
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
 
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generateYear, setGenerateYear] = useState(currentYear);
   const [generateFactoryCode, setGenerateFactoryCode] = useState(DEFAULT_FACTORY_BARCODE_CODE);
@@ -254,7 +257,7 @@ export default function BarcodeManagementPage() {
 
       <Paper variant="outlined" sx={{ p: 1, mb: 0, borderRadius: '8px 8px 0 0', borderColor: '#DCE4EC', borderBottom: 0 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: '2fr 1fr 1fr 1fr' }, gap: 1 }}>
-          <TextField size="small" label="Barcode / Batch / PO / Article" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && runSearch()} />
+          <TextField size="small" label="Barcode / Batch / PO / Article" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && runSearch()} />
           <FormControl size="small">
             <InputLabel>Status</InputLabel>
             <Select value={status} label="Status" onChange={(event) => setStatus(event.target.value)}>

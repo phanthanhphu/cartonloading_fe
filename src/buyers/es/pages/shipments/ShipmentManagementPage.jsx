@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { canPlanCarton } from 'buyers/es/domain/workflow';
@@ -38,7 +39,9 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const [action, setAction] = useState(null);
   const [details, setDetails] = useState(null);
   const [form, setForm] = useState({});

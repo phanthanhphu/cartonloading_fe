@@ -1,6 +1,7 @@
+import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useState } from 'react';
-import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Paper, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
-import { AccountTreeOutlined, Add, ApartmentOutlined, Delete, Edit } from '@mui/icons-material';
+import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
+import { Add, Delete, Edit } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
 import { createDepartment, deleteDepartment, listDepartments, updateDepartment } from 'services/adminService';
@@ -19,6 +20,7 @@ export default function DepartmentManagement() {
   const [dialog, setDialog] = useState(null);
   const [activeTab, setActiveTab] = useState(ORGANIZATION_MANAGEMENT_TAB.FACTORIES);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [factoryDialog, setFactoryDialog] = useState(null);
   const [factories, setFactories] = useState([]);
   const { codes: activeFactoryCodes, reload: reloadActive } = useActiveFactories();
@@ -93,23 +95,34 @@ export default function DepartmentManagement() {
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
         <Typography fontWeight={800}>Factory & Department Management</Typography>
-        <Paper variant="outlined" sx={{ p: 0.5, bgcolor: '#F4F7FB', borderRadius: 2, borderColor: '#DCE4EC' }}>
+        {/* Match the compact underline tabs used in the LULULEMON All POs view. */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 0.25 }}>
           <Tabs
             value={activeTab}
             onChange={(_, tab) => setActiveTab(tab)}
-            variant="fullWidth"
+            textColor="primary"
+            indicatorColor="primary"
+            variant="scrollable"
+            scrollButtons="auto"
             aria-label="Factory and Department navigation"
-            TabIndicatorProps={{ sx: { display: 'none' } }}
             sx={{
               minHeight: 44,
-              '& .MuiTab-root': { minHeight: 44, borderRadius: 1.5, textTransform: 'none', fontWeight: 700, color: 'text.secondary' },
-              '& .MuiTab-root.Mui-selected': { bgcolor: 'background.paper', color: 'primary.main', boxShadow: '0 1px 5px rgba(22, 45, 70, 0.14)' },
+              minWidth: 0,
+              '& .MuiTab-root': {
+                minHeight: 44,
+                minWidth: 0,
+                px: { xs: 1.25, sm: 2 },
+                textTransform: 'none',
+                fontWeight: 700
+              },
+              '& .MuiTab-root.Mui-selected': { color: 'primary.main' },
+              '& .MuiTabs-indicator': { backgroundColor: 'primary.main' }
             }}
           >
-            <Tab value={ORGANIZATION_MANAGEMENT_TAB.FACTORIES} label={`Factories (${factories.length})`} icon={<ApartmentOutlined fontSize="small" />} iconPosition="start" />
-            <Tab value={ORGANIZATION_MANAGEMENT_TAB.DEPARTMENTS} label={`Departments (${state.count})`} icon={<AccountTreeOutlined fontSize="small" />} iconPosition="start" />
+            <Tab value={ORGANIZATION_MANAGEMENT_TAB.FACTORIES} label={`1. Factories (${factories.length})`} />
+            <Tab value={ORGANIZATION_MANAGEMENT_TAB.DEPARTMENTS} label={`2. Departments (${state.count})`} />
           </Tabs>
-        </Paper>
+        </Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} sx={{ py: 0.5 }}>
           <Box>
             <Typography fontWeight={700}>{activeTab === ORGANIZATION_MANAGEMENT_TAB.FACTORIES ? 'Factory List' : 'Department List'}</Typography>
@@ -120,7 +133,7 @@ export default function DepartmentManagement() {
             </Typography>
           </Box>
           {activeTab === ORGANIZATION_MANAGEMENT_TAB.FACTORIES ? (
-            <Button variant="outlined" startIcon={<Add />} onClick={() => setFactoryDialog({})}>Add Factory</Button>
+            <Button variant="contained" color="primary" startIcon={<Add />} onClick={() => setFactoryDialog({})}>Add Factory</Button>
           ) : (
             <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})} disabled={activeFactoryCodes.length === 0}>Add Department</Button>
           )}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Box, Button, Card, CardContent, Chip, CircularProgress, FormControl, InputLabel,
   MenuItem, Paper, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead,
@@ -6,10 +6,12 @@ import {
 } from '@mui/material';
 import {
   Refresh, Inventory2Outlined, AccountTreeOutlined, FactCheckOutlined,
-  QrCodeScannerOutlined, TaskAltOutlined, WarningAmberOutlined,
-  ArrowForwardOutlined, FilterAltOffOutlined
+  QrCodeScannerOutlined, TaskAltOutlined, InfoOutlined,
+  FilterAltOffOutlined
 } from '@mui/icons-material';
 import { getLululemonOperationsDashboard } from 'services/managementService';
+import { useSelectedFactory } from 'utils/factorySelection';
+import { BUYER_CODE } from '../../../constants/appConstants';
 import { filterScopedPos, dashboardTotals, dashboardOrders, dashboardFactories } from '../services/dashboardSelectors';
 
 // Keep the V11 backend as the source of truth. No hard-coded production metrics.
@@ -55,27 +57,24 @@ function DashboardPanel({ title, subtitle, end, children, sx = {} }) {
 
 function MetricTile({ icon, label, value, note, color, rate }) {
   return (
-    <Card variant="outlined" sx={{ minWidth: 0, borderColor: C.line, borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 17px rgba(25,67,86,0.04)' }}>
-      <Box sx={{ height: 5, bgcolor: color }} />
-      <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-        <Stack direction="row" alignItems="start" justifyContent="space-between" mb={1}>
-          <Typography sx={{ fontSize: 12.5, color: C.muted, fontWeight: 700 }}>{label}</Typography>
-          <Box sx={{ color, bgcolor: `${color}16`, borderRadius: 2, width: 35, height: 35, display: 'grid', placeItems: 'center' }}>{icon}</Box>
+    <Card variant="outlined" sx={{ height: '100%', minWidth: 0, borderColor: C.line, borderRadius: 2,
+      boxShadow: '0 2px 8px rgba(25,67,86,0.025)', overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', px: 1.5, py: 1.1, borderTop: `3px solid ${color}` }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={0.75}>
+          <Typography sx={{ fontSize: 11.5, color: C.muted, fontWeight: 750 }} noWrap>{label}</Typography>
+          <Box sx={{ color, display: 'flex', '& svg': { fontSize: 19 } }}>{icon}</Box>
         </Stack>
-        <Typography sx={{ fontSize: { xs: 27, xl: 31 }, fontWeight: 900, letterSpacing: -1, color: C.navy, lineHeight: 1.1 }}>{fmt(value)}</Typography>
-        <Typography sx={{ color: C.muted, fontSize: 11.5, minHeight: 31, mt: 1 }}>{note}</Typography>
-        {typeof rate === 'number' && (
-          <Box mt={0.35}>
-            <Stack direction="row" justifyContent="space-between" mb={0.45}>
-              <Typography sx={{ fontSize: 10.5, color: C.muted }}>Completion</Typography>
-              <Typography sx={{ fontSize: 11, color, fontWeight: 800 }}>{rate}%</Typography>
-            </Stack>
-            <Box sx={{ bgcolor: '#edf2f5', height: 7, overflow: 'hidden', borderRadius: 10 }}>
-              <Box sx={{ width: `${rate}%`, height: '100%', bgcolor: color, borderRadius: 10 }} />
-            </Box>
-          </Box>
-        )}
-      </CardContent>
+        <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={0.75}>
+          <Typography sx={{ fontSize: { md: 23, xl: 27 }, fontWeight: 900, color: C.navy, letterSpacing: -0.6, lineHeight: 1.25 }}>{fmt(value)}</Typography>
+          {typeof rate === 'number' && <Typography sx={{ fontSize: 11, color, fontWeight: 800, whiteSpace: 'nowrap' }}>{rate}%</Typography>}
+        </Stack>
+        <Tooltip title={note || ''} arrow placement="bottom">
+          <Typography sx={{ fontSize: 10.5, color: C.muted, mt: 'auto', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{note}</Typography>
+        </Tooltip>
+        {typeof rate === 'number' && <Box sx={{ mt: 0.65, height: 4, bgcolor: '#edf2f5', borderRadius: 4, overflow: 'hidden' }}>
+          <Box sx={{ width: `${rate}%`, bgcolor: color, height: '100%' }} />
+        </Box>}
+      </Box>
     </Card>
   );
 }
@@ -195,39 +194,32 @@ function ComparisonChart({ rows, series, getLabel, onSelect, emptyText }) {
   );
 }
 
-function AlertItem({ title, value, detail, color, onClick }) {
-  return <Box onClick={onClick} sx={{ border: `1px solid ${color}40`, borderLeft: `4px solid ${color}`, p: 1.25, borderRadius: 2, minWidth: 0,
-    cursor: 'pointer', bgcolor: '#fff', '&:hover': { bgcolor: `${color}0c`, transform: 'translateY(-1px)' }, transition: '120ms ease' }}>
-    <Typography sx={{ fontSize: 11.5, color: C.muted }}>{title}</Typography>
-    <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={1}>
-      <Typography sx={{ fontSize: 23, fontWeight: 900, color }}>{fmt(value)}</Typography>
-      <ArrowForwardOutlined sx={{ color, fontSize: 17 }} />
-    </Stack>
-    <Typography sx={{ fontSize: 10.5, color: C.muted }}>{detail}</Typography>
-  </Box>;
-}
-
+// Keep the page stationary; large datasets scroll inside the table, not the browser window.
 function DataTable({ columns, rows, emptyText = 'No matching data', pageSize = 20 }) {
   const [limit, setLimit] = useState(pageSize);
   useEffect(() => { setLimit(pageSize); }, [rows, pageSize]);
-  return <>
-    <TableContainer sx={{ border: `1px solid ${C.line}`, borderRadius: 2, maxHeight: 490 }}>
-      <Table stickyHeader size="small" sx={borderedTable}>
-        <TableHead><TableRow><TableCell>STT</TableCell>{columns.map(c => <TableCell key={c.key}>{c.label}</TableCell>)}</TableRow></TableHead>
-        <TableBody>
-          {rows.slice(0, limit).map((row, index) => <TableRow hover key={`${row.orderId || ''}-${row.poNumber || ''}-${row.cartonNo || ''}-${index}`}>
-            <TableCell>{index + 1}</TableCell>
-            {columns.map(c => <TableCell key={c.key}>{c.render ? c.render(row) : row[c.key] ?? '—'}</TableCell>)}
-          </TableRow>)}
-          {!rows.length && <TableRow><TableCell align="center" colSpan={columns.length + 1}>{emptyText}</TableCell></TableRow>}
-        </TableBody>
-      </Table>
-    </TableContainer>
-    <Stack direction="row" alignItems="center" justifyContent="space-between" mt={1}>
-      <Typography variant="caption" color="text.secondary">Showing {Math.min(limit, rows.length)} / {rows.length}</Typography>
-      {limit < rows.length && <Button size="small" onClick={() => setLimit(v => v + pageSize)}>Show more</Button>}
-    </Stack>
-  </>;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: { xs: 'auto', md: '100%' } }}>
+      <TableContainer sx={{ border: `1px solid ${C.line}`, borderRadius: 1.5, flex: '1 1 0', minHeight: 0,
+        maxHeight: { xs: 440, md: 'none' }, overflow: 'auto', bgcolor: 'white' }}>
+        <Table stickyHeader size="small" sx={{ ...borderedTable, '& th': { fontSize: 11.5, fontWeight: 800, color: C.navy, bgcolor: '#f4f8fb', py: 0.85 },
+          '& td': { fontSize: 12, py: 0.8 }, '& .MuiTableRow-root:hover td': { bgcolor: '#f3fafc' } }}>
+          <TableHead><TableRow><TableCell>STT</TableCell>{columns.map(c => <TableCell key={c.key}>{c.label}</TableCell>)}</TableRow></TableHead>
+          <TableBody>
+            {rows.slice(0, limit).map((row, index) => <TableRow hover key={`${row.orderId || ''}-${row.poNumber || ''}-${row.cartonNo || ''}-${index}`}>
+              <TableCell>{index + 1}</TableCell>
+              {columns.map(c => <TableCell key={c.key}>{c.render ? c.render(row) : row[c.key] ?? '—'}</TableCell>)}
+            </TableRow>)}
+            {!rows.length && <TableRow><TableCell align="center" colSpan={columns.length + 1}>{emptyText}</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0, minHeight: 29, pt: 0.5 }}>
+        <Typography sx={{ fontSize: 11, color: C.muted }}>Showing {Math.min(limit, rows.length)} / {rows.length}</Typography>
+        {limit < rows.length && <Button size="small" onClick={() => setLimit(v => v + pageSize)} sx={{ py: 0, minHeight: 25 }}>Show more</Button>}
+      </Stack>
+    </Box>
+  );
 }
 
 const orderColumns = [
@@ -273,20 +265,23 @@ export default function OperationsDashboard() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [orderFilter, setOrderFilter] = useState('ALL');
-  const [factoryFilter, setFactoryFilter] = useState('ALL');
+  const { factoryCode: selectedFactory, loading: factoryLoading } = useSelectedFactory(BUYER_CODE.LULULEMON);
+  const [factoryFilter, setFactoryFilter] = useState('');
   const [pickFilter, setPickFilter] = useState('ALL');
   const [exceptionFilter, setExceptionFilter] = useState('ALL');
-  const [view, setView] = useState(0);
-  const detailsAnchor = useRef(null);
   const [lastSync, setLastSync] = useState(null);
 
   const reload = useCallback(async () => {
+    if (factoryLoading || !selectedFactory) { setData(null); setBusy(false); return; }
     setBusy(true);
+    setData(null); // never leave totals from previous Factory visible
     setError('');
+    setFactoryFilter(selectedFactory);
+    setOrderFilter('ALL');
     try { setData(await getLululemonOperationsDashboard()); setLastSync(new Date()); }
     catch (e) { setError(e?.response?.data?.message || e.message || 'Dashboard unavailable'); }
     finally { setBusy(false); }
-  }, []);
+  }, [factoryLoading, selectedFactory]);
   useEffect(() => { reload(); }, [reload]);
 
   // V11 selectors use one unique PO per (Order ID, PO Number), never count ALL_BP source rows as POs.
@@ -307,7 +302,6 @@ export default function OperationsDashboard() {
   const cartons = useMemo(() => (data?.cartons || []).filter(c => selectedPairs.has(`${c.orderId}|${c.poNumber}`)), [data, selectedPairs]);
   const topOrders = useMemo(() => [...orders].sort((a, b) => n(b.plannedCartons) - n(a.plannedCartons)).slice(0, 6), [orders]);
   const factoryChartRows = useMemo(() => factories.filter(f => f.pickedPos || f.plannedCartons).slice(0, 7), [factories]);
-  const notPicked = useMemo(() => scopePos.filter(po => !po.picked).slice(0, 7), [scopePos]);
   const chartBase = Math.max(n(totals.plannedCartons), n(totals.weightPass) + n(totals.weightFailed) + weightPending,
     n(totals.rfidPass) + n(totals.rfidFailed) + n(totals.rfidNotScanned));
   const rfidOther = Math.max(0, chartBase - n(totals.rfidPass) - n(totals.rfidFailed) - n(totals.rfidNotScanned));
@@ -315,59 +309,63 @@ export default function OperationsDashboard() {
   const jumpTo = (kind) => {
     setExceptionFilter(kind);
     setPickFilter('ALL');
-    setView(2);
-    detailsAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const clearFilters = () => { setOrderFilter('ALL'); setFactoryFilter('ALL'); setPickFilter('ALL'); setExceptionFilter('ALL'); };
+  const clearFilters = () => { setOrderFilter('ALL'); setFactoryFilter(selectedFactory); setPickFilter('ALL'); setExceptionFilter('ALL'); };
+
+  const helpText = `Dashboard uses saved MongoDB statuses. PO is unique by (Order ID, PO Number).
+    Planned cartons may exceed generated cartons. Weight / RFID count cartons; Picking counts POs.
+    Final PASS requires Weight PASS and RFID PASS. Order and Factory filters affect all metrics;
+    PO Picking and exception filters apply to detail rows only. Factory access is enforced by the backend.`;
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 1.25, md: 2 }, mb: 2, borderRadius: 3, bgcolor: '#f6fafc', borderColor: C.line }}>
-      <Box sx={{ p: { xs: 2, md: 2.5 }, mb: 1.75, background: `linear-gradient(112deg, ${C.tealDark}, ${C.teal} 72%, ${C.cyan})`, color: 'white', borderRadius: 3,
-        position: 'relative', overflow: 'hidden', boxShadow: '0 10px 24px rgba(12,150,176,0.15)' }}>
-        <Box sx={{ position: 'absolute', width: 300, height: 300, right: -90, top: -180, border: '48px solid rgba(255,255,255,0.09)', borderRadius: '50%', pointerEvents: 'none' }} />
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'start', md: 'center' }} gap={2} sx={{ position: 'relative' }}>
-          <Box>
-            <Typography sx={{ textTransform: 'uppercase', fontSize: 11, fontWeight: 800, letterSpacing: 2, opacity: 0.86 }}>LULULEMON / OPERATIONS INTELLIGENCE</Typography>
-            <Typography sx={{ fontWeight: 900, fontSize: { xs: 24, md: 30 }, lineHeight: 1.2, mt: 0.65 }}>Operations Dashboard</Typography>
-            <Typography sx={{ fontSize: 12.5, opacity: 0.9, mt: 0.75 }}>Order → PO Picking → Carton Weight → RFID Verification</Typography>
-            {lastSync && <Typography sx={{ fontSize: 10.5, opacity: 0.8, mt: 0.7 }}>Last refreshed: {lastSync.toLocaleTimeString()}</Typography>}
-          </Box>
-          <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center">
-            <Chip label={`${fmt(totals.orders)} Orders`} sx={{ bgcolor: '#ffffff25', color: 'white', fontWeight: 800, border: '1px solid #ffffff50' }} />
-            <Chip label={`${fmt(totals.pos)} Unique PO`} sx={{ bgcolor: '#ffffff25', color: 'white', fontWeight: 800, border: '1px solid #ffffff50' }} />
-            <Button size="small" variant="contained" onClick={reload} disabled={busy} startIcon={busy ? <CircularProgress size={14} /> : <Refresh />}
-              sx={{ bgcolor: 'white', color: C.tealDark, fontWeight: 900, '&:hover': { bgcolor: '#e9f9fb' } }}>Refresh</Button>
+    <Paper variant="outlined" sx={{ height: { xs: 'auto', md: '100%' }, minHeight: 0,
+      display: 'flex', flexDirection: 'column', gap: 1, p: { xs: 1, md: 1.25 }, mb: 0,
+      overflow: { xs: 'visible', md: 'hidden' }, borderRadius: 2.5, bgcolor: '#f6fafc', borderColor: C.line }}>
+      {/* One compact header replaces the oversized hero; global header still owns Factory switching. */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}
+        justifyContent="space-between" gap={1} sx={{ flexShrink: 0, px: { xs: 0.25, md: 0.5 }, py: 0.25 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Stack direction="row" alignItems="center" gap={0.75}>
+            <Typography sx={{ color: C.navy, fontWeight: 900, fontSize: { xs: 18, md: 21 }, lineHeight: 1.25 }}>Operations Dashboard</Typography>
+            <Tooltip title={helpText} arrow><InfoOutlined sx={{ color: C.muted, fontSize: 18, cursor: 'help' }} /></Tooltip>
           </Stack>
-        </Stack>
-      </Box>
+          <Typography sx={{ fontSize: 11, color: C.muted }}>
+            Lululemon · {selectedFactory || 'Select a factory'} · {fmt(totals.orders)} Orders · {fmt(totals.pos)} unique PO
+            {lastSync ? ` · Updated ${lastSync.toLocaleTimeString()}` : ''}
+          </Typography>
+        </Box>
+        <Button size="small" variant="outlined" onClick={reload} disabled={busy || factoryLoading}
+          startIcon={busy ? <CircularProgress size={14} /> : <Refresh />} sx={{ fontWeight: 800, minHeight: 32, alignSelf: { xs: 'flex-start', sm: 'center' } }}>
+          Refresh
+        </Button>
+      </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 1.5 }}>{error}</Alert>}
-      <Card variant="outlined" sx={{ mb: 1.75, borderColor: C.line, borderRadius: 2.5 }}>
-        <CardContent sx={{ p: '12px !important' }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} alignItems="center" gap={1.2}>
-            <FormControl size="small" fullWidth sx={{ flex: 2 }}><InputLabel>Order</InputLabel>
-              <Select label="Order" value={orderFilter} onChange={event => setOrderFilter(event.target.value)}>
-                <MenuItem value="ALL">All Orders</MenuItem>
-                {(data?.orders || []).map(o => <MenuItem key={o.orderId} value={o.orderId}>{o.orderName || o.orderId}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl size="small" fullWidth><InputLabel>Factory</InputLabel>
-              <Select label="Factory" value={factoryFilter} onChange={event => setFactoryFilter(event.target.value)}>
-                <MenuItem value="ALL">All Factories</MenuItem>
-                {(data?.factories || []).map(f => <MenuItem key={f.factoryCode} value={f.factoryCode}>{f.factoryCode}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl size="small" fullWidth><InputLabel>PO Picking</InputLabel>
-              <Select label="PO Picking" value={pickFilter} onChange={event => { setPickFilter(event.target.value); setExceptionFilter('ALL'); }}>
-                <MenuItem value="ALL">All PO</MenuItem><MenuItem value="PICKED">Picked</MenuItem><MenuItem value="NOT_PICKED">Not Picked</MenuItem>
-              </Select>
-            </FormControl>
-            <Button size="small" variant="outlined" startIcon={<FilterAltOffOutlined />} onClick={clearFilters} sx={{ whiteSpace: 'nowrap' }}>Clear</Button>
-          </Stack>
-        </CardContent>
-      </Card>
+      {error && <Alert severity="error" sx={{ flexShrink: 0, py: 0 }}>{error}</Alert>}
+      {!factoryLoading && !selectedFactory && !error && <Alert severity="info" sx={{ flexShrink: 0, py: 0 }}>Choose a Factory in the main header to view its data.</Alert>}
 
-      <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', lg: 'repeat(5, minmax(0,1fr))' }, mb: 1.75 }}>
+      {/* The three selectors share one line on desktop; avoid additional filter cards. */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems="center" sx={{ flexShrink: 0 }}>
+        <FormControl size="small" fullWidth sx={{ flex: 1.5, minWidth: 0 }}><InputLabel>Order</InputLabel>
+          <Select label="Order" value={orderFilter} onChange={event => setOrderFilter(event.target.value)}>
+            <MenuItem value="ALL">All Orders</MenuItem>
+            {(data?.orders || []).map(o => <MenuItem key={o.orderId} value={o.orderId}>{o.orderName || o.orderId}</MenuItem>)}
+          </Select>
+        </FormControl>
+        <FormControl size="small" fullWidth sx={{ flex: 1, minWidth: 0 }}><InputLabel>Factory</InputLabel>
+          <Select label="Factory" value={selectedFactory || ''} disabled>
+            {selectedFactory && <MenuItem value={selectedFactory}>{selectedFactory}</MenuItem>}
+          </Select>
+        </FormControl>
+        <FormControl size="small" fullWidth sx={{ flex: 1, minWidth: 0 }}><InputLabel>PO Picking</InputLabel>
+          <Select label="PO Picking" value={pickFilter} onChange={event => { setPickFilter(event.target.value); setExceptionFilter('ALL'); }}>
+            <MenuItem value="ALL">All PO</MenuItem><MenuItem value="PICKED">Picked</MenuItem><MenuItem value="NOT_PICKED">Not Picked</MenuItem>
+          </Select>
+        </FormControl>
+        <Button size="small" variant="outlined" startIcon={<FilterAltOffOutlined />} onClick={clearFilters}
+          sx={{ whiteSpace: 'nowrap', height: 40, flexShrink: 0 }}>Clear</Button>
+      </Stack>
+
+      <Box sx={{ display: 'grid', flexShrink: 0, gap: 1, gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(3, minmax(0,1fr))', lg: 'repeat(5, minmax(0,1fr))' } }}>
         <MetricTile icon={<AccountTreeOutlined />} label="Total Unique PO" value={totals.pos} note={`${fmt(totals.notPickedPos)} PO not picked`} rate={percent(totals.pickedPos, totals.pos)} color={C.tealDark} />
         <MetricTile icon={<Inventory2Outlined />} label="Planned Cartons" value={totals.plannedCartons} note={`${fmt(totals.createdCartons)} cartons generated`} rate={percent(totals.createdCartons, totals.plannedCartons)} color={C.cyan} />
         <MetricTile icon={<FactCheckOutlined />} label="Weight PASS" value={totals.weightPass} note={`${fmt(totals.weightFailed)} FAILED · ${fmt(weightPending)} waiting`} rate={percent(totals.weightPass, chartBase)} color={C.blue} />
@@ -375,100 +373,72 @@ export default function OperationsDashboard() {
         <MetricTile icon={<TaskAltOutlined />} label="Final PASS" value={totals.finalPass} note="Both weight and RFID passed" rate={percent(totals.finalPass, chartBase)} color={C.teal} />
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.1fr 0.9fr' }, gap: 1.5, mb: 1.5 }}>
-        <DashboardPanel title="Carton Quality Breakdown" subtitle="Actual PASS / FAILED / pending distributions">
-          <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-            <Donut title="Weight Check" total={chartBase} centerLabel="Weight PASS" segments={[
-              { label: 'PASS', value: n(totals.weightPass), color: C.teal },
-              { label: 'FAILED / HOLD', value: n(totals.weightFailed), color: C.coral },
-              { label: 'Waiting', value: weightOther, color: '#dfe7ed' }
-            ]}/>
-            <Donut title="RFID Verification" total={chartBase} centerLabel="RFID PASS" segments={[
-              { label: 'PASS', value: n(totals.rfidPass), color: C.teal },
-              { label: 'FAILED', value: n(totals.rfidFailed), color: C.coral },
-              { label: 'Not scanned', value: n(totals.rfidNotScanned), color: C.gold },
-              { label: 'Other / in progress', value: rfidOther, color: '#dfe7ed' }
-            ]}/>
-          </Stack>
-        </DashboardPanel>
-        <DashboardPanel title="Operations Flow" subtitle="PO count for Picking; carton count for subsequent steps">
-          <Stack gap={2.05} py={0.5}>
-            <ProcessLane label="1 · PO Picking" done={totals.pickedPos} total={totals.pos} color={C.tealDark}
-              description={`${fmt(totals.notPickedPos)} PO waiting for Factory pickup`} onClick={() => jumpTo('UNPICKED')} />
-            <ProcessLane label="2 · Carton Identified" done={scopePos.reduce((s, p) => s + n(p.identifiedCartons), 0)} total={chartBase} color={C.cyan}
-              description="Assigned SSCC (planned carton denominator)" />
-            <ProcessLane label="3 · Weight PASS" done={totals.weightPass} total={chartBase} color={C.blue}
-              description={`${fmt(totals.weightFailed)} FAILED / HOLD`} onClick={() => jumpTo('WEIGHT_FAILED')} />
-            <ProcessLane label="4 · RFID PASS" done={totals.rfidPass} total={chartBase} color={C.violet}
-              description={`${fmt(totals.rfidNotScanned)} not scanned`} onClick={() => jumpTo('NOT_SCANNED')} />
-            <ProcessLane label="5 · Final PASS" done={totals.finalPass} total={chartBase} color={C.teal}
-              description="All required checks passed" />
-          </Stack>
-        </DashboardPanel>
-      </Box>
-
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1.5, mb: 1.5 }}>
-        <DashboardPanel title="Factory Comparison" subtitle="Weight / RFID / Final PASS by active Factory · select a factory">
-          <ComparisonChart rows={factoryChartRows} getLabel={row => row.factoryCode}
-            series={[{ key: 'weightPass', label: 'Weight PASS', color: C.cyan },
-              { key: 'rfidPass', label: 'RFID PASS', color: C.blue },
-              { key: 'finalPass', label: 'Final PASS', color: C.tealDark }]}
-            onSelect={row => { setFactoryFilter(row.factoryCode); setExceptionFilter('ALL'); setView(1); }} emptyText="No picked PO in your assigned factories" />
-        </DashboardPanel>
-        <DashboardPanel title="Top Orders" subtitle="Planned cartons versus Weight / Final PASS · select an Order">
-          <ComparisonChart rows={topOrders} getLabel={row => row.orderName || row.orderId}
-            series={[{ key: 'plannedCartons', label: 'Planned', color: C.cyan },
-              { key: 'weightPass', label: 'Weight PASS', color: C.blue },
-              { key: 'finalPass', label: 'Final PASS', color: C.coral }]}
-            onSelect={row => { setOrderFilter(row.orderId); setExceptionFilter('ALL'); setView(0); }} emptyText="No Orders for the selected scope" />
-        </DashboardPanel>
-      </Box>
-
-      <DashboardPanel title="Operational Exceptions" subtitle="Click a tile to inspect affected POs in the detail table" sx={{ mb: 1.5 }}
-        end={<WarningAmberOutlined sx={{ color: C.coral }} />}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', lg: 'repeat(4, minmax(0,1fr))' }, gap: 1.2 }}>
-          <AlertItem title="Unpicked PO" value={totals.notPickedPos} detail="Pending factory pickup" color={C.gold} onClick={() => jumpTo('UNPICKED')} />
-          <AlertItem title="Weight FAILED" value={totals.weightFailed} detail="Failed or on hold" color={C.coral} onClick={() => jumpTo('WEIGHT_FAILED')} />
-          <AlertItem title="RFID FAILED" value={totals.rfidFailed} detail="Failed RFID verification" color="#cf5265" onClick={() => jumpTo('RFID_FAILED')} />
-          <AlertItem title="RFID Not Scanned" value={totals.rfidNotScanned} detail="Includes planned lazy cartons" color={C.blue} onClick={() => jumpTo('NOT_SCANNED')} />
-        </Box>
-        {!!notPicked.length && (
-          <Box mt={1.75}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.75}>
-              <Typography sx={{ fontWeight: 900, fontSize: 13, color: C.navy }}>PO waiting for Picking</Typography>
-              <Button size="small" onClick={() => jumpTo('UNPICKED')} endIcon={<ArrowForwardOutlined />}>View all</Button>
-            </Stack>
-            <Stack direction="row" gap={0.75} flexWrap="wrap">
-              {notPicked.map(po => <Tooltip key={`${po.orderId}|${po.poNumber}`} title={`${po.orderName || po.orderId} · ${fmt(po.plannedCartons)} planned cartons`}>
-                <Chip size="small" variant="outlined" onClick={() => { setOrderFilter(po.orderId); jumpTo('UNPICKED'); }}
-                  label={po.poNumber} sx={{ borderColor: '#e8c587', color: C.navy, bgcolor: '#fffbf1', fontWeight: 700 }} />
-              </Tooltip>)}
-            </Stack>
+      {/* Chart-first one-page dashboard: keep KPI + charts, remove detail tables. */}
+      <Card variant="outlined" sx={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column',
+        borderColor: C.line, borderRadius: 2, boxShadow: 'none', overflow: 'hidden' }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }}
+          justifyContent="space-between" gap={0.6} sx={{ px: 1.5, pt: 1.1, pb: 0.6, flexShrink: 0 }}>
+          <Box>
+            <Typography sx={{ color: C.navy, fontSize: 15, fontWeight: 900 }}>Operations Insights</Typography>
+            <Typography sx={{ color: C.muted, fontSize: 10.5 }}>Visual summary by Order and Factory</Typography>
           </Box>
-        )}
-      </DashboardPanel>
-
-      <Box ref={detailsAnchor} sx={{ scrollMarginTop: 85 }}>
-      <DashboardPanel title="Detailed Operations Data" subtitle="Order / Factory / unique PO / Carton — source data and traceable statuses"
-        end={exceptionFilter !== 'ALL' ? <Button size="small" variant="outlined" onClick={() => setExceptionFilter('ALL')}>Clear exception filter</Button> : null}>
-        <Tabs value={view} onChange={(_, value) => setView(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 1.25 }}>
-          <Tab label="By Order" /><Tab label="By Factory" /><Tab label={`PO Picking (${fmt(poRows.length)})`} /><Tab label="Carton Checks" />
-        </Tabs>
-        {exceptionFilter !== 'ALL' && <Alert severity="info" sx={{ mb: 1 }}>
-          Showing POs matching <b>{exceptionFilter.replaceAll('_', ' ')}</b>. Select an Order or Factory to narrow the result.
+          {exceptionFilter !== 'ALL' && <Button size="small" variant="outlined" onClick={() => setExceptionFilter('ALL')}>
+            Clear {exceptionFilter.replaceAll('_', ' ').toLowerCase()} filter
+          </Button>}
+        </Stack>
+        {exceptionFilter !== 'ALL' && <Alert severity="info" sx={{ mx: 1.5, mb: 0.8, py: 0, flexShrink: 0, '& .MuiAlert-message': { py: 0.5 } }}>
+          Metrics and charts are filtered by {exceptionFilter.replaceAll('_', ' ').toLowerCase()}.
         </Alert>}
-        {view === 0 && <DataTable columns={orderColumns} rows={orders} />}
-        {view === 1 && <DataTable columns={factoryColumns} rows={factories} />}
-        {view === 2 && <DataTable columns={poColumns} rows={poRows} />}
-        {view === 3 && <DataTable columns={cartonColumns} rows={cartons} emptyText="No generated carton for selected PO (lazy generation). Use the PO tab for planned quantities." />}
-      </DashboardPanel>
-      </Box>
-      <Typography sx={{ color: C.muted, fontSize: 11, mt: 1.35 }}>
-        Dashboard uses saved MongoDB statuses. A PO is unique by (Order ID, PO Number). Planned cartons can exceed generated cartons.
-        Weight / RFID counts refer to cartons; Picking counts refer to POs. A carton is Final PASS only after Weight PASS and RFID PASS.
-        Order and Factory filters affect all KPIs and charts; PO Picking and exception filters apply to detail rows only.
-        Your Factory access is enforced by the backend. No chronological trend is displayed because the V11 API does not provide time-series data.
-      </Typography>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', px: 1.25, pb: 0.8 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr' }, gap: 1.1, mb: 1.1 }}>
+            <DashboardPanel title="Carton Quality Breakdown" subtitle="Actual PASS / FAILED / pending distributions">
+              <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
+                <Donut title="Weight Check" total={chartBase} centerLabel="Weight PASS" segments={[
+                  { label: 'PASS', value: n(totals.weightPass), color: C.teal },
+                  { label: 'FAILED / HOLD', value: n(totals.weightFailed), color: C.coral },
+                  { label: 'Waiting', value: weightOther, color: '#dfe7ed' }
+                ]}/>
+                <Donut title="RFID Verification" total={chartBase} centerLabel="RFID PASS" segments={[
+                  { label: 'PASS', value: n(totals.rfidPass), color: C.teal },
+                  { label: 'FAILED', value: n(totals.rfidFailed), color: C.coral },
+                  { label: 'Not scanned', value: n(totals.rfidNotScanned), color: C.gold },
+                  { label: 'Other / in progress', value: rfidOther, color: '#dfe7ed' }
+                ]}/>
+              </Stack>
+            </DashboardPanel>
+            <DashboardPanel title="Operations Flow" subtitle="PO count for Picking; carton count for subsequent steps">
+              <Stack gap={1.35} py={0.25}>
+                <ProcessLane label="1 · PO Picking" done={totals.pickedPos} total={totals.pos} color={C.tealDark}
+                  description={`${fmt(totals.notPickedPos)} PO waiting for Factory pickup`} onClick={() => jumpTo('UNPICKED')} />
+                <ProcessLane label="2 · Carton Identified" done={scopePos.reduce((s, p) => s + n(p.identifiedCartons), 0)} total={chartBase} color={C.cyan}
+                  description="Assigned SSCC (planned carton denominator)" />
+                <ProcessLane label="3 · Weight PASS" done={totals.weightPass} total={chartBase} color={C.blue}
+                  description={`${fmt(totals.weightFailed)} FAILED / HOLD`} onClick={() => jumpTo('WEIGHT_FAILED')} />
+                <ProcessLane label="4 · RFID PASS" done={totals.rfidPass} total={chartBase} color={C.violet}
+                  description={`${fmt(totals.rfidNotScanned)} not scanned`} onClick={() => jumpTo('NOT_SCANNED')} />
+                <ProcessLane label="5 · Final PASS" done={totals.finalPass} total={chartBase} color={C.teal}
+                  description="All required checks passed" />
+              </Stack>
+            </DashboardPanel>
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr' }, gap: 1.1 }}>
+            <DashboardPanel title="Factory Comparison" subtitle="Weight / RFID / Final PASS by active Factory">
+              <ComparisonChart rows={factoryChartRows} getLabel={row => row.factoryCode}
+                series={[{ key: 'weightPass', label: 'Weight PASS', color: C.cyan },
+                  { key: 'rfidPass', label: 'RFID PASS', color: C.blue },
+                  { key: 'finalPass', label: 'Final PASS', color: C.tealDark }]}
+                emptyText="No picked PO in your assigned factories" />
+            </DashboardPanel>
+            <DashboardPanel title="Top Orders" subtitle="Planned cartons versus Weight / Final PASS">
+              <ComparisonChart rows={topOrders} getLabel={row => row.orderName || row.orderId}
+                series={[{ key: 'plannedCartons', label: 'Planned', color: C.cyan },
+                  { key: 'weightPass', label: 'Weight PASS', color: C.blue },
+                  { key: 'finalPass', label: 'Final PASS', color: C.coral }]}
+                emptyText="No Orders for the selected scope" />
+            </DashboardPanel>
+          </Box>
+        </Box>
+      </Card>
     </Paper>
   );
 }

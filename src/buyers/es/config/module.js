@@ -15,7 +15,7 @@ import {
   isViewOnly
 } from 'utils/accessControl';
 import { buyerPath } from 'utils/buyerAccess';
-import { BUYER_MODULE_KEY, OPERATION_ROUTE } from '../../../constants/appConstants';
+import { BUYER_CODE, BUYER_MODULE_KEY, OPERATION_ROUTE } from '../../../constants/appConstants';
 
 const allowed = {
   workspace: () => canUseBuyerWorkspace(),
@@ -27,6 +27,7 @@ const allowed = {
 
 /** Existing Engelbert Strauss workflow. Legacy ES screens stay in place to avoid regression. */
 const moduleConfig = {
+  buyerCodes: [BUYER_CODE.ENGELBERT_STRAUSS],
   key: BUYER_MODULE_KEY.BARCODE_PACKING,
   landingChild: 'orders',
   capabilities: {

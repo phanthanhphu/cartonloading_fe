@@ -1,5 +1,6 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
-import { BARCODE_CARTON_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE } from '../../../../constants/appConstants';
+import { BARCODE_CARTON_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -82,6 +83,7 @@ export default function OrderScanPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  useAutoDismissFeedback(error, setError, '', 'error');
   const focusScanner = useCallback(() => {
     window.setTimeout(() => scanInputRef.current?.focus(), 80);
   }, []);
@@ -176,12 +178,12 @@ export default function OrderScanPage() {
   const failRows = Array.isArray(failPage?.content) ? failPage.content : [];
   const formatKg = (value) => value == null || value === ''
     ? '—'
-    : `${Number(value).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
+    : `${Number(value).toLocaleString(FORMAT_LOCALE.EN_US, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
   const formatDiff = (value) => {
     if (value == null || value === '') return '—';
     const number = Number(value);
     const prefix = number > 0 ? '+' : '';
-    return `${prefix}${number.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
+    return `${prefix}${number.toLocaleString(FORMAT_LOCALE.EN_US, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
   };
 
   const ResultTable = ({ type, rows, total, page, rowsPerPage, onPageChange, onRowsPerPageChange }) => {
@@ -351,7 +353,7 @@ export default function OrderScanPage() {
                 value={factoryBarcode}
                 onChange={(event) => setFactoryBarcode(event.target.value.replace(/\s/g, ''))}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  if (event.key === KEYBOARD_KEY.ENTER) {
                     event.preventDefault();
                     scanBarcode();
                   }

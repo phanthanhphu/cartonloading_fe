@@ -60,14 +60,14 @@ export const fallbackBackPath = (pathname = '/', search = '') => {
   m = path.match(/^\/assign-barcode\/[^/]+\/[^/]+$/);
   if (m) return '/assign-barcode';
   // In particular, packing/weight users must not fall back to Sales-only Orders.
-  return '/workflow';
+  return '/dashboard';
 };
 
 export const chooseBackTarget = (storage, index, pathname, search = '', fallback = '') => {
   const fromHistory = previousAppPath(storage, index, `${pathname}${search}`);
   if (fromHistory) return { history: true, target: fromHistory };
   const candidate = isSafeAppPath(fallback) ? fallback : fallbackBackPath(pathname, search);
-  return { history: false, target: candidate === `${pathname}${search}` ? '/workflow' : candidate };
+  return { history: false, target: candidate === `${pathname}${search}` ? '/dashboard' : candidate };
 };
 
 export function useSafeAppBack(defaultFallback) {

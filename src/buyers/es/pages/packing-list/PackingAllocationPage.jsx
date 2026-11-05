@@ -1,5 +1,6 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
-import { BARCODE_CARTON_STATUS, FACTORY_BARCODE_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, LARGE_TABLE_PAGE_SIZE, OPERATION_ROUTE } from '../../../../constants/appConstants';
+import { BARCODE_CARTON_STATUS, FACTORY_BARCODE_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, LARGE_TABLE_PAGE_SIZE, OPERATION_ROUTE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -153,7 +154,9 @@ export default function PackingAllocationPage() {
   const [cartonBarcodeChecking, setCartonBarcodeChecking] = useState(false);
   const [cartonAssigningId, setCartonAssigningId] = useState('');
   const [cartonAssignError, setCartonAssignError] = useState('');
+  useAutoDismissFeedback(cartonAssignError, setCartonAssignError, '', 'error');
   const [cartonAssignNotice, setCartonAssignNotice] = useState('');
+  useAutoDismissFeedback(cartonAssignNotice, setCartonAssignNotice, '', 'success');
   const [cartonCorrectionTarget, setCartonCorrectionTarget] = useState(null);
   const [cartonCorrectionReason, setCartonCorrectionReason] = useState('');
   const [cartonCorrectionSaving, setCartonCorrectionSaving] = useState(false);
@@ -554,7 +557,7 @@ export default function PackingAllocationPage() {
         <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap alignItems="flex-start">
           <Chip
             size="small"
-            label={`Assign: ${String(order?.assignmentStatus || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ')} · ${Number(order?.assignedCartonCount || 0).toLocaleString('en-US')}/${Number(order?.plannedCartonCount || 0).toLocaleString('en-US')}`}
+            label={`Assign: ${String(order?.assignmentStatus || PROGRESS_STATUS.NOT_STARTED).replaceAll('_', ' ')} · ${Number(order?.assignedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}/${Number(order?.plannedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}`}
             color={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'success' : order?.assignmentStatus === PROGRESS_STATUS.IN_PROGRESS ? 'warning' : 'default'}
             variant={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'filled' : 'outlined'}
             sx={{ fontWeight: 750 }}
@@ -585,7 +588,7 @@ export default function PackingAllocationPage() {
       {!assignmentWorkspace && (
         <Paper elevation={0} sx={{ mb: 1.4, border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
           <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
-            <Tab label={`Order Items (${Number(order?.masterLineCount || 0).toLocaleString('en-US')})`} />
+            <Tab label={`Order Items (${Number(order?.masterLineCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)})`} />
             <Tab label={`Packing List (${Number(order?.packingLineCount || 0).toLocaleString()})`} />
           </Tabs>
         </Paper>
@@ -772,18 +775,18 @@ export default function PackingAllocationPage() {
               <Chip size="small" label={`Size: ${cartonItemRow?.size || '—'}`} />
               <Chip size="small" label={`Color: ${cartonItemRow?.color || '—'}`} />
               <Chip size="small" label={`Qty Per Ctn: ${cartonItemRow?.qtyPerCarton ?? '—'}`} />
-              <Chip size="small" color="primary" label={`Total ctns: ${cartonItemExpectedCount.toLocaleString('en-US')}`} sx={{ fontWeight: 750 }} />
+              <Chip size="small" color="primary" label={`Total ctns: ${cartonItemExpectedCount.toLocaleString(FORMAT_LOCALE.EN_US)}`} sx={{ fontWeight: 750 }} />
               <Chip
                 size="small"
                 color={cartonItemCountMatches ? 'success' : 'warning'}
                 variant="outlined"
-                label={`Generated: ${cartonItemGeneratedCount.toLocaleString('en-US')} physical cartons`}
+                label={`Generated: ${cartonItemGeneratedCount.toLocaleString(FORMAT_LOCALE.EN_US)} physical cartons`}
               />
               <Chip
                 size="small"
                 color={cartonItemAssignmentStatus === PROGRESS_STATUS.COMPLETED ? 'success' : cartonItemAssignmentStatus === PROGRESS_STATUS.IN_PROGRESS ? 'warning' : 'default'}
                 variant={cartonItemAssignmentStatus === PROGRESS_STATUS.COMPLETED ? 'filled' : 'outlined'}
-                label={`Assigned ${cartonItemAssignedCount.toLocaleString('en-US')}/${Math.max(cartonItemExpectedCount, cartonItemGeneratedCount).toLocaleString('en-US')} · ${cartonItemAssignmentStatus}`}
+                label={`Assigned ${cartonItemAssignedCount.toLocaleString(FORMAT_LOCALE.EN_US)}/${Math.max(cartonItemExpectedCount, cartonItemGeneratedCount).toLocaleString(FORMAT_LOCALE.EN_US)} · ${cartonItemAssignmentStatus}`}
                 sx={{ fontWeight: 750 }}
               />
             </Stack>
@@ -794,7 +797,7 @@ export default function PackingAllocationPage() {
 
             {!cartonItemLoading && cartonItemExpectedCount > 0 && !cartonItemCountMatches && (
               <Alert severity="warning" sx={{ py: 0.35 }}>
-                This Master row expects {cartonItemExpectedCount.toLocaleString('en-US')} physical cartons from Total ctns, but {cartonItemGeneratedCount.toLocaleString('en-US')} are currently generated. Regenerate Carton Master before assigning barcodes.
+                This Master row expects {cartonItemExpectedCount.toLocaleString(FORMAT_LOCALE.EN_US)} physical cartons from Total ctns, but {cartonItemGeneratedCount.toLocaleString(FORMAT_LOCALE.EN_US)} are currently generated. Regenerate Carton Master before assigning barcodes.
               </Alert>
             )}
 
@@ -845,7 +848,7 @@ export default function PackingAllocationPage() {
                             </TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>
                               {carton.weightKg != null
-                                ? `${Number(carton.weightKg).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg`
+                                ? `${Number(carton.weightKg).toLocaleString(FORMAT_LOCALE.EN_US, { maximumFractionDigits: 3 })} kg`
                                 : '—'}
                             </TableCell>
                             <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -965,7 +968,7 @@ export default function PackingAllocationPage() {
                 setCartonAssignNotice('');
               }}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
+                if (event.key === KEYBOARD_KEY.ENTER) {
                   event.preventDefault();
                   checkCartonBarcode();
                 }

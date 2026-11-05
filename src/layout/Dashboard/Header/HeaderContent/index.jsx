@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { AUTH_STORAGE_KEYS, BUYER_CODE } from '../../../../constants/appConstants';
+import { AUTH_STORAGE_KEYS, BUYER_CODE, buyerOrderStorageKey } from '../../../../constants/appConstants';
 import { saveSelectedFactory, useSelectedFactory } from 'utils/factorySelection';
 import { matchPath, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
@@ -14,6 +14,7 @@ import Profile from './Profile';
 import {
   getAccessibleBuyers,
   getBuyerBySlug,
+  buyerPath,
   readSelectedBuyer,
   saveSelectedBuyer
 } from 'utils/buyerAccess';
@@ -23,14 +24,14 @@ import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
 // Every real route gets an explicit page name. Keep specific routes above generic ones.
 // The app bar owns the page title; page bodies display only functional controls.
 const PAGE_MAP = [
-  { path: '/', title: 'Buyer Workspaces', section: 'Supply Chain' },
-  { path: '/workflow', title: 'Buyer Workspaces', section: 'Supply Chain' },
+  { path: '/', title: 'Carton Loading Dashboard', section: 'Supply Chain' },
+  { path: '/workflow', title: 'Carton Loading Dashboard', section: 'Supply Chain' },
   { path: '/dashboard', title: 'Carton Loading Dashboard', section: 'Supply Chain' },
   { path: '/orders-management', title: 'Orders', section: 'Supply Chain' },
   { path: '/users', title: 'User Management', section: 'Administration' },
   { path: '/departments', title: 'Factory & Department Management', section: 'Administration' },
   { path: '/buyers', title: 'Buyer Management', section: 'Administration' },
-  { path: '/audit-logs', title: 'Audit Trail', section: 'Administration' },
+  { path: '/audit-logs', title: 'Audit Trail', section: 'History' },
   { path: '/scale-stations', title: 'Scale Stations', section: 'Factory Tools' },
   { path: '/barcode-management', title: 'Barcode Inventory', section: 'Factory Tools' },
   { path: '/assign-barcode/:buyerSlug/:orderId', title: 'Assign Barcode for Carton', section: 'Factory Tools' },
@@ -42,19 +43,22 @@ const PAGE_MAP = [
   { path: '/shipment-management', title: 'Carton & Shipment Tracking', section: 'Supply Chain' },
   { path: '/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Operations' },
 
+  // Dedicated LULULEMON admin/history routes (URLs remain unchanged).
+  { path: '/buyers/:buyerSlug/rfid-devices', title: 'Device Management', section: 'Administration' },
+  { path: '/buyers/:buyerSlug/trace-history', title: 'Carton History', section: 'History' },
+
   // LULULEMON operation pages: do not fall back to "Workspace / Supply Chain".
-  { path: '/buyers/:buyerSlug/checking', title: 'Checking Management', section: 'QC Checking' },
   { path: '/buyers/:buyerSlug/packing', title: 'Packing Operations', section: 'Packing' },
   { path: '/buyers/:buyerSlug/carton-loading', title: 'Carton Identification & SSCC', section: 'Packing' },
   { path: '/buyers/:buyerSlug/shipping/review/:scheduleId', title: 'Shipment Details', section: 'Shipment Management' },
   { path: '/buyers/:buyerSlug/shipping/review', title: 'Shipment Management', section: 'Shipment Management' },
   { path: '/buyers/:buyerSlug/shipping', title: 'Shipment Management', section: 'Shipment Management' },
   { path: '/buyers/:buyerSlug/weighing', title: 'Carton Weight', section: 'Carton Weighing' },
-  { path: '/buyers/:buyerSlug/weight-history', title: 'Weight History', section: 'Carton Weighing' },
-  { path: '/buyers/:buyerSlug/trace-history', title: 'Trace & History', section: 'Operations' },
   { path: '/buyers/:buyerSlug/po', title: 'PO Master Data', section: 'Orders' },
 
   // Shared Buyer and ES routes, from most detailed to the root.
+  { path: '/buyers/:buyerSlug/orders/:orderId/shipping-schedules/:day', title: 'Shipping Schedule Details', section: 'Order Management' },
+  { path: '/buyers/:buyerSlug/orders/:orderId/shipping-schedules', title: 'Shipping Schedules', section: 'Order Management' },
   { path: '/buyers/:buyerSlug/orders/:orderId/pos/:poKey/cartons/:cartonId', title: 'Carton Items', section: 'Order Management' },
   { path: '/buyers/:buyerSlug/orders/:orderId/pos/:poKey', title: 'PO Cartons', section: 'Order Management' },
   { path: '/buyers/:buyerSlug/orders/:orderId/data-management', title: 'Order Data Management', section: 'Order Management' },
@@ -87,7 +91,7 @@ const resolvePage = (pathname) => {
 };
 
 const buyerSwitchTarget = (_pathname, buyer) => {
-  if (!buyer) return '/workflow';
+  if (!buyer) return '/dashboard';
   // Each Buyer owns a different workflow/menu. Switching Buyer must therefore open that
   // Buyer's own landing page instead of forcing the legacy ES /orders route.
   return getBuyerAccessLandingPath(buyer);
@@ -193,9 +197,21 @@ export default function HeaderContent() {
           onChange={(event) => {
             const next = event.target.value;
             if (!factory.factories.includes(next) || next === factory.factoryCode) return;
+            // An Order / PO / Carton URL contains an Order ID from the previous Factory.
+            // A plain reload keeps that ID, producing a misleading empty PO list after
+            // the user switches Factory. Always return to the new Factory's Orders list.
+            const orderDetailMatch = pathname.match(/^\/buyers\/([^/]+)\/orders\/[^/]+(?:\/|$)/i);
+            const isCurrentBuyerOrder = orderDetailMatch &&
+              getBuyerBySlug(orderDetailMatch[1])?.code === activeBuyer.code;
             saveSelectedFactory(next);
-            // Reload clears in-progress page state and all cached lists for the previous Factory.
-            window.location.reload();
+            // Remembered Orders are not portable across Factory scopes.
+            localStorage.removeItem(buyerOrderStorageKey(activeBuyer.code));
+            if (isCurrentBuyerOrder) {
+              window.location.replace(buyerPath(activeBuyer, 'orders'));
+            } else {
+              // Full reload also clears request caches and in-progress page state.
+              window.location.reload();
+            }
           }}
           sx={{ minWidth: 92, height: 38, bgcolor: '#fff', borderRadius: 1.4 }}>
           {factory.factories.map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
