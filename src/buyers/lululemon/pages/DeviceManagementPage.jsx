@@ -8,8 +8,7 @@ import {
   Cable, Close, EditOutlined, FactoryOutlined, Refresh, SearchOutlined, SensorsOutlined, SettingsEthernet
 } from '@mui/icons-material';
 import useActiveFactories from '../../../common/factory/useActiveFactories';
-import { listUsers } from 'services/adminService';
-import { ACCESS_PERMISSION, BUYER_CODE, ORGANIZATION_REALTIME as RT, DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
+import { ORGANIZATION_REALTIME as RT, DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
 import { isAdmin } from 'utils/accessControl';
 import { MODBUS } from '../common/deviceConstants';
 import RfidDevicesPage from './RfidDevicesPage';
@@ -45,10 +44,6 @@ const relatedFactories = (device) => [...new Set([
 ])];
 const rfidFields = ['startX', 'startY', 'stopX', 'stopY'];
 const rfidAssigned = (device, factory) => device.registered && relatedFactories(device).includes(factory);
-const userEligible = (user, factory) => user?.enabled !== false
-  && (user.buyerPermissions || []).includes(BUYER_CODE.LULULEMON)
-  && (user.buyerAccessPermissions?.LULULEMON || []).includes(ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT)
-  && (user.weighingFactoryPermissions || user.factoryPermissions || []).includes(factory);
 
 /** One Factory row → one Scale PLC, one RFID reader and one Conveyor. Each has its own status/configure action. */
 export default function DeviceManagementPage() {
@@ -63,7 +58,6 @@ export default function DeviceManagementPage() {
   const [scaleDevices, setScaleDevices] = useState([]);
   const [conveyorDevices, setConveyorDevices] = useState([]);
   const [rfidDevices, setRfidDevices] = useState([]);
-  const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [deviceLoadFailed, setDeviceLoadFailed] = useState(false);
@@ -171,24 +165,16 @@ export default function DeviceManagementPage() {
   const configured = modal?.kind === 'RFID' ? ownedReaders.length === 1 : ownedScales.length === 1;
   const editing = formMode !== 'view';
   const duplicates = modal?.kind === 'PLC' ? ownedScales.length > 1 || ownedConveyors.length > 1 : ownedReaders.length > 1;
-  const eligibleUsers = useMemo(() => users.filter((u) => userEligible(u, factoryCode)), [users, factoryCode]);
-  const username = (id) => users.find((u) => u.id === id)?.username || id;
 
   const loadDevices = useCallback(async (kind) => {
-    // Device records must load even if the optional Users dropdown service is unavailable.
-    const accountsPromise = listUsers({ page: 0, size: 200 }).catch(() => ({ content: [] }));
     if (kind === 'RFID') {
-      const [readers, accounts] = await Promise.all([listManagedRfidPdas(), accountsPromise]);
+      const readers = await listManagedRfidPdas();
       setRfidDevices(Array.isArray(readers) ? readers : []);
-      setUsers(accounts?.content || []);
       return { readers: Array.isArray(readers) ? readers : [] };
     }
-    const [scales, conveyors, accounts] = await Promise.all([
-      listScalePlcDevices(), listConveyorDevices(), accountsPromise
-    ]);
+    const [scales, conveyors] = await Promise.all([listScalePlcDevices(), listConveyorDevices()]);
     setScaleDevices(Array.isArray(scales) ? scales : []);
     setConveyorDevices(Array.isArray(conveyors) ? conveyors : []);
-    setUsers(accounts?.content || []);
     return { scales: Array.isArray(scales) ? scales : [], conveyors: Array.isArray(conveyors) ? conveyors : [] };
   }, []);
 
@@ -255,7 +241,7 @@ export default function DeviceManagementPage() {
     setRfidForm({
       serial: reader.serial, label: reader.label || reader.serial,
       factoryCodes: [...new Set([...relatedFactories(reader), factory])],
-      assignedUserIds: reader.assignedUserIds || [],
+      assignedUserIds: [],
       startX: reader.startX ?? '', startY: reader.startY ?? '',
       stopX: reader.stopX ?? '', stopY: reader.stopY ?? ''
     });
@@ -275,7 +261,7 @@ export default function DeviceManagementPage() {
   const changeRfid = (key, value) => { setRfidForm((p) => ({ ...p, [key]: value })); setFeedback(null); setConnectionCheck(null); };
 
   const scalePayload = () => ({
-    ...scaleForm, factoryCode,
+    ...scaleForm, factoryCode, assignedUserIds: [],
     stationCode: String(scaleForm.stationCode).trim().toUpperCase(),
     name: String(scaleForm.name).trim(), host: String(scaleForm.host || '').trim(),
     port: Number(scaleForm.port), unitId: Number(scaleForm.unitId), registerAddress: Number(scaleForm.registerAddress),
@@ -345,7 +331,7 @@ export default function DeviceManagementPage() {
         const { serial, entered } = validateRfid();
         const settings = {
           label: rfidForm.label.trim(), factoryCodes: [factoryCode],
-          assignedUserIds: rfidForm.assignedUserIds,
+          assignedUserIds: [], // Device access follows Buyer/Factory/Scan rights from User Management.
           ...Object.fromEntries(rfidFields.map((field) => [field, entered.length ? Number(rfidForm[field]) : null]))
         };
         if (ownedReaders.length === 1 && ownedReaders[0].serial !== serial) {
@@ -415,7 +401,6 @@ export default function DeviceManagementPage() {
     <TextField key={key} size="small" fullWidth type={type} required={required} label={label}
       value={scaleForm[key] ?? ''} disabled={busy || disabled} helperText={helperText}
       onChange={(e) => changeScale(key, e.target.value)} />;
-  const assignedIds = modal?.kind === 'RFID' ? rfidForm.assignedUserIds : scaleForm.assignedUserIds;
   const currentReader = ownedReaders.length === 1 ? ownedReaders[0] : null;
   const statusDisplay = (() => {
     if (!configured) return { label: 'Not configured', color: 'default' };
@@ -432,7 +417,6 @@ export default function DeviceManagementPage() {
   const detailsRow = (items) => <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
     {items.map(([label, value]) => <Box key={label}>{detail(label, value)}</Box>)}
   </Box>;
-  const assignedNames = (ids = []) => ids.length ? ids.map(username).join(', ') : 'Not assigned';
 
 
   return <Box sx={{ width: '100%', minWidth: 0, boxSizing: 'border-box', px: { xs: 0.75, md: 1 }, py: 1.5 }}>
@@ -535,8 +519,7 @@ export default function DeviceManagementPage() {
                   {detailsRow([
                     ['Device name', rfidForm.label], ['ADB serial', rfidForm.serial],
                     ['Factory', factoryCode],
-                    ['Reader detection', currentReader?.online ? 'ADB online (last device scan)' : 'ADB offline / not detected'],
-                    ['Assigned Weight Check users', assignedNames(rfidForm.assignedUserIds)]
+                    ['Reader detection', currentReader?.online ? 'ADB online (last device scan)' : 'ADB offline / not detected']
                   ])}
                   {rfidFields.some((key) => rfidForm[key] !== '' && rfidForm[key] != null) && <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="body2" fontWeight={700} sx={{ mb: 1.5 }}>RFID START / STOP coordinates</Typography>
@@ -569,7 +552,6 @@ export default function DeviceManagementPage() {
                   Conveyor coil configuration and ModbusPal Test Lab are managed from the Conveyor column in the Factory List.
                   The Conveyor uses this Factory's PLC endpoint when Modbus TCP is selected.
                 </Alert>
-                <Typography variant="body2" color="text.secondary">Assigned Weight Check users: {assignedNames(scaleForm.assignedUserIds)}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   Saved settings do not mean the physical PLC is connected. Test performs a read-only check; no motor commands are sent.
                 </Typography>
@@ -638,14 +620,6 @@ export default function DeviceManagementPage() {
                 Conveyor settings are managed via the Conveyor column of Factory List. There is one shared PLC endpoint; no second PLC is created.
               </Alert>
             </>}
-            <TextField size="small" fullWidth select SelectProps={{ multiple: true, renderValue: (ids) => ids.map(username).join(', ') }}
-              label="Assigned Weight Check Users (optional)" disabled={busy} value={assignedIds || []}
-              onChange={(e) => modal?.kind === 'RFID' ? changeRfid('assignedUserIds', e.target.value) : changeScale('assignedUserIds', e.target.value)}>
-              {eligibleUsers.map((user) => <MenuItem key={user.id} value={user.id}>
-                <Checkbox size="small" checked={(assignedIds || []).includes(user.id)} />{user.username}
-              </MenuItem>)}
-            </TextField>
-            {!eligibleUsers.length && <Typography variant="caption" color="text.secondary">No eligible Weight Check users for this Factory; assign users in User Management when available.</Typography>}
             </>}
             {feedback && <Alert severity={feedback.severity}>{feedback.text}</Alert>}
           </>}

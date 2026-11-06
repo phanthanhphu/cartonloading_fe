@@ -2,25 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Paper, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { Add, Cable, DeleteOutline, EditOutlined, Refresh, ExpandMore, ExpandLess } from '@mui/icons-material';
-import { listUsers } from 'services/adminService';
 import useActiveFactories from '../../../common/factory/useActiveFactories';
-import { ACCESS_PERMISSION, BUYER_CODE, ROLE, DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
+import { DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
 import { listConveyorDevices, saveConveyorDevice, removeConveyorDevice, readConveyorDevice } from '../services/conveyorPlcDevices';
 
 const initial = () => ({ deviceCode: '', factoryCode: '', stationCode: 'PACK-01', name: '',
   host: '', mode: DEVICE_CONNECTION_TYPE.SIMULATOR, protocol: DEVICE_CONNECTION_TYPE.MODBUS_TCP, port: 1502, unitId: 2, commandCoil: 0, motorFeedbackCoil: 1,
   rfidSensorCoil: 2, weightSensorCoil: 3, faultCoil: 4, enabled: true, assignedUserIds: [] });
 const errorText = (e) => e?.response?.data?.message || e?.message || 'Device error';
-const eligible = (u, factory) => u.enabled !== false && (u.role === ROLE.ADMIN ||
-  ((u.buyerPermissions || []).includes(BUYER_CODE.LULULEMON) &&
-    (u.buyerAccessPermissions?.LULULEMON || []).includes(ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT) &&
-    (u.weighingFactoryPermissions || u.factoryPermissions || []).includes(factory)));
-
 /** Admin config only. This component NEVER sends a RUN/STOP command to a real conveyor. */
 export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
   const { codes: factories } = useActiveFactories({ realtime: false });
   const [rows, setRows] = useState([]);
-  const [users, setUsers] = useState([]);
   const [readings, setReadings] = useState({});
   const [filter, setFilter] = useState('ALL');
   const [form, setForm] = useState(null);
@@ -31,8 +24,8 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
   const [notice, setNotice] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const load = useCallback(async () => {
-    const [devices, accounts] = await Promise.all([listConveyorDevices(), listUsers({ page: 0, size: 200 })]);
-    setRows(Array.isArray(devices) ? devices : []); setUsers(accounts?.content || []);
+    const devices = await listConveyorDevices();
+    setRows(Array.isArray(devices) ? devices : []);
   }, []);
   useEffect(() => { load().catch(e => setError(errorText(e))); }, [load]);
   const read = useCallback(async code => {
@@ -44,8 +37,6 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
     read(live); const timer = setInterval(() => read(live), 3000);
     return () => clearInterval(timer);
   }, [live, read, factoryCode]);
-  const selectedUsers = useMemo(() => users.filter(u => eligible(u, form?.factoryCode)), [users, form?.factoryCode]);
-  const username = id => users.find(u => u.id === id)?.username || id;
   const filtered = rows.filter(d => (factoryCode || filter) === 'ALL' || d.factoryCode === (factoryCode || filter));
   const change = (key, value) => setForm(old => ({ ...old, [key]: value }));
   const save = async () => {
@@ -53,7 +44,7 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
     setBusy(true); setError(''); setNotice('');
     try {
       const code = editing ? form.deviceCode : (form.deviceCode || `CONVEYOR-${form.factoryCode}-${form.stationCode}`);
-      await saveConveyorDevice(code, { ...form, deviceCode: code });
+      await saveConveyorDevice(code, { ...form, deviceCode: code, assignedUserIds: [] });
       setForm(null); await load(); setNotice('Conveyor device configuration saved.');
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   };
@@ -79,14 +70,13 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
         <MenuItem value="ALL">All factories</MenuItem>{factories.map(f => <MenuItem key={f} value={f}>{f}</MenuItem>)}
       </TextField>}
       <TableContainer><Table size="small">
-        <TableHead><TableRow>{['Device / Station', 'Factory', 'ModbusPal (Simulator)', 'Assigned Users', 'Connection / Signals', 'Actions'].map(h => <TableCell key={h}>{h}</TableCell>)}</TableRow></TableHead>
+        <TableHead><TableRow>{['Device / Station', 'Factory', 'ModbusPal (Simulator)', 'Connection / Signals', 'Actions'].map(h => <TableCell key={h}>{h}</TableCell>)}</TableRow></TableHead>
         <TableBody>
-          {!filtered.length && <TableRow><TableCell colSpan={6}>No Conveyor device configured.</TableCell></TableRow>}
+          {!filtered.length && <TableRow><TableCell colSpan={5}>No Conveyor device configured.</TableCell></TableRow>}
           {filtered.map(d => { const r = readings[d.deviceCode]; return <TableRow key={d.deviceCode}>
             <TableCell><b>{d.deviceCode}</b><Typography variant="caption" display="block">{d.name} · {d.stationCode}</Typography></TableCell>
             <TableCell>{d.factoryCode}</TableCell>
             <TableCell><Chip size="small" label={(d.mode || DEVICE_CONNECTION_TYPE.SIMULATOR) === 'REAL' ? 'REAL · DRAFT' : 'MODBUSPAL SIM'} color={(d.mode || DEVICE_CONNECTION_TYPE.SIMULATOR) === 'REAL' ? 'default' : 'info'}/><Typography variant="caption" display="block">{d.protocol || DEVICE_CONNECTION_TYPE.MODBUS_TCP} · {d.host}:{d.port} · Unit {d.unitId}</Typography></TableCell>
-            <TableCell>{(d.assignedUserIds || []).map(username).join(', ') || 'Not assigned'}</TableCell>
             <TableCell>
               <Chip size="small" label={!d.enabled ? 'DISABLED' : r?.connected ? DEVICE_CONNECTION_STATE.CONNECTED : r ? 'OFFLINE / ERROR' : 'NOT TESTED'} color={r?.connected ? 'success' : r ? 'error' : 'default'}/>
               {r?.connected && <Typography variant="caption" display="block">Command {r.commandOn ? 'ON' : 'OFF'} · Motor {r.motorRunning ? 'RUNNING' : 'STOPPED'} · RFID sensor {r.rfidSensor ? 'ON' : 'OFF'} · Weight sensor {r.weightSensor ? 'ON' : 'OFF'} · Fault {r.fault ? 'ON' : 'OFF'}</Typography>}
@@ -95,7 +85,7 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
               <Button size="small" disabled={!d.enabled || d.mode === 'REAL'} startIcon={<Cable/>} onClick={() => read(d.deviceCode)}>Test</Button>
               {!factoryCode && <Button size="small" disabled={!d.enabled || d.mode === 'REAL'} onClick={() => setLive(old => old === d.deviceCode ? '' : d.deviceCode)}>{live === d.deviceCode ? 'Stop Live' : 'Live'}</Button>}
-              <Button size="small" startIcon={<EditOutlined/>} onClick={() => { setForm({ ...d, mode: d.mode || DEVICE_CONNECTION_TYPE.SIMULATOR, protocol: d.protocol || DEVICE_CONNECTION_TYPE.MODBUS_TCP, assignedUserIds: d.assignedUserIds || [] }); setEditing(true); setAdvanced(false); }}>Edit</Button>
+              <Button size="small" startIcon={<EditOutlined/>} onClick={() => { setForm({ ...d, mode: d.mode || DEVICE_CONNECTION_TYPE.SIMULATOR, protocol: d.protocol || DEVICE_CONNECTION_TYPE.MODBUS_TCP, assignedUserIds: [] }); setEditing(true); setAdvanced(false); }}>Edit</Button>
               <Button size="small" color="error" startIcon={<DeleteOutline/>} disabled={busy} onClick={() => remove(d.deviceCode)}>Remove</Button>
             </TableCell>
           </TableRow>; })}
@@ -120,10 +110,6 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
           <TextField size="small" fullWidth label="Device Name" placeholder="Conveyor F3 / PACK-01" value={form.name} onChange={e => change('name', e.target.value)}/>
           <TextField size="small" fullWidth label="PLC Host IPv4" placeholder="10.232.132.75" value={form.host} onChange={e => change('host', e.target.value)}/>
         </Stack>
-        <TextField size="small" select fullWidth label="Assigned Users (same Factory, Weight Check)" value={form.assignedUserIds || []}
-          SelectProps={{ multiple: true, renderValue: ids => ids.map(username).join(', ') }} onChange={e => change('assignedUserIds', e.target.value)}>
-          {selectedUsers.map(u => <MenuItem key={u.id} value={u.id}><Checkbox checked={(form.assignedUserIds || []).includes(u.id)}/>{u.username}</MenuItem>)}
-        </TextField>
         <Button size="small" variant="text" startIcon={advanced ? <ExpandLess/> : <ExpandMore/>} onClick={() => setAdvanced(v => !v)} sx={{ alignSelf: 'flex-start' }}>
           Advanced Connection Settings
         </Button>

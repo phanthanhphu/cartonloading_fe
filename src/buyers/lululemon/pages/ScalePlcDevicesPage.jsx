@@ -6,10 +6,9 @@ import {
   TableRow, TextField, Typography
 } from '@mui/material';
 import { Add, Cable, DeleteOutline, EditOutlined, ExpandMore, Refresh, ScaleOutlined } from '@mui/icons-material';
-import { listUsers } from 'services/adminService';
 import useActiveFactories from '../../../common/factory/useActiveFactories';
 import useOrganizationRealtime from '../../../common/realtime/useOrganizationRealtime';
-import { BUYER_CODE, ACCESS_PERMISSION, ROLE, ORGANIZATION_REALTIME, DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
+import { ORGANIZATION_REALTIME, DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
 import { MODBUS, SCALE_POLL_INTERVAL_MS } from '../common/deviceConstants';
 import { listScalePlcDevices, saveScalePlcDevice, deleteScalePlcDevice, readScalePlcWeight, sendSimulatorWeight } from '../services/scalePlcDevices';
 
@@ -25,16 +24,10 @@ const MODBUSPAL_F3_TEST = Object.freeze({
   registerAddress: 0, stableRegisterAddress: 1, encoding: 'UINT16', kgPerUnit: 0.01
 });
 const errorText = (error) => error?.response?.data?.message || error?.message || 'PLC connection failed';
-const allowedUser = (user, factory) => user?.enabled !== false
-  && (user?.role === ROLE.ADMIN || ((user?.buyerPermissions || []).includes(BUYER_CODE.LULULEMON)
-  && (user?.buyerAccessPermissions?.LULULEMON || []).includes(ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT)
-  && (user?.weighingFactoryPermissions || user?.factoryPermissions || []).includes(factory)));
-
 /** Admin-only configuration and actual read-only Modbus TCP measurement preview. */
 export default function ScalePlcDevicesPage({ factoryCode = null }) {
   const { codes: activeFactories } = useActiveFactories({ realtime: false });
   const [rows, setRows] = useState([]);
-  const [users, setUsers] = useState([]);
   const [form, setForm] = useState(null);
   const [editing, setEditing] = useState(false);
   const [testAfterSave, setTestAfterSave] = useState(false);
@@ -63,11 +56,8 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
     finally { setSendingCode(null); }
   };
   const load = useCallback(async () => {
-    const [devices, accounts] = await Promise.all([
-      listScalePlcDevices(), listUsers({ page: 0, size: 200 })
-    ]);
+    const devices = await listScalePlcDevices();
     setRows(Array.isArray(devices) ? devices : []);
-    setUsers(accounts?.content || []);
   }, []);
   useEffect(() => { load().catch((e) => setError(errorText(e))); }, [load]);
   // Embedded Device Management is manual refresh only (no User socket reload).
@@ -90,8 +80,6 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
   }, [liveCode, read, factoryCode]);
 
   const filtered = useMemo(() => rows.filter((d) => (factoryCode || filter) === 'ALL' || d.factoryCode === (factoryCode || filter)), [factoryCode, filter, rows]);
-  const selectableUsers = useMemo(() => users.filter((user) => allowedUser(user, form?.factoryCode)), [users, form?.factoryCode]);
-  const userName = (id) => users.find((user) => user.id === id)?.username || id;
 
   const configureModbusPalF3 = () => {
     if (factoryCode && factoryCode !== 'F3') return;
@@ -101,7 +89,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
     }
     const existing = rows.find((d) => d.stationCode === MODBUSPAL_F3_TEST.stationCode);
     // Never overwrite a saved device without Admin explicitly reviewing/editing the form.
-    setForm(existing ? { ...existing, assignedUserIds: existing.assignedUserIds || [] }
+    setForm(existing ? { ...existing, assignedUserIds: [] }
       : { ...newDevice(), ...MODBUSPAL_F3_TEST });
     setEditing(Boolean(existing));
     setTestAfterSave(true);
@@ -111,7 +99,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
     if (factoryCode && form?.factoryCode !== factoryCode) { setError('Device Factory must match the selected Factory.'); return; }
     setLoading(true); setError(''); setNotice('');
     try {
-      const data = { ...form,
+      const data = { ...form, assignedUserIds: [],
         stationCode: form.stationCode.trim().toUpperCase(), name: form.name.trim(), host: (form.host || '').trim(),
         port: Number(form.port), unitId: Number(form.unitId), registerAddress: Number(form.registerAddress),
         kgPerUnit: Number(form.kgPerUnit) };
@@ -122,7 +110,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
         try {
           const result = await readScalePlcWeight(data.stationCode);
           setReadings((previous) => ({ ...previous, [data.stationCode]: { ...result, ok: true } }));
-          setNotice(`Connected to ${data.stationCode}: ${result.weightKg == null ? 'Modbus TCP responded' : `${Number(result.weightKg).toFixed(2)} kg`}. Assign Weight Check users to use this device in Carton Weighing.`);
+          setNotice(`Connected to ${data.stationCode}: ${result.weightKg == null ? 'Modbus TCP responded' : `${Number(result.weightKg).toFixed(2)} kg`}. Access is controlled in User Management.`);
         } catch (connectionError) {
           setReadings((previous) => ({ ...previous, [data.stationCode]: { ok: false, error: errorText(connectionError) } }));
           setError(`Saved ${data.stationCode}, but ModbusPal connection test failed: ${errorText(connectionError)}. Check the Windows IP, ModbusPal Run and firewall.`);
@@ -176,11 +164,11 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
       <TableContainer><Table size="small">
         <TableHead><TableRow>
           <TableCell>STT</TableCell><TableCell>Station</TableCell><TableCell>Factory</TableCell>
-          <TableCell>Mode / Connection</TableCell><TableCell>Assigned Users</TableCell>
+          <TableCell>Mode / Connection</TableCell>
           <TableCell>Connection / Actual kg</TableCell><TableCell align="right">Actions</TableCell>
         </TableRow></TableHead>
         <TableBody>
-          {!filtered.length && <TableRow><TableCell colSpan={7}>No devices found for active Factories.</TableCell></TableRow>}
+          {!filtered.length && <TableRow><TableCell colSpan={6}>No devices found for active Factories.</TableCell></TableRow>}
           {filtered.map((d, index) => {
             const result = readings[d.stationCode];
             return <TableRow key={d.stationCode}>
@@ -191,7 +179,6 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
                 label={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED' : DEVICE_CONNECTION_TYPE.MODBUS_TCP}/>
                 {d.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && <Typography variant="caption" display="block">{d.host}:{d.port} · Unit {d.unitId} · Register {d.registerAddress}</Typography>}
               </TableCell>
-              <TableCell>{(d.assignedUserIds || []).map(userName).join(', ') || 'Not assigned'}</TableCell>
               <TableCell>
                 <Chip size="small" color={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'info' : result?.ok ? 'success' : result ? 'error' : 'default'}
                   label={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED / CONNECTED' : result?.ok ? DEVICE_CONNECTION_STATE.CONNECTED : result ? 'OFFLINE / ERROR' : 'NOT TESTED'}/>
@@ -210,7 +197,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 <Button size="small" startIcon={<Cable/>} onClick={() => read(d.stationCode)} disabled={!d.enabled}>Test</Button>
                 {!factoryCode && <Button size="small" onClick={() => setLiveCode((current) => current === d.stationCode ? null : d.stationCode)} disabled={!d.enabled}>{liveCode === d.stationCode ? 'Stop Live' : 'Live'}</Button>}
-                <Button size="small" startIcon={<EditOutlined/>} onClick={() => { setForm({ ...d, assignedUserIds: d.assignedUserIds || [] }); setEditing(true); setTestAfterSave(false); }}>Edit</Button>
+                <Button size="small" startIcon={<EditOutlined/>} onClick={() => { setForm({ ...d, assignedUserIds: [] }); setEditing(true); setTestAfterSave(false); }}>Edit</Button>
                 <Button size="small" color="error" startIcon={<DeleteOutline/>} onClick={() => setDeleteCode(d.stationCode)} disabled={loading || (d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR && d.stationCode === `SCALE-SIM-${d.factoryCode}`)}>Remove</Button>
               </TableCell>
             </TableRow>;
@@ -260,14 +247,6 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
           label="Stable Holding Register (0-based, optional)" value={form?.stableRegisterAddress ?? ''}
           helperText="ModbusPal test: 1 (displayed as Address 2). Empty = preview only. After RFID: 0 → 1 for each new carton."
           onChange={(e) => change('stableRegisterAddress', e.target.value === '' ? null : Number(e.target.value))} />}
-        <TextField select SelectProps={{ multiple: true, renderValue: (ids) => ids.map(userName).join(', ') }} size="small" fullWidth
-          label="Assigned Users (Weight Check, same Factory)" value={form?.assignedUserIds || []}
-          onChange={(e) => change('assignedUserIds', e.target.value)} disabled={!form?.factoryCode}>
-          {selectableUsers.map((user) => <MenuItem key={user.id} value={user.id}>
-            <Checkbox checked={(form?.assignedUserIds || []).includes(user.id)}/>{user.username}
-          </MenuItem>)}
-        </TextField>
-        {!selectableUsers.length && form?.factoryCode && <Alert severity="warning">No eligible users. Assign Factory + Weight Check in User Management first.</Alert>}
         <FormControlLabel control={<Checkbox checked={form?.enabled !== false} onChange={(e) => change('enabled', e.target.checked)}/>} label="Enabled"/>
       </Stack>
       <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 1.5 }}>

@@ -6,8 +6,7 @@ import {
 } from '@mui/material';
 import { Cable, Add, DeleteOutline, EditOutlined, Refresh, Star } from '@mui/icons-material';
 import { canWeighFactory, isAdmin } from 'utils/accessControl';
-import { listUsers } from 'services/adminService';
-import { ACCESS_PERMISSION, BUYER_CODE, DEVICE_CONNECTION_STATE } from '../../../constants/appConstants';
+import { DEVICE_CONNECTION_STATE } from '../../../constants/appConstants';
 import useActiveFactories from '../../../common/factory/useActiveFactories';
 import {
   listManagedRfidPdas, saveManagedRfidPda, deleteManagedRfidPda, makeFactoryDefaultRfidPda,
@@ -24,7 +23,7 @@ const isDefault = (d, factory) => (d?.defaultFactoryCodes || []).includes(factor
 const initialForm = (d) => ({
   label: d?.label || d?.serial || '',
   factories: assignedFactories(d),
-  assignedUserIds: d?.assignedUserIds || [],
+  assignedUserIds: [],
   defaultFactory: '',
   startX: d?.startX ?? '', startY: d?.startY ?? '',
   stopX: d?.stopX ?? '', stopY: d?.stopY ?? '',
@@ -36,7 +35,6 @@ export default function RfidDevicesPage({ factoryCode = null }) {
   const { codes: factoryCodes } = useActiveFactories({ realtime: false });
   const permittedFactories = useMemo(() => factoryCodes.filter(canWeighFactory), [factoryCodes]);
   const [devices, setDevices] = useState([]);
-  const [accounts, setAccounts] = useState([]);
   const [search, setSearch] = useState('');
   const [factoryFilter, setFactoryFilter] = useState('ALL');
   const [showAvailable, setShowAvailable] = useState(false);
@@ -60,7 +58,6 @@ export default function RfidDevicesPage({ factoryCode = null }) {
     setDevices(Array.isArray(result) ? result : []);
   }, []);
   useEffect(() => { reload().catch((e) => setError(displayError(e))); }, [reload]);
-  useEffect(() => { listUsers({ page: 0, size: 200 }).then((page) => setAccounts(page?.content || [])).catch((e) => setError(displayError(e))); }, []);
 
   const filtered = useMemo(() => devices.filter((d) => {
     const term = search.trim().toLowerCase();
@@ -103,7 +100,7 @@ export default function RfidDevicesPage({ factoryCode = null }) {
     await saveManagedRfidPda(selected.serial, {
       label: form.label.trim(),
       factoryCodes: form.factories,
-      assignedUserIds: form.assignedUserIds,
+      assignedUserIds: [],
       ...Object.fromEntries(fields.map((field) => [field, entered.length ? Number(form[field]) : null]))
     });
     if (form.defaultFactory && form.factories.includes(form.defaultFactory))
@@ -230,7 +227,6 @@ export default function RfidDevicesPage({ factoryCode = null }) {
                   onChange={(e) => setForm((prev) => ({
                     ...prev,
                     factories: e.target.checked ? [...prev.factories, factory] : prev.factories.filter((v) => v !== factory),
-                    assignedUserIds: [],
                     defaultFactory: !e.target.checked && prev.defaultFactory === factory ? '' : prev.defaultFactory
                   }))}/>}/>)}
             </Stack>
@@ -244,20 +240,6 @@ export default function RfidDevicesPage({ factoryCode = null }) {
               A Reader can be assigned to multiple Factories. Default is configured separately for each Factory.
             </Typography>
             <Divider/>
-            <Typography variant="subtitle2" fontWeight={800}>Assign Users (optional)</Typography>
-            <Typography variant="caption" color="text.secondary">If no User is selected, legacy Factory permissions still apply. If assigned, only listed Users can START/STOP this reader.</Typography>
-            <Stack direction="row" gap={0.5} flexWrap="wrap">
-              {accounts.filter((user) => user.enabled !== false
-                && (user.buyerPermissions || []).includes(BUYER_CODE.LULULEMON)
-                && (user.buyerAccessPermissions?.LULULEMON || []).includes(ACCESS_PERMISSION.LULU_SCAN_RFID_SSCC_SKU_WEIGHT)
-                && form.factories.some((factory) => (user.weighingFactoryPermissions || user.factoryPermissions || []).includes(factory)))
-                .map((user) => <FormControlLabel key={user.id} label={user.username}
-                  control={<Checkbox size="small" disabled={busy || selected?.capturing}
-                    checked={form.assignedUserIds.includes(user.id)}
-                    onChange={(e) => setForm((prev) => ({ ...prev,
-                      assignedUserIds: e.target.checked ? [...prev.assignedUserIds, user.id] : prev.assignedUserIds.filter((id) => id !== user.id)
-                    }))}/>} />)}
-            </Stack>
             <Typography variant="subtitle2" fontWeight={800}>RFID Control V2 · START / STOP coordinates</Typography>
             <Typography variant="caption" color="text.secondary">You may assign a Factory now and calibrate later. START is disabled until all four coordinates are configured.</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>

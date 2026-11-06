@@ -1,12 +1,14 @@
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { Add, AutoAwesome, CheckCircleOutline, Close, ContentCopy, Delete, Edit, EmailOutlined, LockReset, VisibilityOutlined } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
-import { createUser, deleteUser, generateUserPassword, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
+import { createDepartment, createUser, deleteUser, generateUserPassword, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
 import { ACCESS_PERMISSION, ACCESS_PERMISSION_LABEL, ROLE, USER_ACCESS_PERMISSIONS, LULULEMON_PERMISSION_LABEL, BUYER_CODE, SYSTEM_TYPE, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
 import useActiveFactories from '../../common/factory/useActiveFactories';
+import { isFactoryCode } from '../../common/factory/factoryCodes';
+import { createFactory } from '../../services/factoryService';
 import useOrganizationRealtime from '../../common/realtime/useOrganizationRealtime';
 import { ORGANIZATION_REALTIME } from '../../constants/appConstants';
 import { APP_MESSAGES, createDeleteUserConfirmMessage } from '../../constants/appMessages';
@@ -69,6 +71,9 @@ function PermissionDetailsDialog({ user, onClose, onEdit }) {
         ) : (
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">{count} assigned permission{count === 1 ? '' : 's'} across {groups.length} Buyer{groups.length === 1 ? '' : 's'}.</Typography>
+            <Alert severity="info">Factory scope: {(user.factoryPermissions || []).join(', ') || 'No Factory assigned'}.
+              Buyer permissions grant actions only within assigned Factories; Department does not grant access.
+            </Alert>
             {groups.map((group) => (
               <Box key={group.code} sx={{ border: '1px solid #E2E8F0', borderRadius: 2, overflow: 'hidden' }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center"
@@ -134,7 +139,7 @@ export default function UserManagementPage() {
   useAutoDismissFeedback(error, setError, '', 'error');
   const [departments, setDepartments] = useState([]);
   const [buyers, setBuyers] = useState([]);
-  const { codes: activeFactoryCodes } = useActiveFactories();
+  const { factories: activeFactories, codes: activeFactoryCodes, loading: factoriesLoading, error: factoryError, reload: reloadFactories } = useActiveFactories();
 
   const load = async (page = state.page, size = state.size) => {
     setState((s) => ({ ...s, loading: true }));
@@ -148,20 +153,42 @@ export default function UserManagementPage() {
   };
 
   useEffect(() => { load(0, state.size); }, [filters]);
-  const reloadDepartments = () => listDepartments({ page: 0, size: 200 }).then((r) => setDepartments(r.content || [])).catch((e) => setError(e?.response?.data?.message || e.message));
-  useEffect(() => { reloadDepartments(); }, []);
-  useOrganizationRealtime(ORGANIZATION_REALTIME.DEPARTMENT, reloadDepartments);
+  // Department list is paginated on the backend; fetch every page for the Admin assignment form.
+  const reloadDepartments = async () => {
+    try {
+      const first = await listDepartments({ page: 0, size: 200 });
+      const rows = [...(first.content || [])];
+      const totalPages = Math.max(1, Number(first.totalPages || 1));
+      for (let page = 1; page < totalPages; page += 1) {
+        const result = await listDepartments({ page, size: 200 });
+        rows.push(...(result.content || []));
+      }
+      setDepartments(rows);
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message);
+      throw e;
+    }
+  };
+  useEffect(() => { reloadDepartments().catch(() => {}); }, []);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.DEPARTMENT, () => { reloadDepartments().catch(() => {}); });
   useOrganizationRealtime(ORGANIZATION_REALTIME.USER, () => load(state.page, state.size));
   useEffect(() => { listBuyersAdmin({ active: true, page: 0, size: 200 }).then((r) => setBuyers(r.content || [])).catch(() => {}); }, []);
 
   const save = async (body) => {
-    try {
-      dialog?.id ? await updateUser(dialog.id, body) : await createUser(body);
-      setDialog(null);
-      load(0, state.size);
-    } catch (e) {
-      setError(e?.response?.data?.message || e.message);
-    }
+    // Let the dialog show API validation errors without closing or hiding them behind the overlay.
+    dialog?.id ? await updateUser(dialog.id, body) : await createUser(body);
+    setDialog(null);
+    await load(0, state.size);
+  };
+  const addFactoryForUser = async (values) => {
+    const created = await createFactory({ ...values, active: true });
+    await reloadFactories();
+    return created;
+  };
+  const addDepartmentForUser = async (values) => {
+    const created = await createDepartment(values);
+    await reloadDepartments();
+    return created;
   };
 
   const remove = async (row) => {
@@ -213,7 +240,9 @@ export default function UserManagementPage() {
         </Stack> },
     { key: 'accessPermissions', label: 'Permissions', minWidth: 240, render: (r) =>
       <PermissionSummaryCell user={r} onView={setPermissionViewer} /> },
-    { key: 'departmentId', label: 'Department', minWidth: 150, render: (r) => { const d = departments.find((x) => x.id === r.departmentId); return d ? `${d.factory || '—'} · ${d.departmentName}` : (r.departmentId || '—'); } },
+    { key: 'factoryPermissions', label: 'Factories', minWidth: 150, render: (r) => r.role === ROLE.ADMIN
+      ? 'All Factories' : (r.factoryPermissions || []).join(', ') || '—' },
+    { key: 'departmentId', label: 'Department', minWidth: 170, render: (r) => { const d = departments.find((x) => x.id === r.departmentId); return d ? `${d.factory || '—'} · ${d.division} · ${d.departmentName}` : (r.departmentId || '—'); } },
     {
       key: 'actions',
       label: 'Actions',
@@ -243,7 +272,7 @@ export default function UserManagementPage() {
             { key: 'email', label: 'Email' },
             { key: 'phone', label: 'Phone' },
             { key: 'role', label: 'Role' },
-            { key: 'departmentId', label: 'Department', options: departments.map((d) => ({ value: d.id, label: d.departmentName })) },
+            { key: 'departmentId', label: 'Department', options: departments.map((d) => ({ value: d.id, label: `${d.factory} · ${d.division} · ${d.departmentName}` })) },
             { key: 'enabled', label: 'Status', options: [{ value: 'true', label: 'Enabled' }, { value: 'false', label: 'Disabled' }] }
           ]}
           values={filters}
@@ -253,14 +282,17 @@ export default function UserManagementPage() {
         />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(s) => load(0, s)} columns={columns} />
         {permissionViewer ? <PermissionDetailsDialog user={permissionViewer} onClose={() => setPermissionViewer(null)}
           onEdit={(user) => { setPermissionViewer(null); setDialog(user); }} /> : null}
-        {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers} activeFactoryCodes={activeFactoryCodes} onClose={() => setDialog(null)} onSave={save} /> : null}
+        {dialog ? <UserDialog row={dialog} departments={departments} buyers={buyers}
+          activeFactories={activeFactories} activeFactoryCodes={activeFactoryCodes} factoriesLoading={factoriesLoading}
+          factoryError={factoryError} onCreateFactory={addFactoryForUser} onCreateDepartment={addDepartmentForUser}
+          onClose={() => setDialog(null)} onSave={save} /> : null}
         {reset ? <PasswordDialog user={reset} onClose={() => setReset(null)} onSave={doReset} onGenerateReset={doGenerateReset} /> : null}
       </Stack>
     </Box>
   );
 }
 
-function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onSave }) {
+function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCodes, factoriesLoading, factoryError, onCreateFactory, onCreateDepartment, onClose, onSave }) {
   const editing = Boolean(row.id);
   const [f, setF] = useState({
     username: row.username || '',
@@ -279,9 +311,40 @@ function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onS
     weighingFactoryPermissions: row.weighingFactoryPermissions || []
   });
 
-  // A Department is selectable only when it belongs to an assigned, ACTIVE Factory.
+  const [quickAdd, setQuickAdd] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  // Departments are scoped by the User's selected ACTIVE factories; Department is organisational, not an extra grant.
   const eligibleDepartments = departments.filter((d) => activeFactoryCodes.includes(d.factory) && f.factoryPermissions.includes(d.factory));
   const missingSelectedDepartment = Boolean(f.departmentId) && !eligibleDepartments.some((d) => d.id === f.departmentId);
+  const luluSelected = f.buyerPermissions.includes(BUYER_CODE.LULULEMON);
+  const esSelected = f.buyerPermissions.includes(BUYER_CODE.ENGELBERT_STRAUSS);
+  const inactiveFactoryCodes = f.factoryPermissions.filter((code) => !activeFactoryCodes.includes(code));
+  const hasRequiredAccess = f.role === ROLE.ADMIN || (f.buyerPermissions.length > 0
+    && (!luluSelected || (f.factoryPermissions.length > 0
+      && (f.buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || []).length > 0))
+    && (!esSelected || f.accessPermissions.length > 0));
+  const canSave = Boolean(f.username.trim() && f.email.trim() && (editing || f.password.length >= 8)
+    && hasRequiredAccess && !missingSelectedDepartment && (!luluSelected || inactiveFactoryCodes.length === 0)
+    && !saving && (!factoriesLoading || f.role === ROLE.ADMIN) && (!factoryError || f.role === ROLE.ADMIN));
+  const submit = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setFormError('');
+    try { await onSave(body); }
+    catch (error) { setFormError(error?.response?.data?.message || error.message || 'Unable to save user'); }
+    finally { setSaving(false); }
+  };
+  const addFactory = async (values) => {
+    const created = await onCreateFactory(values);
+    setF((current) => ({ ...current, factoryPermissions: [...new Set([...current.factoryPermissions, created.code])] }));
+    setQuickAdd('');
+  };
+  const addDepartment = async (values) => {
+    const created = await onCreateDepartment(values);
+    setF((current) => ({ ...current, departmentId: created.id }));
+    setQuickAdd('');
+  };
 
   const toggle = (key, v) => setF((s) => {
     if (key === 'accessPermissions') {
@@ -352,18 +415,10 @@ function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onS
             <TextField fullWidth label="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
           </Stack>
           {!editing ? <TextField type="password" label="Password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /> : null}
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <TextField select fullWidth label="Role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value, ...(f.role === ROLE.ADMIN && e.target.value === ROLE.USER ? { buyerAccessPermissions: {}, accessPermissions: [] } : {}) })}>
-              <MenuItem value="USER">USER</MenuItem>
-              <MenuItem value="ADMIN">ADMIN</MenuItem>
-            </TextField>
-            <TextField select fullWidth label="Department" value={f.departmentId} onChange={(e) => setF({ ...f, departmentId: e.target.value })}
-              helperText={eligibleDepartments.length === 0 ? 'No eligible Department. Assign an ACTIVE Factory and create its Department first.' : 'Only Departments in assigned ACTIVE Factories are shown.'}>
-              <MenuItem value="">None</MenuItem>
-              {missingSelectedDepartment ? <MenuItem value={f.departmentId} disabled>Previously assigned Department unavailable</MenuItem> : null}
-              {eligibleDepartments.map((d) => <MenuItem key={d.id} value={d.id}>{d.factory || '—'} · {d.division} — {d.departmentName}</MenuItem>)}
-            </TextField>
-          </Stack>
+          <TextField select fullWidth label="Role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value, ...(f.role === ROLE.ADMIN && e.target.value === ROLE.USER ? { buyerAccessPermissions: {}, accessPermissions: [] } : {}) })}>
+            <MenuItem value="USER">USER</MenuItem>
+            <MenuItem value="ADMIN">ADMIN</MenuItem>
+          </TextField>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
             <TextField fullWidth label="Phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
             <TextField fullWidth label="Address" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} />
@@ -371,6 +426,53 @@ function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onS
           <FormControlLabel control={<Checkbox checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />} label="Enabled" />
           <Typography fontWeight={800}>Buyer permissions</Typography>
           <Stack direction="row" flexWrap="wrap">{buyers.map((buyer) => { const v = buyer.buyerKey; return <FormControlLabel key={buyer.id || v} control={<Checkbox checked={f.buyerPermissions.includes(v)} onChange={() => toggle('buyerPermissions', v)} />} label={buyer.buyerName || v} />; })}</Stack>
+          {buyers.length === 0 && f.role !== ROLE.ADMIN ? <Alert severity="warning">No active Buyers loaded. Check Buyer Management before assigning permissions.</Alert> : null}
+          <Divider />
+          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+            <Box>
+              <Typography fontWeight={800}>Assigned Factories</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Select one or more ACTIVE Factories. All operation permissions are limited to these Factories.
+              </Typography>
+            </Box>
+            <Button size="small" variant="outlined" startIcon={<Add />} onClick={() => setQuickAdd('factory')}>Add Factory</Button>
+          </Stack>
+          <Autocomplete multiple disableCloseOnSelect options={activeFactories}
+            getOptionLabel={(factory) => `${factory.code} — ${factory.name || factory.code}`}
+            isOptionEqualToValue={(a, b) => a.code === b.code}
+            value={activeFactories.filter((factory) => f.factoryPermissions.includes(factory.code))}
+            onChange={(_, selected) => setF((current) => {
+              const factoryPermissions = selected.map((factory) => factory.code);
+              return { ...current, factoryPermissions,
+                weighingFactoryPermissions: current.weighingFactoryPermissions.filter((code) => factoryPermissions.includes(code)),
+                departmentId: current.departmentId && !factoryPermissions.includes(departments.find((d) => d.id === current.departmentId)?.factory)
+                  ? '' : current.departmentId };
+            })}
+            renderInput={(params) => <TextField {...params} label="Factories" placeholder={f.factoryPermissions.length ? '' : 'Select Factories (F1, F2, …)'}
+              error={Boolean(factoryError || (luluSelected && !f.factoryPermissions.length))}
+              helperText={factoryError || (luluSelected && !f.factoryPermissions.length ? 'Assign at least one ACTIVE Factory for LULULEMON.' : `${f.factoryPermissions.length} assigned Factory(s)`) } />}
+            disabled={factoriesLoading || saving} />
+          {inactiveFactoryCodes.length > 0 ? <Alert severity="warning">
+            These previously assigned Factories are no longer ACTIVE: {inactiveFactoryCodes.join(', ')}. Select current Factories before saving.
+          </Alert> : null}
+          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+            <Box>
+              <Typography fontWeight={800}>Department</Typography>
+              <Typography variant="body2" color="text.secondary">Optional primary Department; must belong to an assigned ACTIVE Factory.</Typography>
+            </Box>
+            <Button size="small" variant="outlined" startIcon={<Add />} onClick={() => setQuickAdd('department')}
+              disabled={!f.factoryPermissions.some((code) => activeFactoryCodes.includes(code))}>Add Department</Button>
+          </Stack>
+          <TextField select fullWidth label="Assigned Department (optional)" value={f.departmentId}
+            error={missingSelectedDepartment}
+            onChange={(e) => setF({ ...f, departmentId: e.target.value })}
+            helperText={missingSelectedDepartment ? 'This Department is outside the selected ACTIVE Factories. Choose another Department.'
+              : eligibleDepartments.length === 0 ? 'Assign a Factory first, then add or select its Department.' : 'Only Departments in assigned Factories are shown.'}>
+            <MenuItem value="">No Department</MenuItem>
+            {missingSelectedDepartment ? <MenuItem value={f.departmentId} disabled>Previously assigned Department unavailable</MenuItem> : null}
+            {eligibleDepartments.map((d) => <MenuItem key={d.id} value={d.id}>{d.factory || '—'} · {d.division} — {d.departmentName}</MenuItem>)}
+          </TextField>
+          <Divider />
           <Typography fontWeight={800}>Buyer / Type permissions</Typography>
           {f.buyerPermissions.length === 0 ? <Typography color="text.disabled" variant="body2">Select a Buyer to enable System Type and Access Permissions.</Typography> : null}
           {buyers.filter((buyer) => f.buyerPermissions.includes(buyer.buyerKey)).map((buyer) => {
@@ -435,19 +537,7 @@ function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onS
               ))}</Box>
             </Box>
           )}
-          <Typography fontWeight={800}>Factory assignments (only ACTIVE)</Typography>
-          <Stack direction="row" flexWrap="wrap" gap={0.6}>
-            {activeFactoryCodes.map((factory) => (
-              <FormControlLabel key={factory} control={<Checkbox checked={f.factoryPermissions.includes(factory)}
-                onChange={() => setF((current) => {
-                  const factoryPermissions = current.factoryPermissions.includes(factory)
-                    ? current.factoryPermissions.filter((v) => v !== factory) : [...current.factoryPermissions, factory];
-                  return { ...current, factoryPermissions,
-                    weighingFactoryPermissions: current.weighingFactoryPermissions.filter((v) => factoryPermissions.includes(v)),
-                    departmentId: current.departmentId && !factoryPermissions.includes(departments.find((d) => d.id === current.departmentId)?.factory) ? '' : current.departmentId };
-                })} />} label={factory} />
-            ))}
-          </Stack>
+
           {f.buyerPermissions.includes(BUYER_CODE.ENGELBERT_STRAUSS) ? <>
             <Typography fontWeight={800}>Weighing scope (subset of assigned Factory)</Typography>
             <Stack direction="row" flexWrap="wrap" gap={0.6}>
@@ -457,14 +547,76 @@ function UserDialog({ row, departments, buyers, activeFactoryCodes, onClose, onS
               ))}
             </Stack>
           </> : null}
+          {formError ? <Alert severity="error" onClose={() => setFormError('')}>{formError}</Alert> : null}
+          {f.role !== ROLE.ADMIN && !hasRequiredAccess ? <Alert severity="warning">
+            Select Buyer access permissions{luluSelected ? ', at least one LULULEMON permission and an ACTIVE Factory' : ''}{esSelected ? ', and at least one ENGELBERT STRAUSS permission' : ''} before saving.
+          </Alert> : null}
+          {f.role === ROLE.ADMIN ? <Alert severity="info">ADMIN has full Buyer/Factory access; Factory and Department assignments are organizational only.</Alert> : null}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={() => onSave(body)} disabled={!f.username.trim() || !f.email.trim() || (!editing && f.password.length < 8)}>Save</Button>
+        <Button onClick={onClose} disabled={saving}>Cancel</Button>
+        <Button variant="contained" onClick={submit} disabled={!canSave}>{saving ? 'Saving…' : 'Save User'}</Button>
       </DialogActions>
+      {quickAdd === 'factory' ? <QuickFactoryDialog onClose={() => setQuickAdd('')} onSave={addFactory} /> : null}
+      {quickAdd === 'department' ? <QuickDepartmentDialog factoryCodes={f.factoryPermissions.filter((code) => activeFactoryCodes.includes(code))}
+        onClose={() => setQuickAdd('')} onSave={addDepartment} /> : null}
     </Dialog>
   );
+}
+
+function QuickFactoryDialog({ onClose, onSave }) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const save = async () => {
+    setBusy(true); setError('');
+    try { await onSave({ code, name: name.trim() }); }
+    catch (e) { setError(e?.response?.data?.message || e.message || 'Could not create Factory'); }
+    finally { setBusy(false); }
+  };
+  return <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth="xs">
+    <DialogTitle>Add ACTIVE Factory</DialogTitle>
+    <DialogContent><Stack spacing={1.5} sx={{ mt: 1 }}>
+      <TextField label="Factory Code" value={code} onChange={(e) => setCode(e.target.value.trim().toUpperCase())} placeholder="F1" />
+      <TextField label="Factory Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Typography variant="caption" color="text.secondary">The Factory is created immediately in the shared catalog, even if you cancel the User form.</Typography>
+      {error && <Alert severity="error">{error}</Alert>}
+    </Stack></DialogContent>
+    <DialogActions><Button onClick={onClose} disabled={busy}>Cancel</Button>
+      <Button onClick={save} variant="contained" disabled={busy || !isFactoryCode(code) || !name.trim()}>{busy ? 'Adding…' : 'Add & Assign'}</Button>
+    </DialogActions>
+  </Dialog>;
+}
+
+function QuickDepartmentDialog({ factoryCodes, onClose, onSave }) {
+  const [factory, setFactory] = useState(factoryCodes[0] || '');
+  const [division, setDivision] = useState('');
+  const [departmentName, setDepartmentName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const save = async () => {
+    setBusy(true); setError('');
+    try { await onSave({ factory, division: division.trim(), departmentName: departmentName.trim() }); }
+    catch (e) { setError(e?.response?.data?.message || e.message || 'Could not create Department'); }
+    finally { setBusy(false); }
+  };
+  return <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth="xs">
+    <DialogTitle>Add Department</DialogTitle>
+    <DialogContent><Stack spacing={1.5} sx={{ mt: 1 }}>
+      <TextField select label="Factory" value={factory} onChange={(e) => setFactory(e.target.value)}>
+        {factoryCodes.map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
+      </TextField>
+      <TextField label="Division" value={division} onChange={(e) => setDivision(e.target.value)} />
+      <TextField label="Department Name" value={departmentName} onChange={(e) => setDepartmentName(e.target.value)} />
+      <Typography variant="caption" color="text.secondary">The Department is created immediately, even if you cancel the User form.</Typography>
+      {error && <Alert severity="error">{error}</Alert>}
+    </Stack></DialogContent>
+    <DialogActions><Button onClick={onClose} disabled={busy}>Cancel</Button>
+      <Button onClick={save} variant="contained" disabled={busy || !factory || !division.trim() || !departmentName.trim()}>{busy ? 'Adding…' : 'Add & Assign'}</Button>
+    </DialogActions>
+  </Dialog>;
 }
 
 function PasswordDialog({ user, onClose, onSave, onGenerateReset }) {

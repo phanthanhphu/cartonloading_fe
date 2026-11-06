@@ -58,9 +58,7 @@ const sameConveyorConfiguration = (actual, requested) => actual && requested &&
   ['port', 'unitId', 'commandCoil', 'motorFeedbackCoil', 'rfidSensorCoil',
    'weightSensorCoil', 'faultCoil', 'revision'].every(
     (key) => Number(actual[key] ?? 0) === Number(requested[key] ?? 0)) &&
-  Boolean(actual.enabled) === Boolean(requested.enabled) &&
-  JSON.stringify([...(actual.assignedUserIds || [])].sort()) ===
-    JSON.stringify([...(requested.assignedUserIds || [])].sort());
+  Boolean(actual.enabled) === Boolean(requested.enabled);
 
 
 /** Factory-owned conveyor configuration: one record per Factory, no second PLC connection. */
@@ -242,7 +240,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
       throw new Error('ModbusPal Simulator requires port 1502. Select Real PLC profile or update the PLC port.');
     if (form.mode === 'REAL' && connection.source !== 'FACTORY_PLC')
       throw new Error('A real Conveyor requires the shared Factory PLC / Modbus TCP connection.');
-    return { ...form, ...coils, factoryCode, deviceCode: String(form.deviceCode).trim().toUpperCase(),
+    return { ...form, ...coils, factoryCode, assignedUserIds: [], deviceCode: String(form.deviceCode).trim().toUpperCase(),
       name: String(form.name).trim(), stationCode: String(form.stationCode).trim().toUpperCase(),
       host: endpoint.host, port: endpoint.port, unitId: endpoint.unitId, protocol: DEVICE_CONNECTION_TYPE.MODBUS_TCP };
   };
@@ -469,17 +467,6 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
               <MenuItem value="SIMULATOR">ModbusPal Simulator (port 1502)</MenuItem>
               <MenuItem value="REAL">Real PLC (configure only; control not enabled)</MenuItem>
             </TextField>
-            {Array.isArray(form.assignedUserIds) && form.assignedUserIds.length > 0 && <Box>
-              <Typography variant="caption" color="text.secondary">
-                Assigned Weight Check User IDs · If Save reports a missing User ID, remove only that ID below.
-              </Typography>
-              <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 0.75 }}>
-                {form.assignedUserIds.map((id) => <Chip key={id} size="small" label={id}
-                  onDelete={busy ? undefined : () => setForm((prev) => ({ ...prev,
-                    assignedUserIds: (prev.assignedUserIds || []).filter((value) => value !== id)
-                  }))} />)}
-              </Stack>
-            </Box>}
             <Typography fontWeight={800} variant="subtitle2">Conveyor Coils (0-based)</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>
               {coilFields.map(([key, label]) => field(key, label))}
