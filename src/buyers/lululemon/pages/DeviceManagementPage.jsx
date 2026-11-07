@@ -13,10 +13,11 @@ import { isAdmin } from 'utils/accessControl';
 import { MODBUS } from '../common/deviceConstants';
 import RfidDevicesPage from './RfidDevicesPage';
 import ScalePlcDevicesPage from './ScalePlcDevicesPage';
+import FactoryScaleAgentPanel from './FactoryScaleAgentPanel';
 import ConveyorPlcDevicesPage from './ConveyorPlcDevicesPage';
 import StationDeviceAssignmentPage from './StationDeviceAssignmentPage';
 import FactoryConveyorDialog from './FactoryConveyorDialog';
-import { listScalePlcDevices, saveScalePlcDevice, testScalePlcConnection } from '../services/scalePlcDevices';
+import { listScalePlcDevices, saveScalePlcDevice, testScalePlcConnection, testScalePlcOnly } from '../services/scalePlcDevices';
 import { listConveyorDevices } from '../services/conveyorPlcDevices';
 import { listManagedRfidPdas, testManagedRfidPda, saveManagedRfidPda, makeFactoryDefaultRfidPda, rebindFactoryRfidPda } from '../services/rfidPdaDevices';
 import { loadDeviceStatusSnapshot } from '../services/deviceStatusSocket';
@@ -26,6 +27,7 @@ const errorText = (e) => e?.response?.data?.message || e?.message || 'Device req
 const scaleBlank = (factory) => ({
   stationCode: `SCALE-${factory}`, name: `PLC Scale ${factory}`, factoryCode: factory, connectionType: DEVICE_CONNECTION_TYPE.MODBUS_TCP,
   host: '', port: MODBUS.PORT, unitId: MODBUS.UNIT_ID, registerAddress: MODBUS.REGISTER_ADDRESS,
+  serialConnectionLocation: 'LOCAL_AGENT', serialComPort: 'COM8', serialBaudRate: 9600, serialDataBits: 7, serialParity: 'EVEN', serialStopBits: 1,
   encoding: MODBUS.ENCODING, kgPerUnit: MODBUS.KG_PER_UNIT, stableRegisterAddress: null,
   enabled: true, assignedUserIds: []
 });
@@ -66,6 +68,8 @@ export default function DeviceManagementPage() {
   // Edit is an explicit user action, never the default for saved devices.
   const [formMode, setFormMode] = useState('view'); // 'view' | 'edit' | 'create'
   const [connectionCheck, setConnectionCheck] = useState(null); // physical connectivity, not persistence
+  // Explicit opt-in before any serial weight preview, since a PLC alone is not a weighing scale.
+  const [weightTestEnabled, setWeightTestEnabled] = useState(false);
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [savedNotice, setSavedNotice] = useState('');
   const [deviceStatuses, setDeviceStatuses] = useState({});
@@ -188,6 +192,7 @@ export default function DeviceManagementPage() {
     setFeedback(null);
     setFormMode('view');
     setConnectionCheck(null);
+    setWeightTestEnabled(false);
     setSavedNotice('');
     setMaintenanceOpen(false);
     setScaleForm(scaleBlank(factory));
@@ -248,14 +253,20 @@ export default function DeviceManagementPage() {
     setFeedback(null);
   };
   const changeScale = (key, value) => {
-    // Reuse the saved ModbusPal network endpoint for the Factory's SINGLE PLC.
-    if (key === 'connectionType' && value === DEVICE_CONNECTION_TYPE.MODBUS_TCP && conveyorEnabled && conveyorForm.mode === DEVICE_CONNECTION_TYPE.SIMULATOR) {
+    // When switching a Simulator/TCP profile to Delta Serial, do not inherit an
+    // unrelated Stable register that could silently auto-capture a real carton.
+    if (key === 'connectionType' && value === DEVICE_CONNECTION_TYPE.DELTA_SERIAL &&
+        scaleForm.connectionType !== DEVICE_CONNECTION_TYPE.DELTA_SERIAL) {
+      setScaleForm((p) => ({ ...p, connectionType: value, serialConnectionLocation: 'LOCAL_AGENT', stableRegisterAddress: null }));
+      setWeightTestEnabled(false);
+    } else if (key === 'connectionType' && value === DEVICE_CONNECTION_TYPE.MODBUS_TCP && conveyorEnabled && conveyorForm.mode === DEVICE_CONNECTION_TYPE.SIMULATOR) {
       setScaleForm((p) => ({ ...p, connectionType: value,
         host: conveyorForm.host || p.host, port: conveyorForm.port,
         unitId: conveyorForm.unitId,
         encoding: p.encoding || 'UINT16',
         stableRegisterAddress: p.stableRegisterAddress ?? 1 }));
     } else setScaleForm((p) => ({ ...p, [key]: value }));
+    if (key === 'connectionType' || key === 'registerAddress' || key === 'stableRegisterAddress') setWeightTestEnabled(false);
     setFeedback(null); setConnectionCheck(null);
   };
   const changeRfid = (key, value) => { setRfidForm((p) => ({ ...p, [key]: value })); setFeedback(null); setConnectionCheck(null); };
@@ -265,6 +276,9 @@ export default function DeviceManagementPage() {
     stationCode: String(scaleForm.stationCode).trim().toUpperCase(),
     name: String(scaleForm.name).trim(), host: String(scaleForm.host || '').trim(),
     port: Number(scaleForm.port), unitId: Number(scaleForm.unitId), registerAddress: Number(scaleForm.registerAddress),
+    serialComPort: String(scaleForm.serialComPort || '').trim().replace(/^com/i, 'COM'),
+    serialBaudRate: Number(scaleForm.serialBaudRate), serialDataBits: Number(scaleForm.serialDataBits),
+    serialParity: String(scaleForm.serialParity || 'EVEN').trim().toUpperCase(), serialStopBits: Number(scaleForm.serialStopBits),
     kgPerUnit: Number(scaleForm.kgPerUnit),
     stableRegisterAddress: scaleForm.stableRegisterAddress === '' || scaleForm.stableRegisterAddress == null
       ? null : Number(scaleForm.stableRegisterAddress)
@@ -290,6 +304,10 @@ export default function DeviceManagementPage() {
     if (!scale.stationCode || !scale.name) throw new Error('PLC Station Code and Name are required.');
     if (scale.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && !scale.host)
       throw new Error('Enter the PLC Host IPv4.');
+    if (scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && !['BACKEND_DIRECT', 'LOCAL_AGENT'].includes(scale.serialConnectionLocation || 'BACKEND_DIRECT'))
+      throw new Error('Select a valid serial connection location.');
+    if (scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && !(/^(COM[1-9][0-9]{0,2}|\/dev\/tty(USB|ACM|S)[0-9]{1,3})$/.test(scale.serialComPort)))
+      throw new Error('Enter a valid backend serial port (e.g. COM8 on Windows, /dev/ttyUSB0 on Linux).');
     if (scaleDevices.some((d) => d.stationCode === scale.stationCode && d.factoryCode !== factoryCode))
       throw new Error('Station Code belongs to another Factory.');
     if (ownedScales.some((d) => d.stationCode !== scale.stationCode))
@@ -297,7 +315,7 @@ export default function DeviceManagementPage() {
     return { scale };
   };
 
-  const test = async () => {
+  const test = async (purpose = 'connection') => {
     if (!modal || loadingDevices || deviceLoadFailed || duplicates) return;
     setBusy(true); setFeedback(null); setConnectionCheck(null);
     try {
@@ -310,14 +328,20 @@ export default function DeviceManagementPage() {
         setFeedback({ severity: 'success', text: `ADB detected: ${serial}. RFID inventory was not started.` });
       } else {
         const { scale } = validatePlc();
-        const scaleResult = await testScalePlcConnection(scale);
-        const statuses = [`PLC: ${scaleResult.status}${scaleResult.weightKg == null ? '' : ` · ${scaleResult.weightKg} kg`}`];
+        const serialOnly = scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && purpose !== 'weight';
+        if (scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && purpose === 'weight' && !weightTestEnabled)
+          throw new Error('Confirm a real weighing indicator and valid D registers before testing weight.');
+        const scaleResult = serialOnly ? await testScalePlcOnly(scale) : await testScalePlcConnection(scale);
         setConnectionCheck({
           result: scale.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'simulated' : 'connected',
-          text: scale.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'Simulator validated; no physical PLC was tested' : 'PLC responded to Modbus read',
+          text: serialOnly ? 'PLC answered D0 read (read-only). Scale and weight have NOT been tested.'
+            : scale.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'Simulator validated; no physical PLC was tested'
+            : 'PLC responded to read-only weight register query',
           at: new Date().toLocaleTimeString()
         });
-        setFeedback({ severity: 'success', text: statuses.join(' · ') });
+        setFeedback({ severity: 'success', text: serialOnly
+          ? `${scaleResult.status} · ${scaleResult.serialPort} · Station ${scaleResult.stationAddress} · Weight not configured/tested`
+          : `PLC: ${scaleResult.status}${scaleResult.weightKg == null ? '' : ` · ${scaleResult.weightKg} kg`}` });
       }
     } catch (e) { setConnectionCheck({ result: 'failed', text: errorText(e) }); setFeedback({ severity: 'error', text: errorText(e) }); }
     finally { setBusy(false); }
@@ -533,7 +557,7 @@ export default function DeviceManagementPage() {
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#FAFCFF' }}>
                   {detailsRow([
                     ['Station code', scaleForm.stationCode], ['Device name', scaleForm.name],
-                    ['Connection type', scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'Internal Scale Simulator' : 'Modbus TCP'],
+                    ['Connection type', scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'Internal Scale Simulator' : scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? 'Delta USB Serial / Modbus ASCII' : 'Modbus TCP'],
                     ['PLC enabled', scaleForm.enabled === false ? 'No' : 'Yes']
                   ])}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
@@ -544,13 +568,28 @@ export default function DeviceManagementPage() {
                       ['Stable register', scaleForm.stableRegisterAddress == null ? 'Not set' : scaleForm.stableRegisterAddress]
                     ])}
                   </Box>}
+                  {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                    {detailsRow([
+                      ['Serial connection location', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'Factory Local Agent' : 'Backend Direct COM'], ['Serial COM Port', scaleForm.serialComPort], ['Baud Rate', scaleForm.serialBaudRate],
+                      ['Data Bits', scaleForm.serialDataBits], ['Parity', scaleForm.serialParity], ['Stop Bits', scaleForm.serialStopBits],
+                      ['Station Address', scaleForm.unitId], ['Weight D Register', `D${scaleForm.registerAddress}`],
+                      ['Stable D Register', scaleForm.stableRegisterAddress == null ? 'Not set' : `D${scaleForm.stableRegisterAddress}`],
+                      ['Value Format', scaleForm.encoding], ['kg per unit', scaleForm.kgPerUnit]
+                    ])}
+                  </Box>}
+                  {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL &&
+                    scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} />}
+                  {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && scaleForm.stableRegisterAddress == null &&
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      PLC connection may be tested without a scale. Weight reading / automatic capture is NOT configured (Stable D register is empty).
+                    </Alert>}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR && <Alert severity="info" sx={{ mt: 2 }}>
-                    This is a saved internal simulator, not a physical PLC connection. Click Edit to configure a real Modbus TCP PLC.
+                    This is a saved internal simulator, not a physical PLC connection. Click Edit to configure Modbus TCP or Delta USB Serial.
                   </Alert>}
                 </Paper>
                 <Alert severity="info" sx={{ mt: 1 }}>
                   Conveyor coil configuration and ModbusPal Test Lab are managed from the Conveyor column in the Factory List.
-                  The Conveyor uses this Factory's PLC endpoint when Modbus TCP is selected.
+                  The existing Conveyor shares the Factory Modbus TCP endpoint only when configured for Modbus TCP; Delta Serial Scale is independent.
                 </Alert>
                 <Typography variant="caption" color="text.secondary">
                   Saved settings do not mean the physical PLC is connected. Test performs a read-only check; no motor commands are sent.
@@ -582,7 +621,7 @@ export default function DeviceManagementPage() {
               </Stack>
             </> : <>
               <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Typography variant="subtitle1" fontWeight={800}>1. PLC / Modbus Connection</Typography>
+                <Typography variant="subtitle1" fontWeight={800}>1. PLC / Scale Connection</Typography>
                 <Chip size="small" color={ownedScales.length ? 'primary' : 'default'} variant="outlined"
                   label={ownedScales.length ? 'Configured' : 'Not configured'} />
               </Stack>
@@ -593,7 +632,8 @@ export default function DeviceManagementPage() {
               <TextField size="small" fullWidth disabled label="Factory" value={factoryCode} />
               <TextField size="small" select fullWidth label="Connection Type" value={scaleForm.connectionType} disabled={busy}
                 onChange={(e) => changeScale('connectionType', e.target.value)}>
-                <MenuItem value="MODBUS_TCP">Modbus TCP (PLC / ModbusPal)</MenuItem>
+                <MenuItem value="MODBUS_TCP">Modbus TCP (PLC / ModbusPal) · Existing</MenuItem>
+                <MenuItem value={DEVICE_CONNECTION_TYPE.DELTA_SERIAL}>Delta USB Serial / RS232 · COM8</MenuItem>
                 <MenuItem value="SIMULATOR">Internal Scale Simulator (no physical connection)</MenuItem>
               </TextField>
               {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <>
@@ -614,10 +654,68 @@ export default function DeviceManagementPage() {
                   type: 'number', helperText: 'Stable 0 → 1 transition after RFID for auto-capture; otherwise preview only.'
                 })}
               </>}
+              {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && <>
+                <TextField size="small" select fullWidth label="Serial Connection Location"
+                  value={scaleForm.serialConnectionLocation || 'BACKEND_DIRECT'} disabled={busy}
+                  onChange={(e) => changeScale('serialConnectionLocation', e.target.value)}>
+                  <MenuItem value="LOCAL_AGENT">Factory Local Agent (Linux Server + Factory Windows PC)</MenuItem>
+                  <MenuItem value="BACKEND_DIRECT">Backend Direct COM (single-PC development / legacy)</MenuItem>
+                </TextField>
+                <Alert severity="info" sx={{ mt: 0.5 }}>
+                  {scaleForm.serialConnectionLocation === 'LOCAL_AGENT'
+                    ? 'Delta COM1 / Modbus ASCII · cable connects to the Windows Factory PC running Local Agent. Linux Server forwards read-only jobs to that Factory. WPLSoft must release COM port.'
+                    : 'Delta COM1 / Modbus ASCII · cable connects to backend host (legacy direct mode). WPLSoft must release COM port.'}
+                  {' '}Test never writes to PLC.
+                </Alert>
+                <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
+                  {scaleInput('serialComPort', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'Factory PC COM Port' : 'Backend COM Port', { required: true, helperText: scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'COM8 (example). Set the allowlist on the Factory Windows Agent PC, NOT on Linux Docker.' : 'COM8 (example). Set CARTON_SCALE_SERIAL_ALLOWED_PORTS=COM8 on backend.' })}
+                  <TextField size="small" select fullWidth label="Baud Rate" value={scaleForm.serialBaudRate || 9600} disabled={busy}
+                    onChange={(e) => changeScale('serialBaudRate', Number(e.target.value))}>
+                    {[4800, 9600, 19200, 38400, 57600, 115200].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                  </TextField>
+                  {scaleInput('unitId', 'Station Address', { type: 'number' })}
+                </Stack>
+                <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
+                  <TextField size="small" select fullWidth label="Data Bits" value={scaleForm.serialDataBits || 7} disabled={busy}
+                    onChange={(e) => changeScale('serialDataBits', Number(e.target.value))}>
+                    {[7, 8].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                  </TextField>
+                  <TextField size="small" select fullWidth label="Parity" value={scaleForm.serialParity || 'EVEN'} disabled={busy}
+                    onChange={(e) => changeScale('serialParity', e.target.value)}>
+                    {['EVEN', 'ODD', 'NONE'].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                  </TextField>
+                  <TextField size="small" select fullWidth label="Stop Bits" value={scaleForm.serialStopBits || 1} disabled={busy}
+                    onChange={(e) => changeScale('serialStopBits', Number(e.target.value))}>
+                    {[1, 2].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                  </TextField>
+                </Stack>
+                {scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} />}
+                <Alert severity="info">
+                  <strong>PLC-only test</strong> reads D0 to verify COM8 ↔ PLC communication. It does not require a scale,
+                  read kilograms, or change the PLC. Only use the weight test after connecting a weighing indicator.
+                </Alert>
+                <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
+                  {scaleInput('registerAddress', 'Weight D Register Number', { type: 'number', helperText: 'Example: 200 means D200; NOT 4200 or 40201.' })}
+                  {scaleInput('stableRegisterAddress', 'Stable D Register Number (optional)', { type: 'number', helperText: '0 -> 1 after RFID. Empty = preview-only, no automatic weighing.' })}
+                </Stack>
+                <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
+                  <TextField size="small" select fullWidth label="Value Format" value={scaleForm.encoding} disabled={busy}
+                    onChange={(e) => changeScale('encoding', e.target.value)}>
+                    {MODBUS.ENCODINGS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+                  </TextField>
+                  {scaleInput('kgPerUnit', 'kg per Register Unit', { type: 'number' })}
+                </Stack>
+                <FormControlLabel control={<Checkbox checked={weightTestEnabled} disabled={busy}
+                  onChange={(e) => setWeightTestEnabled(e.target.checked)} />}
+                  label="A weighing indicator is connected and the weight D registers are verified" />
+                {!weightTestEnabled && <Typography variant="caption" color="text.secondary">
+                  Weight reading: Not configured/tested. PLC-only Test is available without a scale.
+                </Typography>}
+              </>}
               <FormControlLabel control={<Checkbox checked={scaleForm.enabled !== false} disabled={busy}
                 onChange={(e) => changeScale('enabled', e.target.checked)} />} label="PLC enabled" />
               <Alert severity="info">
-                Conveyor settings are managed via the Conveyor column of Factory List. There is one shared PLC endpoint; no second PLC is created.
+                Conveyor settings are managed via the Conveyor column of Factory List. Scale and Conveyor are separate device configurations. Modbus TCP may share an endpoint; Delta Serial Scale does not change Conveyor settings.
               </Alert>
             </>}
             </>}
@@ -627,9 +725,14 @@ export default function DeviceManagementPage() {
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 1.5 }}>
         {duplicates || deviceLoadFailed ? <Button variant="outlined" color="inherit" onClick={close} disabled={busy}>Close</Button> : <>
-          <Button variant="outlined" color="primary" startIcon={<Cable />} disabled={busy || loadingDevices} onClick={test}>
-            {busy ? 'Testing…' : 'Test'}
+          <Button variant="outlined" color="primary" startIcon={<Cable />} disabled={busy || loadingDevices}
+            onClick={() => test('connection')}>
+            {busy ? 'Testing…' : modal?.kind === 'PLC' && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL
+              ? 'Test PLC Connection' : 'Test'}
           </Button>
+          {modal?.kind === 'PLC' && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL &&
+            <Button variant="outlined" disabled={busy || loadingDevices || !weightTestEnabled}
+              onClick={() => test('weight')}>Test Weight Reading</Button>}
           <Box sx={{ flex: 1 }} />
           {!editing && configured ? <>
             <Button variant="outlined" startIcon={<EditOutlined />} disabled={busy || loadingDevices} onClick={beginEdit}>Edit</Button>

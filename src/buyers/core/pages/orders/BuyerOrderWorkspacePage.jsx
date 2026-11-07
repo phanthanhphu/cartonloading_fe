@@ -29,7 +29,7 @@ import { createShippingSchedule, createWeighingOrder, deletePo, importAllBp, lis
 import { generatePackingList, importPackingAllocationLines } from 'buyers/es/services/packingListService';
 import { generateCartonPlanFromWsp } from 'buyers/es/services/cartonLoadingService';
 
-const emptyPoFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '' });
+const emptyPoFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '', dcCode: '', masterPo: '', description: '', color: '' });
 const pageState = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
 const isSsccWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.LULULEMON;
 const isBarcodeWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.ENGELBERT_STRAUSS;
@@ -47,13 +47,31 @@ const systemColumns = WORKSPACE_SYSTEM_COLUMN_DEFINITIONS.map((column) => ({
   }
 }));
 
-const loadSavedColumns = () => {
+const UNSCHEDULED_COLUMN_STORAGE_KEY = `${DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY}.unscheduled`;
+const SCHEDULE_COLUMN_STORAGE_KEY = 'lululemon.shippingScheduleDays.columns.v1';
+// Shipping Schedules is a date list, not a PO table: customize its columns separately.
+// Shipping Date and Action stay visible so schedules can always be identified and opened.
+const SCHEDULE_COLUMNS = [
+  { key: 'stt', label: 'STT' },
+  { key: 'shippingDate', label: 'Shipping Date', required: true },
+  { key: 'poCount', label: 'Total POs' },
+  { key: 'status', label: 'Status' },
+  { key: 'action', label: 'Action', required: true }
+];
+const loadColumnPreference = (storageKey) => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY));
+    const parsed = JSON.parse(localStorage.getItem(storageKey));
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
+};
+const loadSavedColumns = () => loadColumnPreference(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY);
+const loadUnscheduledColumns = () => loadColumnPreference(UNSCHEDULED_COLUMN_STORAGE_KEY);
+const loadScheduleColumns = () => {
+  const saved = loadColumnPreference(SCHEDULE_COLUMN_STORAGE_KEY);
+  if (!saved) return SCHEDULE_COLUMNS.map((column) => column.key);
+  return SCHEDULE_COLUMNS.filter((column) => column.required || saved.includes(column.key)).map((column) => column.key);
 };
 
 export default function BuyerOrderWorkspacePage() {
@@ -86,12 +104,16 @@ export default function BuyerOrderWorkspacePage() {
   useAutoDismissFeedback(error, setError, '', 'error');
   const [columnMenuAnchor, setColumnMenuAnchor] = useState(null);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(loadSavedColumns);
+  const [unscheduledColumnKeys, setUnscheduledColumnKeys] = useState(loadUnscheduledColumns);
+  const [scheduleColumnKeys, setScheduleColumnKeys] = useState(loadScheduleColumns);
   const [poEditor, setPoEditor] = useState(null);
   const [poSaving, setPoSaving] = useState(false);
   const [poDeletingId, setPoDeletingId] = useState(null);
   const [shippingSchedules, setShippingSchedules] = useState([]);
   const [poTab, setPoTab] = useState(() => new URLSearchParams(window.location.search).get('tab') === 'shipping-schedules' ? 'scheduled' : 'all');
   const [creatingShippingSchedule, setCreatingShippingSchedule] = useState(false);
+  const currentPoColumnKeys = poTab === 'unscheduled' ? unscheduledColumnKeys : visibleColumnKeys;
+  const scheduleVisibleColumnCount = SCHEDULE_COLUMNS.filter((column) => scheduleColumnKeys.includes(column.key)).length;
   const [reassignDialog, setReassignDialog] = useState(null);
   const [reassignSaving, setReassignSaving] = useState(false);
   const [selectedWeightPoIds, setSelectedWeightPoIds] = useState([]);
@@ -556,6 +578,16 @@ export default function BuyerOrderWorkspacePage() {
     localStorage.setItem(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY, JSON.stringify(visibleColumnKeys));
   }, [buyerCode, visibleColumnKeys]);
 
+  useEffect(() => {
+    if (!isSsccWorkflowBuyer(buyer) || !Array.isArray(unscheduledColumnKeys)) return;
+    localStorage.setItem(UNSCHEDULED_COLUMN_STORAGE_KEY, JSON.stringify(unscheduledColumnKeys));
+  }, [buyerCode, unscheduledColumnKeys]);
+
+  useEffect(() => {
+    if (!isSsccWorkflowBuyer(buyer)) return;
+    localStorage.setItem(SCHEDULE_COLUMN_STORAGE_KEY, JSON.stringify(scheduleColumnKeys));
+  }, [buyerCode, scheduleColumnKeys]);
+
   const fixedColumns = [
     { key: '__stt', label: 'STT', minWidth: 65 },
     { key: 'poNumber', label: 'PO No.', minWidth: 130, render: (r) => <Typography fontWeight={900} color="primary.main">{value(r.poNumber)}</Typography> },
@@ -583,7 +615,7 @@ export default function BuyerOrderWorkspacePage() {
 
   const tableColumns = (() => {
     if (!isSsccWorkflowBuyer(buyer)) return fixedColumns;
-    const selected = new Set(Array.isArray(visibleColumnKeys) ? visibleColumnKeys : WORKSPACE_DEFAULT_COLUMN_KEYS);
+    const selected = new Set(Array.isArray(currentPoColumnKeys) ? currentPoColumnKeys : WORKSPACE_DEFAULT_COLUMN_KEYS);
     const dataColumns = allWorkflowColumns.filter((column) => selected.has(column.key));
     const weightSelectColumn = false ? [{
       key: '__sendWeight',
@@ -655,8 +687,20 @@ export default function BuyerOrderWorkspacePage() {
     }];
   })();
 
+  const updatePoColumns = (updater) => {
+    const setter = poTab === 'unscheduled' ? setUnscheduledColumnKeys : setVisibleColumnKeys;
+    setter(updater);
+  };
+
   const toggleColumn = (key) => {
-    setVisibleColumnKeys((current) => {
+    if (poTab === 'scheduled') {
+      if (SCHEDULE_COLUMNS.find((column) => column.key === key)?.required) return;
+      setScheduleColumnKeys((previous) => previous.includes(key)
+        ? previous.filter((item) => item !== key)
+        : SCHEDULE_COLUMNS.filter((column) => column.key === key || previous.includes(column.key)).map((column) => column.key));
+      return;
+    }
+    updatePoColumns((current) => {
       const selected = new Set(Array.isArray(current) ? current : WORKSPACE_DEFAULT_COLUMN_KEYS);
       if (selected.has(key)) {
         if (selected.size === 1) return Array.from(selected);
@@ -668,8 +712,20 @@ export default function BuyerOrderWorkspacePage() {
     });
   };
 
-  const resetColumns = () => setVisibleColumnKeys(WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key)));
-  const showAllColumns = () => setVisibleColumnKeys(allWorkflowColumns.map((column) => column.key));
+  const resetColumns = () => {
+    if (poTab === 'scheduled') {
+      setScheduleColumnKeys(SCHEDULE_COLUMNS.map((column) => column.key));
+    } else {
+      updatePoColumns(WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key)));
+    }
+  };
+  const showAllColumns = () => {
+    if (poTab === 'scheduled') {
+      setScheduleColumnKeys(SCHEDULE_COLUMNS.map((column) => column.key));
+    } else {
+      updatePoColumns(allWorkflowColumns.map((column) => column.key));
+    }
+  };
 
   if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
@@ -747,7 +803,7 @@ export default function BuyerOrderWorkspacePage() {
               <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
                 <Tabs
                   value={poTab}
-                  onChange={(_, next) => { setPoTab(next); posPaginationRef.current.page = 0; }}
+                  onChange={(_, next) => { setColumnMenuAnchor(null); setPoTab(next); posPaginationRef.current.page = 0; }}
                   variant="scrollable"
                   scrollButtons="auto"
                   aria-label="LULULEMON purchase order shipping schedule views"
@@ -768,16 +824,23 @@ export default function BuyerOrderWorkspacePage() {
                   <Tab value="scheduled" label="2. Shipping Schedules" />
                   <Tab value="unscheduled" label="3. Unscheduled POs" />
                 </Tabs>
-                {poTab !== 'scheduled' && <Chip
-                  size="small"
-                  variant="outlined"
-                  label={pos.loading ? 'Loading POs...' : `${pos.count.toLocaleString()} ${pos.count === 1 ? 'PO' : 'POs'} in view`}
-                  sx={{ flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'background.paper' }}
-                />}
+
               </Stack>
               {/* Place existing shipping, Excel and column actions beside the three PO tabs. */}
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"
                 sx={{ justifyContent: { xs: 'flex-start', lg: 'flex-end' }, flexShrink: 0 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<ViewColumnOutlined />}
+                  onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
+                  aria-label={poTab === 'scheduled' ? 'Customize Shipping Schedule columns' : 'Customize PO table columns'}
+                  aria-haspopup="menu"
+                  aria-expanded={Boolean(columnMenuAnchor)}
+                  sx={{ textTransform: 'none', fontWeight: 700, minHeight: 36, whiteSpace: 'nowrap' }}
+                >
+                  {poTab === 'scheduled' ? `Columns ${scheduleVisibleColumnCount}/${SCHEDULE_COLUMNS.length}` : `Columns ${(currentPoColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).filter((key) => availableColumnKeys.has(key)).length}/${allWorkflowColumns.length}`}
+                </Button>
                 {canScheduleShipping ? (
                   <Button
                     size="small"
@@ -795,18 +858,6 @@ export default function BuyerOrderWorkspacePage() {
                   <LululemonExcelActions orderId={orderId} buyer={buyerCode} onMessage={setNotice}
                     onApplied={async () => { await loadOrder(); await loadPos(0, posPaginationRef.current.size); }} />
                 ) : null}
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<ViewColumnOutlined />}
-                  onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
-                  aria-label="Customize PO table columns"
-                  aria-haspopup="menu"
-                  aria-expanded={Boolean(columnMenuAnchor)}
-                  sx={{ textTransform: 'none', fontWeight: 700, minHeight: 36, whiteSpace: 'nowrap' }}
-                >
-                  Columns {(visibleColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).filter((key) => availableColumnKeys.has(key)).length}/{allWorkflowColumns.length}
-                </Button>
                 {!writable ? <Chip size="small" label="View only" /> : null}
               </Stack>
             </Stack>
@@ -831,48 +882,60 @@ export default function BuyerOrderWorkspacePage() {
             >
               <Box sx={{ px: 1.5, py: 1 }}>
                 <Typography fontWeight={800}>Customize Columns</Typography>
-                <Typography variant="caption" color="text.secondary">Choose which columns are shown in the PO table.</Typography>
+                <Typography variant="caption" color="text.secondary">{poTab === 'scheduled' ? 'Choose columns for the Shipping Schedules list. Date and Action are always visible.' : `Choose columns for ${poTab === 'unscheduled' ? 'Unscheduled POs' : 'All POs'}. Each tab remembers its own selection.`}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                   <Button size="small" onClick={resetColumns}>Default</Button>
                   <Button size="small" onClick={showAllColumns}>Show All</Button>
                 </Stack>
               </Box>
               <Divider />
-              {allWorkflowColumns.map((column) => {
-                const checked = (visibleColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).includes(column.key);
-                return (
-                  <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
-                    <Checkbox size="small" checked={checked} />
-                    <ListItemText primary={column.label} secondary={column.group === 'ALL_BP' ? 'ALL_BP' : 'System'} />
+              {poTab === 'scheduled'
+                ? SCHEDULE_COLUMNS.map((column) => (
+                  <MenuItem key={column.key} dense disabled={column.required} onClick={() => toggleColumn(column.key)}>
+                    <Checkbox size="small" checked={scheduleColumnKeys.includes(column.key)} disabled={column.required} />
+                    <ListItemText primary={column.label} secondary={column.required ? 'Required' : 'Optional'} />
                   </MenuItem>
-                );
-              })}
+                ))
+                : allWorkflowColumns.map((column) => {
+                  const checked = (currentPoColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).includes(column.key);
+                  return (
+                    <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
+                      <Checkbox size="small" checked={checked} />
+                      <ListItemText primary={column.label} secondary={column.group === 'ALL_BP' ? 'ALL_BP' : 'System'} />
+                    </MenuItem>
+                  );
+                })}
             </Menu>
           </Box>
         ) : null}
 
         {isSsccWorkflowBuyer(buyer) && poTab === 'scheduled' ? (
           <ShippingSchedulesTab orderId={orderId} factoryCode={selectedFactory} factoryLoading={factoryLoading}
-            creating={creatingShippingSchedule} onCloseCreating={() => setCreatingShippingSchedule(false)} />
+            creating={creatingShippingSchedule} onCloseCreating={() => setCreatingShippingSchedule(false)}
+            visibleColumns={scheduleColumnKeys} />
         ) : null}
 
         {!(isSsccWorkflowBuyer(buyer) && poTab === 'scheduled') ? <ManagementTable
           filterBar={<TableFilterBar
-          fields={[
+          minFilterWidth={isSsccWorkflowBuyer(buyer) ? 210 : 150}
+          desktopColumns={buyerCode === BUYER_CODE.LULULEMON ? 4 : undefined}
+          fields={isSsccWorkflowBuyer(buyer) ? [
+            // ALL_BP PO fields: use the persisted PurchaseOrder properties, not a client-only page filter.
+            { key: 'dcCode', label: 'DC Code' },
+            { key: 'poNumber', label: 'PO' },
+            { key: 'masterPo', label: 'MASTER PO' },
+            { key: 'style', label: 'Style#' },
+            { key: 'description', label: 'Description' },
+            { key: 'color', label: 'Color description' },
+            { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' }
+          ] : [
+            // Preserve the existing ES workflow filters.
             { key: 'poNumber', label: 'PO No.' },
             { key: 'factory', label: 'Factory' },
             { key: 'style', label: 'Style' },
             { key: 'sku', label: 'SKU' },
             { key: 'destination', label: 'Destination' },
-            { key: 'status', label: isSsccWorkflowBuyer(buyer) ? 'Workflow Status' : 'Status' },
-            ...(isSsccWorkflowBuyer(buyer) ? [{
-              key: 'inspectionStatus', label: 'Inspection Progress', options: [
-                { value: 'COMPLETED', label: 'Completed' },
-                { value: 'INCOMPLETE', label: 'Incomplete' },
-                { value: 'IMPORTING', label: 'Importing' },
-                { value: 'NOT_STARTED', label: 'Imported / Not Started' }
-              ]
-            }] : []),
+            { key: 'status', label: 'Status' },
             { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' }
           ]}
           values={filters}

@@ -14,12 +14,16 @@ const todayInVietnam = () => new Intl.DateTimeFormat('sv-SE', {
 }).format(new Date());
 
 /** Tab 2 is ONLY the Shipping Date list. View opens a dedicated PO table page. */
-export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoading, creating, onCloseCreating }) {
+export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoading, creating, onCloseCreating, visibleColumns }) {
   const writable = canManageShipping();
   const canCreate = canCreateShippingSchedule();
   const canReopen = canReopenShippingSchedule();
   const navigate = useNavigate();
   const [days, setDays] = useState([]);
+  const columnsToShow = new Set(Array.isArray(visibleColumns) ? visibleColumns : ['stt', 'shippingDate', 'poCount', 'status', 'action']);
+  columnsToShow.add('shippingDate');
+  columnsToShow.add('action');
+  const visibleColumnCount = ['stt', 'shippingDate', 'poCount', 'status', 'action'].filter((key) => columnsToShow.has(key)).length;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -115,21 +119,24 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
     {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
     <TableContainer sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2 }}>
       <Table size="small"><TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
-        {['STT', 'Shipping Date', 'Total POs', 'Status', 'Action'].map((label) =>
-          <TableCell key={label} align={label === 'Action' ? 'right' : 'left'} sx={{ fontWeight: 800 }}>{label}</TableCell>)}
+        {columnsToShow.has('stt') && <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>}
+        <TableCell sx={{ fontWeight: 800 }}>Shipping Date</TableCell>
+        {columnsToShow.has('poCount') && <TableCell sx={{ fontWeight: 800 }}>Total POs</TableCell>}
+        {columnsToShow.has('status') && <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>}
+        <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
       </TableRow></TableHead><TableBody>
-        {days.map((entry, index) => {
-          return <TableRow key={`${entry.factoryCode}-${entry.shippingDate}`} hover>
-            <TableCell>{index + 1}</TableCell>
+        {days.map((entry, index) => (
+          <TableRow key={`${entry.factoryCode}-${entry.shippingDate}`} hover>
+            {columnsToShow.has('stt') && <TableCell>{index + 1}</TableCell>}
             <TableCell><Stack direction="row" spacing={1} alignItems="center">
               <CalendarMonthOutlined fontSize="small" color="action" />
               <Typography fontWeight={750}>{displayDate(entry.shippingDate)}</Typography>
             </Stack></TableCell>
-            <TableCell>{entry.poCount} PO{entry.poCount === 1 ? '' : 's'}</TableCell>
-            <TableCell><Chip size="small" color={entry.submitted ? 'success' : 'default'}
+            {columnsToShow.has('poCount') && <TableCell>{entry.poCount} PO{entry.poCount === 1 ? '' : 's'}</TableCell>}
+            {columnsToShow.has('status') && <TableCell><Chip size="small" color={entry.submitted ? 'success' : 'default'}
               variant={entry.submitted ? 'filled' : 'outlined'}
               label={entry.submitted ? (entry.autoSubmitted ? 'Submitted (Auto)' : 'Submitted')
-                : (entry.reopened ? 'Unsubmitted' : 'Draft')} /></TableCell>
+                : (entry.reopened ? 'Unsubmitted' : 'Draft')} /></TableCell>}
             <TableCell align="right"><Stack direction="row" justifyContent="flex-end" spacing={0.5}>
               <Tooltip title="Open full PO table for this Shipping Schedule"><span>
                 <Button size="small" startIcon={<VisibilityOutlined />} onClick={() => viewDay(entry.shippingDate)}>View</Button>
@@ -150,12 +157,12 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
                 </IconButton>
               </span></Tooltip>}
             </Stack></TableCell>
-          </TableRow>;
-        })}
-        {!loading && !days.length && <TableRow><TableCell align="center" colSpan={5} sx={{ py: 4 }}>
+          </TableRow>
+        ))}
+        {!loading && !days.length && <TableRow><TableCell align="center" colSpan={visibleColumnCount} sx={{ py: 4 }}>
           No Shipping Schedules yet. Choose New Schedule to select a Shipping Date and POs.
         </TableCell></TableRow>}
-        {loading && <TableRow><TableCell align="center" colSpan={5}><CircularProgress size={22} /></TableCell></TableRow>}
+        {loading && <TableRow><TableCell align="center" colSpan={visibleColumnCount}><CircularProgress size={22} /></TableCell></TableRow>}
       </TableBody></Table>
     </TableContainer>
     <ShippingSchedulePoPicker open={Boolean(creating) && canCreate} orderId={orderId} factoryCode={factoryCode}

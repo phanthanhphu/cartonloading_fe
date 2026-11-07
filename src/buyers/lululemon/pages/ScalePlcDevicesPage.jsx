@@ -15,6 +15,7 @@ import { listScalePlcDevices, saveScalePlcDevice, deleteScalePlcDevice, readScal
 const newDevice = () => ({
   stationCode: '', name: '', factoryCode: '', connectionType: DEVICE_CONNECTION_TYPE.SIMULATOR, host: '', port: MODBUS.PORT,
   unitId: MODBUS.UNIT_ID, registerAddress: MODBUS.REGISTER_ADDRESS,
+  serialConnectionLocation: 'LOCAL_AGENT', serialComPort: 'COM8', serialBaudRate: 9600, serialDataBits: 7, serialParity: 'EVEN', serialStopBits: 1,
   encoding: MODBUS.ENCODING, kgPerUnit: MODBUS.KG_PER_UNIT, stableRegisterAddress: null, enabled: true, assignedUserIds: []
 });
 // Test setup convenience only. Admin can edit host before saving; never used as a production fallback.
@@ -102,15 +103,18 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
       const data = { ...form, assignedUserIds: [],
         stationCode: form.stationCode.trim().toUpperCase(), name: form.name.trim(), host: (form.host || '').trim(),
         port: Number(form.port), unitId: Number(form.unitId), registerAddress: Number(form.registerAddress),
-        kgPerUnit: Number(form.kgPerUnit) };
+        kgPerUnit: Number(form.kgPerUnit),
+        serialComPort: String(form.serialComPort || '').trim().replace(/^com/i, 'COM'),
+        serialBaudRate: Number(form.serialBaudRate), serialDataBits: Number(form.serialDataBits),
+        serialParity: String(form.serialParity || 'EVEN'), serialStopBits: Number(form.serialStopBits) };
       await saveScalePlcDevice(data.stationCode, data);
       await load(); setForm(null);
-      if (testAfterSave && data.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP) {
+      if (testAfterSave && [DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(data.connectionType)) {
         setTestAfterSave(false);
         try {
           const result = await readScalePlcWeight(data.stationCode);
           setReadings((previous) => ({ ...previous, [data.stationCode]: { ...result, ok: true } }));
-          setNotice(`Connected to ${data.stationCode}: ${result.weightKg == null ? 'Modbus TCP responded' : `${Number(result.weightKg).toFixed(2)} kg`}. Access is controlled in User Management.`);
+          setNotice(`Connected to ${data.stationCode}: ${result.weightKg == null ? 'PLC responded' : `${Number(result.weightKg).toFixed(2)} kg`}. Access is controlled in User Management.`);
         } catch (connectionError) {
           setReadings((previous) => ({ ...previous, [data.stationCode]: { ok: false, error: errorText(connectionError) } }));
           setError(`Saved ${data.stationCode}, but ModbusPal connection test failed: ${errorText(connectionError)}. Check the Windows IP, ModbusPal Run and firewall.`);
@@ -176,14 +180,14 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
               <TableCell><b>{d.stationCode}</b><Typography variant="caption" display="block">{d.name}</Typography></TableCell>
               <TableCell>{d.factoryCode}</TableCell>
               <TableCell><Chip size="small" color={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'info' : 'default'}
-                label={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED' : DEVICE_CONNECTION_TYPE.MODBUS_TCP}/>
-                {d.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && <Typography variant="caption" display="block">{d.host}:{d.port} · Unit {d.unitId} · Register {d.registerAddress}</Typography>}
+                label={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED' : d.connectionType}/>
+                {d.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && <Typography variant="caption" display="block">{d.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? `${d.serialComPort} · ${d.serialBaudRate} · D${d.registerAddress}` : `${d.host}:${d.port} · Unit ${d.unitId} · Register ${d.registerAddress}`}</Typography>}
               </TableCell>
               <TableCell>
                 <Chip size="small" color={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'info' : result?.ok ? 'success' : result ? 'error' : 'default'}
                   label={d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED / CONNECTED' : result?.ok ? DEVICE_CONNECTION_STATE.CONNECTED : result ? 'OFFLINE / ERROR' : 'NOT TESTED'}/>
                 {result?.ok && result.weightKg != null && <Typography variant="body2" fontWeight={800}>{Number(result.weightKg).toFixed(3)} kg
-                  {result.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <Typography component="span" variant="caption"> {result.status} {result.eventId ? '(new sample ready)' : ''}</Typography>}
+                  {[DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(result.mode) && <Typography component="span" variant="caption"> {result.status} {result.eventId ? '(new sample ready)' : ''}</Typography>}
                   {result.mode === DEVICE_CONNECTION_TYPE.SIMULATOR && <Typography component="span" variant="caption"> (test reading{result.consumed ? ', used' : ''})</Typography>}</Typography>}
                 {d.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR && <Stack direction="row" gap={0.5} sx={{ mt: 0.5 }}>
                   <TextField size="small" type="number" label="Simulated kg" value={simulatedInputs[d.stationCode] || ''}
@@ -228,8 +232,9 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
           onChange={(e) => change('connectionType', e.target.value)}>
           <MenuItem value="SIMULATOR">SIMULATOR · Test Only (no PLC required)</MenuItem>
           <MenuItem value="MODBUS_TCP">MODBUS_TCP · Real PLC / ModbusPal</MenuItem>
+          <MenuItem value={DEVICE_CONNECTION_TYPE.DELTA_SERIAL}>DELTA_SERIAL · USB / RS232</MenuItem>
         </TextField>
-        {form?.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
+        {form?.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
           <TextField size="small" fullWidth label="PLC Host IPv4 (backend-accessible)" placeholder="Enter Windows PC IPv4" value={form?.host || ''}
             helperText={testAfterSave ? 'Enter the Windows PC IP that Ubuntu used to read ModbusPal. This is saved as an Admin device setting, not hard-coded.' : undefined}
             onChange={(e) => change('host', e.target.value)}/>
@@ -237,21 +242,49 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
           <TextField size="small" type="number" label="Slave / Unit ID" value={form?.unitId ?? MODBUS.UNIT_ID} onChange={(e) => change('unitId', e.target.value)}/>
         </Stack>}
         {form?.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
-          <TextField size="small" type="number" fullWidth label="Holding Register (0-based)" helperText="40001 → address 0" value={form?.registerAddress ?? 0} onChange={(e) => change('registerAddress', e.target.value)}/>
+          <TextField size="small" type="number" fullWidth label={form.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? 'Weight D Register (e.g. 200 for D200)' : 'Holding Register (0-based)'} helperText={form.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? "Example: 200 means D200" : "40001 → address 0"} value={form?.registerAddress ?? 0} onChange={(e) => change('registerAddress', e.target.value)}/>
           <TextField size="small" select fullWidth label="Value Format" value={form?.encoding || MODBUS.ENCODING} onChange={(e) => change('encoding', e.target.value)}>
             {MODBUS.ENCODINGS.map((opt) => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
           </TextField>
           <TextField size="small" type="number" fullWidth label="kg per Register Unit" helperText="5460 × 0.001 = 5.460 kg" value={form?.kgPerUnit ?? MODBUS.KG_PER_UNIT} onChange={(e) => change('kgPerUnit', e.target.value)}/>
         </Stack>}
         {form?.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && <TextField size="small" type="number" fullWidth
-          label="Stable Holding Register (0-based, optional)" value={form?.stableRegisterAddress ?? ''}
-          helperText="ModbusPal test: 1 (displayed as Address 2). Empty = preview only. After RFID: 0 → 1 for each new carton."
+          label={form.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? 'Stable D Register (optional)' : 'Stable Holding Register (0-based, optional)'} value={form?.stableRegisterAddress ?? ''}
+          helperText={form.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? "D register number, 0 → 1 after RFID. Empty = preview-only." : "ModbusPal test: 1 (displayed as Address 2). Empty = preview only. After RFID: 0 → 1 for each new carton."}
           onChange={(e) => change('stableRegisterAddress', e.target.value === '' ? null : Number(e.target.value))} />}
+        {form?.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && <>
+          <TextField select size="small" fullWidth label="Serial Connection Location"
+            value={form.serialConnectionLocation || 'BACKEND_DIRECT'} onChange={(e) => change('serialConnectionLocation', e.target.value)}>
+            <MenuItem value="LOCAL_AGENT">Factory Local Agent</MenuItem>
+            <MenuItem value="BACKEND_DIRECT">Backend Direct COM (legacy/dev)</MenuItem>
+          </TextField>
+          <Alert severity="info">{form.serialConnectionLocation === 'LOCAL_AGENT'
+            ? 'Factory Local Agent opens the COM port on the Windows PC, not on Linux Server. Set the Windows Agent allowlist and close WPLSoft.'
+            : 'Backend Direct COM for legacy/dev. Set CARTON_SCALE_SERIAL_ALLOWED_PORTS on the backend PC; close WPLSoft.'} Delta Modbus ASCII reads D registers only.</Alert>
+          <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
+            <TextField size="small" fullWidth label={form.serialConnectionLocation === 'LOCAL_AGENT' ? 'Factory PC COM Port' : 'Backend COM Port'} value={form.serialComPort || ''} onChange={(e) => change('serialComPort', e.target.value)}/>
+            <TextField size="small" select fullWidth label="Baud Rate" value={form.serialBaudRate || 9600} onChange={(e) => change('serialBaudRate', Number(e.target.value))}>
+              {[4800, 9600, 19200, 38400, 57600, 115200].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+            </TextField>
+            <TextField size="small" type="number" fullWidth label="Station Address" value={form.unitId ?? 1} onChange={(e) => change('unitId', Number(e.target.value))}/>
+          </Stack>
+          <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
+            <TextField size="small" select fullWidth label="Data Bits" value={form.serialDataBits || 7} onChange={(e) => change('serialDataBits', Number(e.target.value))}>
+              {[7, 8].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+            </TextField>
+            <TextField size="small" select fullWidth label="Parity" value={form.serialParity || 'EVEN'} onChange={(e) => change('serialParity', e.target.value)}>
+              {['EVEN', 'ODD', 'NONE'].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+            </TextField>
+            <TextField size="small" select fullWidth label="Stop Bits" value={form.serialStopBits || 1} onChange={(e) => change('serialStopBits', Number(e.target.value))}>
+              {[1, 2].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+            </TextField>
+          </Stack>
+        </>}
         <FormControlLabel control={<Checkbox checked={form?.enabled !== false} onChange={(e) => change('enabled', e.target.checked)}/>} label="Enabled"/>
       </Stack>
       <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 1.5 }}>
         <Button onClick={() => { setForm(null); setTestAfterSave(false); }} disabled={loading}>Cancel</Button>
-        <Button variant="contained" onClick={save} disabled={loading || !form?.stationCode?.trim() || !form?.factoryCode || (form?.connectionType !== DEVICE_CONNECTION_TYPE.SIMULATOR && !form?.host?.trim()) || !form?.name?.trim()}>{loading ? 'Saving…' : 'Save'}</Button>
+        <Button variant="contained" onClick={save} disabled={loading || !form?.stationCode?.trim() || !form?.factoryCode || (form?.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && !form?.host?.trim()) || (form?.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && !form?.serialComPort?.trim()) || !form?.name?.trim()}>{loading ? 'Saving…' : 'Save'}</Button>
       </Stack>
     </Paper>}
   </Box>;

@@ -82,7 +82,7 @@ export default function BuyerCartonItemsPage() {
   const isLululemon = buyer.code === BUYER_CODE.LULULEMON;
 
   const columns = [
-    { key: '__stt', label: 'STT', minWidth: 60 },
+    ...(!isLululemon ? [{ key: '__stt', label: 'STT', minWidth: 60 }] : []),
     ...(!isLululemon ? [{ key: 'itemNo', label: 'Item No.', minWidth: 85 }] : []),
     { key: 'sku', label: isLululemon ? 'Assigned SKU' : 'Scanned SKU', minWidth: 150, render: (r) => r.sku ? <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 750, color: '#1663BE', letterSpacing: '0.01em' }}>{r.sku}</Typography> : <Typography color="text.disabled" variant="body2">—</Typography> },
     { key: 'style', label: 'Style', minWidth: 110 },

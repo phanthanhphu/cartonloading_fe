@@ -3,7 +3,8 @@ export const FORMAT_LOCALE = Object.freeze({ EN_US: 'en-US' });
 export const KEYBOARD_KEY = Object.freeze({ ENTER: 'Enter' });
 export const DEVICE_CONNECTION_TYPE = Object.freeze({
   SIMULATOR: 'SIMULATOR',
-  MODBUS_TCP: 'MODBUS_TCP'
+  MODBUS_TCP: 'MODBUS_TCP',
+  DELTA_SERIAL: 'DELTA_SERIAL'
 });
 export const DEVICE_CONNECTION_STATE = Object.freeze({
   CONNECTED: 'CONNECTED',

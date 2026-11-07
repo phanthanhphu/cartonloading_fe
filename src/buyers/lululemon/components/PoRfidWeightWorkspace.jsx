@@ -243,7 +243,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         setDevices(available);
         // A configured Modbus PLC takes priority over legacy internal simulators.
         // The backend remains the authority for permissions and the live reading.
-        const preferred = available.find((d) => d.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP) || available[0];
+        const preferred = available.find((d) => [DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(d.connectionType)) || available[0];
         setStationCode(preferred?.stationCode || '');
       } catch (e) { if (!cancelled) setError(errText(e)); }
       finally { if (!cancelled) setLoading(false); }
@@ -272,7 +272,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         setStationCode((previous) => {
           const stillAssigned = available.some((d) => d.stationCode === previous);
           if (active?.carton?.sscc18 && stillAssigned) return previous;
-          return (available.find((d) => d.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP) || available[0])?.stationCode || '';
+          return (available.find((d) => [DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(d.connectionType)) || available[0])?.stationCode || '';
         });
       } catch (_error) {
         // A transient connection failure should not clear a running station.
@@ -454,7 +454,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   const rfidResult = rfid?.status || activeCarton?.rfidStatus || null;
   const selectedScale = devices.find((device) => device.stationCode === stationCode);
   const isAssignedSimulator = selectedScale?.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR
-    && scaleReading?.mode !== DEVICE_CONNECTION_TYPE.MODBUS_TCP;
+    && ![DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(scaleReading?.mode);
   const canUnassignNewIdentity = Boolean(activeCarton?.id && activeCarton?.sscc18 && activeCarton?.labelConfirmedAt
     && !activeCarton?.rfidSessionId && !activeCarton?.rfidStatus && !activeCarton?.weightStatus
     && !rfid?.id && !rfid?.startedAt && !savedWeight && !Number(activeCarton?.scannedQty || 0));
@@ -561,7 +561,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       try {
         // Arm before sampling: Modbus requires a NEW unstable -> stable edge for THIS carton.
         const scale = devices.find(d => d.stationCode === stationCode);
-        const previewOnly = scale?.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && !scale?.stableConfigured;
+        const previewOnly = [DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(scale?.connectionType) && !scale?.stableConfigured;
         if (!previewOnly && Date.now() - lastArmedAt > 20000) {
           await armProcessingAutoWeight({ sscc: activeCarton.sscc18, stationCode });
           lastArmedAt = Date.now();
@@ -571,7 +571,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         const reading = await readScalePlcWeight(stationCode);
         if (cancelled) return;
         setScaleReading(reading);
-        if ((reading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR || reading?.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP)
+        if ((reading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR || reading?.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP || reading?.mode === DEVICE_CONNECTION_TYPE.DELTA_SERIAL)
             && reading?.stable && !reading?.consumed && reading?.eventId
             && reading?.weightKg != null && lastScaleEvent.current !== reading.eventId) {
           try {
@@ -1032,7 +1032,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               <Typography variant="caption" color="error.main" sx={{ lineHeight: 1.3 }}>
                 {scaleReading?.error || 'Scale disconnected'}
               </Typography>}
-            {scaleReading?.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP && scaleReading?.weightKg != null &&
+            {[DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(scaleReading?.mode) && scaleReading?.weightKg != null &&
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
                 Live: <b>{kg(scaleReading.weightKg)} kg</b>
               </Typography>}

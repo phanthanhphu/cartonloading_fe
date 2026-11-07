@@ -1,7 +1,7 @@
 import { Box, Button, MenuItem, TextField } from '@mui/material';
 import { ClearRounded, FilterAltOutlined } from '@mui/icons-material';
 
-export default function TableFilterBar({ fields = [], values = {}, onChange, onClear, disabled = false, sx = {} }) {
+export default function TableFilterBar({ fields = [], values = {}, onChange, onClear, disabled = false, sx = {}, minFilterWidth = 150, desktopColumns }) {
   const active = fields.some((field) => {
     const value = values?.[field.key];
     return value !== undefined && value !== null && String(value).trim() !== '';
@@ -17,7 +17,7 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
         ...sx
       }}
     >
-      <Box sx={{ flex: '1 1 600px', minWidth: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))' }, gap: 0.75 }}>
+      <Box sx={{ flex: '1 1 600px', minWidth: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: desktopColumns ? `repeat(${desktopColumns}, minmax(0,1fr))` : `repeat(auto-fit, minmax(min(100%, ${minFilterWidth}px), 1fr))` }, gap: 0.75 }}>
       {fields.map((field) => (
         <TextField
           key={field.key}
@@ -29,7 +29,7 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
           value={values?.[field.key] ?? ''}
           onChange={(event) => onChange?.(field.key, event.target.value)}
           disabled={disabled}
-          InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
+          InputLabelProps={field.type === 'date' || field.shrinkLabel ? { shrink: true } : undefined}
           sx={{ minWidth: 0 }}
         >
           {field.options ? [<MenuItem key="__all" value="">All</MenuItem>, ...field.options.map((option) => {

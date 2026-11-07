@@ -10,3 +10,5 @@ export const readScalePlcWeight = (code) => apiClient.get(`${root}/${encodeURICo
 
 // Read-only preview of unsaved PLC settings; requires updated backend endpoint.
 export const testScalePlcConnection = (data, config = {}) => apiClient.post(`${root}/test`, data, config);
+// Separate Delta Serial-only handshake: reads PLC D0, never a weight or Stable register.
+export const testScalePlcOnly = (data, config = {}) => apiClient.post(`${root}/test-connection`, data, config);

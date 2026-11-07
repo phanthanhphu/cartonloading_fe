@@ -29,7 +29,7 @@ export const statusForScale = (devices, factory) => {
   const device = owned[0];
   if (device.enabled === false) return disabled();
   if (device.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR) return make('Simulator', 'info', 'Internal scale simulator · no Modbus connection');
-  if (device.connectionType !== DEVICE_CONNECTION_TYPE.MODBUS_TCP) return make('Not tested', 'warning', 'Unsupported PLC connection profile');
+  if (![DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(device.connectionType)) return make('Not tested', 'warning', 'Unsupported PLC connection profile');
   return loading();
 };
 
@@ -59,7 +59,7 @@ const checkFailed = (error) => {
   const message = String(error?.response?.data?.message || error?.message || 'Device status request failed');
   // A network / Modbus communication error implies no response. Other failures
   // (auth, validation, server errors) must not be mislabeled as Disconnected.
-  if (!code || /modbus|socket|connect|timed? out|connection refused|i\/o error|unreachable/i.test(message))
+  if (!code || /modbus|serial|COM[0-9]|socket|connect|timed? out|connection refused|i\/o error|unreachable/i.test(message))
     return make('Disconnected', 'error', `No device response · ${message}`);
   return make('Check failed', 'warning', message);
 };
@@ -99,8 +99,8 @@ export async function loadFactoryDeviceStatuses(factoryCodes) {
       jobs.push(async () => {
         try {
           const reading = await testScalePlcConnection(device, { timeout: STATUS_TIMEOUT_MS });
-          result[code].plc = reading?.mode === DEVICE_CONNECTION_TYPE.MODBUS_TCP && /^CONNECTED\b/.test(reading?.status || '')
-            ? make('Connected', 'success', `Modbus TCP responded · ${device.name || device.stationCode}`)
+          result[code].plc = [DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(reading?.mode) && /^CONNECTED\b/.test(reading?.status || '')
+            ? make('Connected', 'success', `PLC ${device.connectionType} responded · ${device.name || device.stationCode}`)
             : make('Check failed', 'warning', 'No confirmed PLC Modbus response');
         } catch (error) { result[code].plc = checkFailed(error); }
       });
