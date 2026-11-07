@@ -1,58 +1,110 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Box, Button, Chip, Stack, TextField, Typography } from '@mui/material';
-import { enrollScaleAgent, getScaleAgentStatus } from '../services/scalePlcAgents';
+import { Alert, Box, Button, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { discoverPcPorts, listPcAgents, registerPcAgent, revokePcAgent } from '../services/factoryPcAgents';
 
-const errorText = (e) => e?.response?.data?.message || e?.message || 'Could not contact Factory Agent service';
+const errorText = (e) => e?.response?.data?.message || e?.message || 'Could not contact Factory PC Agent';
 
-/** Admin-only one-time Local Agent enrollment. Tokens are NEVER saved to localStorage or displayed again. */
-export default function FactoryScaleAgentPanel({ factoryCode }) {
-  const [info, setInfo] = useState(null);
+/** One Windows Agent per PC, multiple COM ports; configuration stays in Web + MongoDB. */
+export default function FactoryScaleAgentPanel({ factoryCode, selectedAgentId = '', selectedPort = '',
+  onSelectAgent, onSelectPort, readOnly = false }) {
+  const [pcs, setPcs] = useState([]);
+  const [ports, setPorts] = useState([]);
+  const [pcName, setPcName] = useState('');
   const [secret, setSecret] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const refresh = useCallback(async () => {
     if (!factoryCode) return;
-    try { setInfo(await getScaleAgentStatus(factoryCode)); setError(''); }
-    catch (e) { setError(errorText(e)); }
+    try {
+      const data = await listPcAgents(factoryCode);
+      setPcs(Array.isArray(data) ? data : []);
+      setError('');
+    } catch (e) { setError(errorText(e)); }
   }, [factoryCode]);
-  useEffect(() => { setInfo(null); setSecret(null); refresh(); }, [refresh]);
-  const enroll = async () => {
-    if (!factoryCode || busy) return;
-    if (info?.registered && !window.confirm(`Rotate Local Agent credentials for ${factoryCode}? The old Factory Agent will be disconnected immediately.`)) return;
+  useEffect(() => {
+    setPcs([]); setPorts([]); setSecret(null); setError('');
+    void refresh();
+  }, [refresh]);
+  useEffect(() => { setPorts([]); }, [selectedAgentId]);
+  const current = pcs.find((p) => p.agentId === selectedAgentId);
+
+  const register = async () => {
+    if (!pcName.trim() || busy || readOnly) return;
     setBusy(true); setError(''); setSecret(null);
     try {
-      const created = await enrollScaleAgent(factoryCode);
-      setSecret(created);
+      const value = await registerPcAgent(factoryCode, pcName.trim());
+      setSecret(value);
+      setPcName('');
+      await refresh();
+      onSelectAgent?.(value.agentId);
+    } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const discover = async () => {
+    if (!selectedAgentId || busy) return;
+    setBusy(true); setError('');
+    try {
+      const value = await discoverPcPorts(factoryCode, selectedAgentId);
+      setPorts(Array.isArray(value?.ports) ? value.ports : []);
+    } catch (e) { setPorts([]); setError(errorText(e)); }
+    finally { setBusy(false); }
+  };
+  const revoke = async () => {
+    if (!current || busy || readOnly || !window.confirm(`Revoke ${current.displayName}? This PC will disconnect; its device config is NOT deleted.`)) return;
+    setBusy(true); setError('');
+    try {
+      await revokePcAgent(factoryCode, selectedAgentId);
+      onSelectAgent?.(''); onSelectPort?.('');
       await refresh();
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   };
+
   return <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} justifyContent="space-between">
+    <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
       <Box>
-        <Typography variant="subtitle2" fontWeight={800}>Factory Local PLC Agent · {factoryCode}</Typography>
-        <Typography variant="caption" color="text.secondary">Agent runs on the Factory PC connected to the USB PLC, not on Linux Server.</Typography>
+        <Typography variant="subtitle2" fontWeight={800}>Factory PC Agents · {factoryCode}</Typography>
+        <Typography variant="caption" color="text.secondary">Install one Agent per Windows PC. Configure all PLC/Scale COM settings here on Web.</Typography>
       </Box>
-      <Chip size="small" color={info?.online ? 'success' : 'default'}
-        label={!info ? 'Status unknown' : info.online ? 'Agent Online' : info.registered ? 'Agent Offline' : 'Not registered'}/>
+      <Button size="small" variant="outlined" onClick={refresh} disabled={busy}>Refresh PCs</Button>
     </Stack>
-    {info?.agentId && <Typography variant="body2" sx={{ mt: 1 }}>Agent ID: <strong>{info.agentId}</strong></Typography>}
-    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-      <Button size="small" variant="outlined" disabled={busy} onClick={refresh}>Refresh Agent Status</Button>
-      <Button size="small" variant="outlined" color={info?.registered ? 'warning' : 'primary'} disabled={busy} onClick={enroll}>
-        {busy ? 'Working…' : info?.registered ? 'Rotate Agent Key' : 'Register Agent'}
-      </Button>
+    <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5} sx={{ mt: 1.5 }}>
+      <TextField select size="small" fullWidth label="Windows PC / Agent" value={pcs.some(p => p.agentId === selectedAgentId) ? selectedAgentId : ''}
+        disabled={busy || readOnly} onChange={(e) => { onSelectAgent?.(e.target.value); onSelectPort?.(''); }}>
+        <MenuItem value="">Select PC…</MenuItem>
+        {pcs.map((p) => <MenuItem key={p.agentId} value={p.agentId}>{p.displayName} · {p.online ? 'Online' : 'Offline'}</MenuItem>)}
+      </TextField>
+      <Button variant="outlined" size="small" disabled={busy || !selectedAgentId} onClick={discover}>Detect COM Ports</Button>
     </Stack>
-    {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
+    {selectedAgentId && <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 1 }}>
+      <Chip size="small" color={current?.online ? 'success' : 'default'} label={current?.online ? 'PC Agent Online' : 'PC Agent Offline'} />
+      <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>Agent ID: {selectedAgentId}</Typography>
+    </Stack>}
+    {ports.length > 0 && <TextField select size="small" fullWidth label="Detected COM port on selected PC" sx={{ mt: 1.5 }}
+      value={ports.includes(selectedPort) ? selectedPort : ''} disabled={busy || readOnly}
+      onChange={(e) => onSelectPort?.(e.target.value)}>
+      <MenuItem value="">Select COM port…</MenuItem>
+      {ports.map((port) => <MenuItem key={port} value={port}>{port}</MenuItem>)}
+    </TextField>}
+    {selectedAgentId && ports.length === 0 && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+      Use Detect COM Ports while PC Agent is Online; COM can still be entered manually if Windows detection fails.
+    </Typography>}
+    <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 2 }}>
+      <TextField size="small" fullWidth label="Register another PC name" value={pcName} disabled={busy || readOnly}
+        placeholder="e.g. F3-Weight-PC-01" onChange={(e) => setPcName(e.target.value)} />
+      <Button variant="outlined" size="small" disabled={!pcName.trim() || busy || readOnly} onClick={register}>Add PC Agent</Button>
+      <Button variant="outlined" color="warning" size="small" disabled={!current || busy || readOnly} onClick={revoke}>Revoke PC</Button>
+    </Stack>
+    {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
     {secret && <Alert severity="warning" sx={{ mt: 1.5 }}>
-      <Typography variant="body2" fontWeight={800}>Copy these credentials into agent.properties on the Factory PC NOW.</Typography>
-      <Typography variant="caption">The token is shown only once. Never paste it into chat, screenshots or source control.</Typography>
-      <TextField sx={{ mt: 1 }} fullWidth size="small" label="Agent ID" value={secret.agentId || ''} InputProps={{ readOnly: true }} />
-      <TextField sx={{ mt: 1 }} fullWidth size="small" label="One-time Agent Token" value={secret.token || ''} InputProps={{ readOnly: true }} />
-      <Button size="small" sx={{ mt: 1 }} onClick={() => setSecret(null)}>I have saved the token (hide)</Button>
+      <Typography variant="body2" fontWeight={700}>One-time PC pairing credentials (IT only)</Typography>
+      <Typography variant="caption">Enter Server URL + Factory + Agent ID + Token once in the Windows Agent installer. COM port is NOT configured there. Do not post token in chat/screenshots.</Typography>
+      <TextField size="small" fullWidth label="Agent ID" value={secret.agentId} sx={{ mt: 1 }} InputProps={{ readOnly: true }} />
+      <TextField size="small" fullWidth label="One-time Token" value={secret.token} sx={{ mt: 1 }} InputProps={{ readOnly: true }} />
+      <Button size="small" onClick={() => setSecret(null)}>Hide token</Button>
     </Alert>}
-    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-      Run Java 17 Factory Agent with HTTPS, Factory ID, Agent ID/key and an allowed COM port. A connected Agent does not necessarily mean the PLC or weighing indicator is connected.
-    </Typography>
+    <Alert severity="info" sx={{ mt: 1.5 }}>
+      Device assignment: select PC → Detect COM → choose port → Test PLC Connection → Save. Agent Online does not mean PLC Connected. Currently PC Agent supports read-only Delta PLC Scale, not Conveyor motor controls or RFID protocols.
+    </Alert>
   </Box>;
 }

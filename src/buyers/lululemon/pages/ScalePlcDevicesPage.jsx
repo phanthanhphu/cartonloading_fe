@@ -9,13 +9,14 @@ import { Add, Cable, DeleteOutline, EditOutlined, ExpandMore, Refresh, ScaleOutl
 import useActiveFactories from '../../../common/factory/useActiveFactories';
 import useOrganizationRealtime from '../../../common/realtime/useOrganizationRealtime';
 import { ORGANIZATION_REALTIME, DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
+import FactoryScaleAgentPanel from './FactoryScaleAgentPanel';
 import { MODBUS, SCALE_POLL_INTERVAL_MS } from '../common/deviceConstants';
 import { listScalePlcDevices, saveScalePlcDevice, deleteScalePlcDevice, readScalePlcWeight, sendSimulatorWeight } from '../services/scalePlcDevices';
 
 const newDevice = () => ({
   stationCode: '', name: '', factoryCode: '', connectionType: DEVICE_CONNECTION_TYPE.SIMULATOR, host: '', port: MODBUS.PORT,
   unitId: MODBUS.UNIT_ID, registerAddress: MODBUS.REGISTER_ADDRESS,
-  serialConnectionLocation: 'LOCAL_AGENT', serialComPort: 'COM8', serialBaudRate: 9600, serialDataBits: 7, serialParity: 'EVEN', serialStopBits: 1,
+  serialConnectionLocation: 'LOCAL_AGENT', serialAgentId: '', serialComPort: 'COM8', serialBaudRate: 9600, serialDataBits: 7, serialParity: 'EVEN', serialStopBits: 1,
   encoding: MODBUS.ENCODING, kgPerUnit: MODBUS.KG_PER_UNIT, stableRegisterAddress: null, enabled: true, assignedUserIds: []
 });
 // Test setup convenience only. Admin can edit host before saving; never used as a production fallback.
@@ -104,6 +105,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
         stationCode: form.stationCode.trim().toUpperCase(), name: form.name.trim(), host: (form.host || '').trim(),
         port: Number(form.port), unitId: Number(form.unitId), registerAddress: Number(form.registerAddress),
         kgPerUnit: Number(form.kgPerUnit),
+        serialAgentId: String(form.serialAgentId || '').trim() || null,
         serialComPort: String(form.serialComPort || '').trim().replace(/^com/i, 'COM'),
         serialBaudRate: Number(form.serialBaudRate), serialDataBits: Number(form.serialDataBits),
         serialParity: String(form.serialParity || 'EVEN'), serialStopBits: Number(form.serialStopBits) };
@@ -258,8 +260,10 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
             <MenuItem value="LOCAL_AGENT">Factory Local Agent</MenuItem>
             <MenuItem value="BACKEND_DIRECT">Backend Direct COM (legacy/dev)</MenuItem>
           </TextField>
+          {form.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={form.factoryCode} selectedAgentId={form.serialAgentId || ''} selectedPort={form.serialComPort || ''}
+            onSelectAgent={(value) => change('serialAgentId', value)} onSelectPort={(value) => change('serialComPort', value)} />}
           <Alert severity="info">{form.serialConnectionLocation === 'LOCAL_AGENT'
-            ? 'Factory Local Agent opens the COM port on the Windows PC, not on Linux Server. Set the Windows Agent allowlist and close WPLSoft.'
+            ? 'Factory Local Agent opens the COM port on the Windows PC, not on Linux Server. COM ports are configured on Web; close WPLSoft.'
             : 'Backend Direct COM for legacy/dev. Set CARTON_SCALE_SERIAL_ALLOWED_PORTS on the backend PC; close WPLSoft.'} Delta Modbus ASCII reads D registers only.</Alert>
           <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
             <TextField size="small" fullWidth label={form.serialConnectionLocation === 'LOCAL_AGENT' ? 'Factory PC COM Port' : 'Backend COM Port'} value={form.serialComPort || ''} onChange={(e) => change('serialComPort', e.target.value)}/>

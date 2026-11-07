@@ -27,7 +27,7 @@ const errorText = (e) => e?.response?.data?.message || e?.message || 'Device req
 const scaleBlank = (factory) => ({
   stationCode: `SCALE-${factory}`, name: `PLC Scale ${factory}`, factoryCode: factory, connectionType: DEVICE_CONNECTION_TYPE.MODBUS_TCP,
   host: '', port: MODBUS.PORT, unitId: MODBUS.UNIT_ID, registerAddress: MODBUS.REGISTER_ADDRESS,
-  serialConnectionLocation: 'LOCAL_AGENT', serialComPort: 'COM8', serialBaudRate: 9600, serialDataBits: 7, serialParity: 'EVEN', serialStopBits: 1,
+  serialConnectionLocation: 'LOCAL_AGENT', serialAgentId: '', serialComPort: 'COM8', serialBaudRate: 9600, serialDataBits: 7, serialParity: 'EVEN', serialStopBits: 1,
   encoding: MODBUS.ENCODING, kgPerUnit: MODBUS.KG_PER_UNIT, stableRegisterAddress: null,
   enabled: true, assignedUserIds: []
 });
@@ -276,6 +276,7 @@ export default function DeviceManagementPage() {
     stationCode: String(scaleForm.stationCode).trim().toUpperCase(),
     name: String(scaleForm.name).trim(), host: String(scaleForm.host || '').trim(),
     port: Number(scaleForm.port), unitId: Number(scaleForm.unitId), registerAddress: Number(scaleForm.registerAddress),
+    serialAgentId: String(scaleForm.serialAgentId || '').trim() || null,
     serialComPort: String(scaleForm.serialComPort || '').trim().replace(/^com/i, 'COM'),
     serialBaudRate: Number(scaleForm.serialBaudRate), serialDataBits: Number(scaleForm.serialDataBits),
     serialParity: String(scaleForm.serialParity || 'EVEN').trim().toUpperCase(), serialStopBits: Number(scaleForm.serialStopBits),
@@ -306,6 +307,9 @@ export default function DeviceManagementPage() {
       throw new Error('Enter the PLC Host IPv4.');
     if (scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && !['BACKEND_DIRECT', 'LOCAL_AGENT'].includes(scale.serialConnectionLocation || 'BACKEND_DIRECT'))
       throw new Error('Select a valid serial connection location.');
+    if (scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && scale.serialConnectionLocation === 'LOCAL_AGENT' &&
+        !scale.serialAgentId && !ownedScales.some(d => d.stationCode === scale.stationCode && !d.serialAgentId))
+      throw new Error('Choose a Windows PC Agent for this Scale.');
     if (scale.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && !(/^(COM[1-9][0-9]{0,2}|\/dev\/tty(USB|ACM|S)[0-9]{1,3})$/.test(scale.serialComPort)))
       throw new Error('Enter a valid backend serial port (e.g. COM8 on Windows, /dev/ttyUSB0 on Linux).');
     if (scaleDevices.some((d) => d.stationCode === scale.stationCode && d.factoryCode !== factoryCode))
@@ -578,7 +582,8 @@ export default function DeviceManagementPage() {
                     ])}
                   </Box>}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL &&
-                    scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} />}
+                    scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} selectedAgentId={scaleForm.serialAgentId || ''} selectedPort={scaleForm.serialComPort || ''} readOnly={!editing}
+                  onSelectAgent={(value) => changeScale('serialAgentId', value)} onSelectPort={(value) => changeScale('serialComPort', value)} />}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && scaleForm.stableRegisterAddress == null &&
                     <Alert severity="info" sx={{ mt: 2 }}>
                       PLC connection may be tested without a scale. Weight reading / automatic capture is NOT configured (Stable D register is empty).
@@ -633,7 +638,7 @@ export default function DeviceManagementPage() {
               <TextField size="small" select fullWidth label="Connection Type" value={scaleForm.connectionType} disabled={busy}
                 onChange={(e) => changeScale('connectionType', e.target.value)}>
                 <MenuItem value="MODBUS_TCP">Modbus TCP (PLC / ModbusPal) · Existing</MenuItem>
-                <MenuItem value={DEVICE_CONNECTION_TYPE.DELTA_SERIAL}>Delta USB Serial / RS232 · COM8</MenuItem>
+                <MenuItem value={DEVICE_CONNECTION_TYPE.DELTA_SERIAL}>Delta USB Serial / RS232 · Factory PC</MenuItem>
                 <MenuItem value="SIMULATOR">Internal Scale Simulator (no physical connection)</MenuItem>
               </TextField>
               {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <>
@@ -668,7 +673,7 @@ export default function DeviceManagementPage() {
                   {' '}Test never writes to PLC.
                 </Alert>
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  {scaleInput('serialComPort', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'Factory PC COM Port' : 'Backend COM Port', { required: true, helperText: scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'COM8 (example). Set the allowlist on the Factory Windows Agent PC, NOT on Linux Docker.' : 'COM8 (example). Set CARTON_SCALE_SERIAL_ALLOWED_PORTS=COM8 on backend.' })}
+                  {scaleInput('serialComPort', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'PLC Scale COM Port on selected PC' : 'Backend COM Port', { required: true, helperText: scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'Select a Windows PC Agent above; detect COM ports from that PC. COM8 is just an example.' : 'COM8 (example). Set CARTON_SCALE_SERIAL_ALLOWED_PORTS=COM8 on backend.' })}
                   <TextField size="small" select fullWidth label="Baud Rate" value={scaleForm.serialBaudRate || 9600} disabled={busy}
                     onChange={(e) => changeScale('serialBaudRate', Number(e.target.value))}>
                     {[4800, 9600, 19200, 38400, 57600, 115200].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
@@ -689,7 +694,8 @@ export default function DeviceManagementPage() {
                     {[1, 2].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
                   </TextField>
                 </Stack>
-                {scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} />}
+                {scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} selectedAgentId={scaleForm.serialAgentId || ''} selectedPort={scaleForm.serialComPort || ''} readOnly={!editing}
+                  onSelectAgent={(value) => changeScale('serialAgentId', value)} onSelectPort={(value) => changeScale('serialComPort', value)} />}
                 <Alert severity="info">
                   <strong>PLC-only test</strong> reads D0 to verify COM8 ↔ PLC communication. It does not require a scale,
                   read kilograms, or change the PLC. Only use the weight test after connecting a weighing indicator.
