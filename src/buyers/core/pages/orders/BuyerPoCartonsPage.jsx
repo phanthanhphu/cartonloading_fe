@@ -1,7 +1,7 @@
 import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT } from '../../../../constants/appConstants';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, Breadcrumbs, Button, Chip, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
-import { CheckCircleOutlineRounded, ErrorOutlineRounded, AccessTimeRounded, VisibilityOutlined } from '@mui/icons-material';
+import { Alert, Box, Breadcrumbs, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
+import { CheckCircleOutlineRounded, ErrorOutlineRounded, AccessTimeRounded, VisibilityOutlined, ReplayRounded } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import ManagementTable from 'components/ManagementTable';
 import StatusChip from 'components/StatusChip';
@@ -13,6 +13,7 @@ import { APP_MESSAGES } from '../../../../constants/appMessages';
 import { BUYER_CODE } from '../../../../constants/appConstants';
 import { canWeightCheck, isAdmin } from 'utils/accessControl';
 import PoRfidWeightWorkspace from 'buyers/lululemon/components/PoRfidWeightWorkspace';
+import { unassignProcessingIdentity } from 'buyers/lululemon/services/cartonProcessing';
 import OperationWorkspaceDialog from 'buyers/lululemon/components/OperationWorkspaceDialog';
 import { useSelectedFactory } from 'utils/factorySelection';
 
@@ -33,6 +34,10 @@ export default function BuyerPoCartonsPage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [scanDialogReady, setScanDialogReady] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [reassignCarton, setReassignCarton] = useState(null);
+  const [reassignError, setReassignError] = useState('');
+  const [reassignBusy, setReassignBusy] = useState(false);
   const requestRef = useRef(0);
   const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
   const [filters, setFilters] = useState({ cartonNo: '', sscc: '', status: '' });
@@ -68,7 +73,7 @@ export default function BuyerPoCartonsPage() {
   }, [buyer?.code, orderId, poKey, order?.id, po?.key, debouncedFilters]);
 
   useEffect(() => { load(0, paginationRef.current.size); }, [load]);
-  useEffect(() => { setScanOpen(false); }, [orderId, poKey, selectedFactory]);
+  useEffect(() => { setScanOpen(false); setReassignCarton(null); setReassignError(''); setNotice(''); }, [orderId, poKey, selectedFactory]);
   const closeScan = () => {
     setScanOpen(false);
     load(paginationRef.current.page, paginationRef.current.size);
@@ -94,9 +99,53 @@ export default function BuyerPoCartonsPage() {
     return <AccessTimeRounded color="disabled" sx={{ fontSize: 16 }} />;
   };
   const openCarton = (row) => navigate(`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}/cartons/${row.id}`);
+
+  // Re-assign is available for an identified carton until its final RFID +
+  // Weight inspection is complete. Activation / an unfinished scan is allowed.
+  // Backend also protects saved weight history and any active PDA reservation.
+  const canReassignIdentity = (row) => Boolean(canProcess && !mismatch && !scanOpen
+    && row?.id && (row?.cartonIdentity || row?.labelConfirmedSku)
+    && finalStatus(row) === FINAL_INSPECTION_RESULT.PENDING);
+
+  const closeReassign = () => {
+    if (reassignBusy) return;
+    setReassignCarton(null);
+    setReassignError('');
+  };
+  const submitReassign = async () => {
+    const current = reassignCarton;
+    if (!current?.id || reassignBusy || !canReassignIdentity(current)) return;
+    setReassignBusy(true);
+    setReassignError('');
+    setError('');
+    setNotice('');
+    try {
+      // Same audited, factory-scoped BE operation used by the RFID/Weight workstation.
+      // It resets unfinished assignment and scan progress; never deletes Carton/PO/Items.
+      // Backend still requires a reason for audit; create one automatically on confirmation.
+      await unassignProcessingIdentity(orderId, current.id, 'Re-assign confirmed in PO Cartons');
+      setReassignCarton(null);
+      setReassignError('');
+      // Re-fetch PO as well: if this was the only carton that established a
+      // provisional PO SKU, Backend may have released it during Re-assign.
+      // The scan workspace must not reuse a stale PO SKU from this page.
+      const updatedPo = await getManagedPo(buyer.code, orderId, poKey);
+      setPo(updatedPo);
+      setNotice(`Carton ${current.cartonNo}: SSCC and SKU assignment deleted. ${updatedPo?.sku
+        ? 'PO SKU remains assigned; the next scanned SKU must match the PO.'
+        : 'The provisional PO SKU is available for a new first scan.'} Scan and assign again from Scan RFID / Weight.`);
+      await load(paginationRef.current.page, paginationRef.current.size);
+    } catch (e) {
+      setReassignError(e?.response?.data?.message || e?.message || 'Could not unassign SSCC and SKU. Please refresh the PO and try again.');
+    } finally {
+      setReassignBusy(false);
+    }
+  };
   const columns = isLulu ? [
     { key: 'cartonIdentity', label: 'SSCC-18', minWidth: 175,
       render: (row) => <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{v(row.cartonIdentity)}</Typography> },
+    { key: 'labelConfirmedSku', label: 'SKU', minWidth: 150,
+      render: (row) => <Typography sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{v(row.labelConfirmedSku)}</Typography> },
     { key: 'plannedQty', label: 'Qty', minWidth: 75 },
     { key: 'rfidVerifiedQty', label: 'RFID', minWidth: 108,
       render: (row) => <Tooltip arrow title={`RFID: ${row.rfidStatus || 'PENDING'} · Matched EPC / Expected Qty · Wrong SKU: ${row.rfidWrongSkuQty ?? 0}`}>
@@ -120,13 +169,31 @@ export default function BuyerPoCartonsPage() {
       } },
     { key: 'finalCheck', label: 'Final', minWidth: 100,
       render: (row) => <StatusChip status={finalStatus(row)} /> },
-    { key: 'actions', label: 'Action', minWidth: 78,
-      render: (row) => <Tooltip arrow title={`View Carton ${row.cartonNo} details`}>
-        <IconButton size="small" aria-label={`View Carton ${row.cartonNo} details`}
-          onClick={(event) => { event.stopPropagation(); openCarton(row); }}>
-          <VisibilityOutlined fontSize="small" />
-        </IconButton>
-      </Tooltip> }
+    { key: 'actions', label: 'Action', minWidth: 112,
+      render: (row) => <Stack direction="row" spacing={0.25} alignItems="center">
+        <Tooltip arrow title={`View Carton ${row.cartonNo} details`}>
+          <IconButton size="small" aria-label={`View Carton ${row.cartonNo} details`}
+            onClick={(event) => { event.stopPropagation(); openCarton(row); }}>
+            <VisibilityOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip arrow title={canReassignIdentity(row)
+          ? 'Re-assign: delete existing SSCC and SKU assignment'
+          : finalStatus(row) !== FINAL_INSPECTION_RESULT.PENDING
+            ? 'Completed cartons cannot be Re-assigned.'
+            : 'Assign SSCC first or check your access permission.'}>
+          <span>
+            <IconButton size="small" color="primary" disabled={!canReassignIdentity(row)}
+              aria-label={`Re-assign SSCC and SKU for Carton ${row.cartonNo}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setError(''); setNotice(''); setReassignError(''); setReassignCarton(row);
+              }}>
+              <ReplayRounded fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Stack> }
   ] : [
     { key: 'cartonNo', label: 'Carton No.', minWidth: 100, render: (r) => <Typography fontWeight={900} color="primary.main">{v(r.cartonNo)}</Typography> },
     { key: 'plannedQty', label: 'Target Qty', minWidth: 90 },
@@ -150,14 +217,13 @@ export default function BuyerPoCartonsPage() {
           title={`PO ${v(po?.poNumber)}`}
           subtitle={isLulu ? 'PO station: Scan / Assign SSCC + SKU → RFID → Weight. One scan button per PO; no PO picking or conveyor.' : 'Cartons are generated on first open; Items are generated only when a Carton is opened.'}
           breadcrumbs={isLulu ? (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" useFlexGap>
-              {poBreadcrumbs}
-              {!mismatch && canProcess && (
+            !mismatch && canProcess ? (
+              <Stack direction="row" justifyContent="flex-end" alignItems="center">
                 <Button variant="contained" onClick={() => setScanOpen(true)} sx={{ flexShrink: 0 }}>
                   Scan RFID / Weight
                 </Button>
-              )}
-            </Stack>
+              </Stack>
+            ) : null
           ) : poBreadcrumbs}
           meta={<Chip size="small" variant="outlined" label={`${state.count} Carton${state.count === 1 ? '' : 's'}`} />}
           details={(
@@ -174,6 +240,7 @@ export default function BuyerPoCartonsPage() {
         />
 
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        {notice ? <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert> : null}
         {mismatch && <Alert severity="warning" action={<Button size="small" onClick={() => navigate(`/buyers/${buyer.slug}/orders`)}>Back to Orders</Button>}>
           This PO belongs to Factory {po.factoryCode}, but your selected Factory is {selectedFactory || 'not set'}. Switch Factory to continue.
         </Alert>}
@@ -197,6 +264,33 @@ export default function BuyerPoCartonsPage() {
             onCartonSaved={() => load(paginationRef.current.page, paginationRef.current.size)}
           />}
         </OperationWorkspaceDialog>}
+        {isLulu && <Dialog open={Boolean(reassignCarton)} onClose={closeReassign} maxWidth="sm" fullWidth
+          aria-labelledby="reassign-identity-title">
+          <DialogTitle id="reassign-identity-title">Re-assign SSCC &amp; SKU</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ mb: 1.5 }}>
+              Delete the current SSCC and SKU assignment for Carton {reassignCarton?.cartonNo}?
+              You will be able to scan and assign them again from Scan RFID / Weight.
+            </DialogContentText>
+            <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+              <Typography variant="body2"><strong>SSCC-18:</strong> {v(reassignCarton?.cartonIdentity)}</Typography>
+              <Typography variant="body2"><strong>SKU:</strong> {v(reassignCarton?.labelConfirmedSku)}</Typography>
+            </Stack>
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              Re-assign clears unfinished scan / RFID progress and SSCC / SKU so you can scan again.
+              Carton, PO, Qty, Item IDs and historical scan evidence are retained.
+              A carton with completed RFID and Weight cannot be Re-assigned.
+            </Alert>
+            {reassignError && <Alert severity="error" sx={{ mb: 1.5 }}>{reassignError}</Alert>}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={closeReassign} disabled={reassignBusy}>Cancel</Button>
+            <Button onClick={submitReassign} color="error" variant="contained"
+              disabled={reassignBusy || !canReassignIdentity(reassignCarton)}>
+              {reassignBusy ? 'Processing...' : 'OK'}
+            </Button>
+          </DialogActions>
+        </Dialog>}
         {!mismatch && <ManagementTable
           filterBar={<TableFilterBar
           fields={[

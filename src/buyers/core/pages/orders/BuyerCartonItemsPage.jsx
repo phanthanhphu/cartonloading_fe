@@ -97,16 +97,7 @@ export default function BuyerCartonItemsPage() {
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
-        {isLululemon ? (
-          <Stack spacing={1.1}>
-            <Breadcrumbs separator="/" sx={{ px: 0.5, '& .MuiBreadcrumbs-ol': { gap: 0.4 }, '& .MuiTypography-root, & .MuiLink-root': { fontSize: '0.82rem' } }}>
-              <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders`} underline="hover" color="primary">{buyer.label}</Link>
-              <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}`} underline="hover" color="inherit">{order?.orderName || 'Order'}</Link>
-              <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}`} underline="hover" color="inherit">PO {po?.poNumber || ''}</Link>
-              <Typography color="text.primary" fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>{carton?.cartonIdentity || `Carton ${v(carton?.cartonNo)}`}</Typography>
-            </Breadcrumbs>
-          </Stack>
-        ) : (
+        {!isLululemon && (
           <CompactPageHeader
             breadcrumbs={(
               <Breadcrumbs separator="/">
