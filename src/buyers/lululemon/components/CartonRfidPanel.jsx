@@ -253,7 +253,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
         <Chip size="small" color={statusColor(session?.status)} icon={<Sensors />} label={session?.status || (deferStart ? 'READY TO START' : 'CONNECTING')} sx={{ height: 22 }} />
       </Stack>}
 
-      <Box sx={{ mt: compact ? 0.15 : 0.65, p: compact ? 0.45 : 0.9, borderRadius: 1.5, bgcolor: compact ? '#FFFFFF' : 'action.hover', border: compact ? '1px solid #E2E8F0' : 'none' }}>
+      <Box sx={{ mt: compact ? 0.15 : 0.65, p: compact ? 0.45 : 0.9, borderRadius: compact ? '2px' : '4px', bgcolor: compact ? '#FFFFFF' : 'action.hover', border: compact ? '1px solid #E2E8F0' : 'none' }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
           spacing={compact ? 0.4 : 1.1}
@@ -276,7 +276,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
                   minWidth: 53, height: 29, px: 0.8, display: 'grid', placeItems: 'center',
                   bgcolor: item.mode === 'success' ? '#ECFDF5' : item.mode === 'error' ? '#FEF2F2' : '#F1F5F9',
                   color: item.mode === 'success' ? '#15803D' : item.mode === 'error' ? '#B91C1C' : '#0F172A',
-                  fontSize: 18, fontWeight: 950, borderRadius: 1.5, fontVariantNumeric: 'tabular-nums'
+                  fontSize: 18, fontWeight: 950, borderRadius: '2px', fontVariantNumeric: 'tabular-nums'
                 } : statCircleSx(item.mode)}>{item.value}</Box>
                 <Typography sx={{ ...miniLabel, color: item.mode === 'success' ? 'success.main' : item.mode === 'error' ? 'error.main' : 'text.secondary', fontWeight: 800 }}>
                   {item.label}
@@ -398,7 +398,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
               {invalidUnique > 0 && <Chip size="small" variant="outlined" color="error"
                 label={`${invalidUnique} unsupported unique · ${invalidReadEvents} read(s)`} sx={{ height: 21, fontSize: 11 }} />}
             </Stack>
-            <TableContainer sx={{ mt: 0.45, maxHeight: 220, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <TableContainer sx={{ mt: 0.45, maxHeight: 220, border: '1px solid', borderColor: 'divider', borderRadius: '2px' }}>
               <Table size="small" stickyHeader aria-label="RFID EPC scan results">
                 <TableHead><TableRow>
                   <TableCell sx={{ width: 54 }}>STT</TableCell>

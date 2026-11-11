@@ -6,10 +6,10 @@ export default function LinearProgress() {
       styleOverrides: {
         root: {
           height: 6,
-          borderRadius: 100
+          borderRadius: '4px'
         },
         bar: {
-          borderRadius: 100
+          borderRadius: '4px'
         }
       }
     }

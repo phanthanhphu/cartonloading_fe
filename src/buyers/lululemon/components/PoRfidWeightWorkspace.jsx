@@ -702,7 +702,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   };
 
   const resultTable = (title, rows, failure) => (
-    <Paper variant="outlined" sx={{ borderRadius: 2.5, overflow: 'hidden', minWidth: 0, width: '100%',
+    <Paper variant="outlined" sx={{ borderRadius: '2px', overflow: 'hidden', minWidth: 0, width: '100%',
       borderColor: failure ? '#FECACA' : '#BBF7D0', backgroundColor: 'background.paper',
       boxShadow: '0 6px 22px rgba(15,23,42,0.04)',
       display: 'flex', flexDirection: 'column', minHeight: 0,
@@ -816,8 +816,8 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     flex: '1 1 auto', width: '100%', height: { xs: 'auto', md: '100%' },
     minHeight: 0, minWidth: 0, gap: { xs: 0.85, md: 0.65 },
     overflowX: 'hidden', overflowY: { xs: 'visible', md: 'auto' },
-    '& .MuiOutlinedInput-root': { borderRadius: 1.6, bgcolor: '#fff' },
-    '& .MuiButton-root': { textTransform: 'none', borderRadius: 1.6, fontWeight: 750 },
+    '& .MuiOutlinedInput-root': { borderRadius: '2px', bgcolor: '#fff' },
+    '& .MuiButton-root': { textTransform: 'none', borderRadius: '2px', fontWeight: 750 },
     '& .MuiChip-root': { fontWeight: 750 },
     '& > .MuiPaper-root': { flexShrink: 0 },
     '@media (max-height: 680px)': { height: 'auto', overflowY: 'visible' },
@@ -831,7 +831,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ py: 0, minHeight: 30,
       '& .MuiAlert-message': { py: 0.35, maxHeight: 46, overflowY: 'auto' },
       '& .MuiAlert-icon': { py: 0.35 }, '& .MuiAlert-action': { py: 0 } }}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'visible', position: 'relative', borderColor: '#DFE7F2',
+    <Paper variant="outlined" sx={{ borderRadius: '2px', overflow: 'visible', position: 'relative', borderColor: '#DFE7F2',
       boxShadow: '0 4px 16px rgba(15,23,42,0.03)' }}>
       <Box sx={{ p: { xs: 1, md: 0.75 }, position: 'relative' }}>
         <Stack direction="row" gap={0.7} alignItems="center" sx={{ mb: 2 }}>
@@ -914,7 +914,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               </Button>
             </Stack>
           </Box>
-          {resetPanel === 'rfid' && <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5, borderColor: 'warning.light' }}>
+          {resetPanel === 'rfid' && <Paper variant="outlined" sx={{ p: 1, borderRadius: '2px', borderColor: 'warning.light' }}>
             <Typography variant="body2" fontWeight={850}>Reset RFID — Carton {activeCarton.cartonNo}</Typography>
             <Typography variant="caption" color="text.secondary" display="block">
               A completed attempt stays in history. Stop / finish an active capture before resetting. Saved Weight must be reopened first.
@@ -928,7 +928,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>Cancel</Button>
             </Stack>
           </Paper>}
-          {resetPanel === 'weight' && weightResult && admin && <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5, borderColor: 'info.light' }}>
+          {resetPanel === 'weight' && weightResult && admin && <Paper variant="outlined" sx={{ p: 1, borderRadius: '2px', borderColor: 'info.light' }}>
             <Typography variant="body2" fontWeight={850}>Reset Weight — Carton {activeCarton.cartonNo}</Typography>
             <Typography variant="caption" color="text.secondary" display="block">
               Admin can reopen a saved weight; previous result remains in history.
@@ -944,7 +944,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>Cancel</Button>
             </Stack>
           </Paper>}
-          {confirmUnassign && resetPanel === 'assign' && canUnassignNewIdentity && <Paper variant="outlined" sx={{ p: 1, borderColor: 'error.light', borderRadius: 1.5 }}>
+          {confirmUnassign && resetPanel === 'assign' && canUnassignNewIdentity && <Paper variant="outlined" sx={{ p: 1, borderColor: 'error.light', borderRadius: '2px' }}>
             <Typography variant="body2" fontWeight={800}>Unassign Carton {activeCarton.cartonNo}?</Typography>
             <Typography variant="caption" color="text.secondary">
               Clear its SSCC and SKU assignment from the existing Item slots; keep all Item IDs and PO master SKU.
@@ -968,7 +968,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       gap: { xs: 0.8, md: 0.7 }, alignItems: 'stretch',
       flex: '0 0 auto', minHeight: 0, minWidth: 0 }}>
       <Box component="section" aria-label="RFID Scanning" sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
-        borderRadius: 2, bgcolor: '#fff', minWidth: 0, boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
+        borderRadius: '2px', bgcolor: '#fff', minWidth: 0, boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
         display: 'flex', flexDirection: 'column', gap: 0.35, overflow: 'visible' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={0.5} sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={0.55} alignItems="center" sx={{ minWidth: 0 }}>
@@ -981,13 +981,13 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         </Stack>
         {active ? <CartonRfidPanel key={`${activeCarton.id}-${rfidMountKey}`} deferStart compact orderId={orderId} poId={poId} carton={activeCarton}
           stationCode={stationCode} factoryCode={factoryCode} onSessionChange={handleRfidSessionChange} />
-          : <Box sx={{ py: 1.1, px: 0.8, textAlign: 'center', borderRadius: 1.5, border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}>
+          : <Box sx={{ py: 1.1, px: 0.8, textAlign: 'center', borderRadius: '2px', border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}>
             <QrCodeScannerOutlined color="disabled" sx={{ fontSize: 23, mb: 0.2 }}/>
             <Typography variant="body2" fontWeight={850} color="text.secondary">Waiting for carton</Typography>
           </Box>}
       </Box>
       <Box component="section" aria-label="Weight" sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
-        borderRadius: 2, bgcolor: '#fff', minWidth: 0, boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
+        borderRadius: '2px', bgcolor: '#fff', minWidth: 0, boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
         display: 'flex', flexDirection: 'column', gap: 0.65, overflow: 'visible' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" gap={0.5}>
           <Stack direction="row" gap={0.55} alignItems="center">
@@ -999,13 +999,13 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             sx={{ flexShrink: 0, height: 23 }}/>
         </Stack>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)', gap: 0.65 }}>
-          <Box sx={{ px: 0.9, py: 0.6, border: '1px solid', borderColor: 'divider', borderRadius: 1.4, bgcolor: '#F8FAFC' }}>
+          <Box sx={{ px: 0.9, py: 0.6, border: '1px solid', borderColor: 'divider', borderRadius: '2px', bgcolor: '#F8FAFC' }}>
             <Typography variant="caption" color="text.secondary" fontWeight={850}>TARGET</Typography>
             <Typography sx={{ fontSize: 19, fontWeight: 950, lineHeight: 1.25, whiteSpace: 'nowrap' }}>
               {active ? `${kg(expected)} kg` : '—'}
             </Typography>
           </Box>
-          <Box sx={{ px: 0.9, py: 0.6, border: '1px solid', borderColor: 'divider', borderRadius: 1.4, bgcolor: '#F8FAFC' }}>
+          <Box sx={{ px: 0.9, py: 0.6, border: '1px solid', borderColor: 'divider', borderRadius: '2px', bgcolor: '#F8FAFC' }}>
             <Typography variant="caption" color="text.secondary" fontWeight={850}>ALLOWED RANGE</Typography>
             <Typography sx={{ fontSize: 14, fontWeight: 900, lineHeight: 1.7, whiteSpace: 'nowrap' }}>
               {active ? `${kg(minWeight)}–${kg(maxWeight)} kg` : '—'}
@@ -1015,7 +1015,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: weightResult ? '1fr' : 'minmax(110px, 0.8fr) minmax(0, 1.2fr)' },
           gap: 0.7, alignItems: 'stretch' }}>
           <Box sx={{ py: 0.65, px: 0.8, border: '1px solid', borderColor: weightResult === WEIGHING_RESULT.PASS ? 'success.main' : weightResult === WEIGHING_RESULT.FAILED ? 'error.main' : 'primary.light',
-            borderRadius: 1.5, bgcolor: weightResult === WEIGHING_RESULT.PASS ? 'success.lighter' : weightResult === WEIGHING_RESULT.FAILED ? 'error.lighter' : 'background.paper',
+            borderRadius: '2px', bgcolor: weightResult === WEIGHING_RESULT.PASS ? 'success.lighter' : weightResult === WEIGHING_RESULT.FAILED ? 'error.lighter' : 'background.paper',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <Typography variant="caption" color="text.secondary" fontWeight={900}>ACTUAL WEIGHT</Typography>
             <Typography sx={{ fontSize: 26, lineHeight: 1.15, fontWeight: 950, letterSpacing: -0.5, fontVariantNumeric: 'tabular-nums' }}>
@@ -1061,7 +1061,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     {loading && <Stack direction="row" spacing={1} alignItems="center"><CircularProgress size={16}/><Typography variant="caption">Loading cartons…</Typography></Stack>}
     <Dialog open={Boolean(recallTarget)} onClose={busy ? undefined : () => { setRecallTarget(null); setRecallReason(''); }}
       aria-labelledby="lulu-recall-failed-title" fullWidth maxWidth="xs"
-      PaperProps={{ sx: { borderRadius: 2.5 } }}>
+      PaperProps={{ sx: { borderRadius: '2px' } }}>
       <DialogTitle id="lulu-recall-failed-title" sx={{ fontWeight: 850, pb: 0.5 }}>
         Recall FAILED Carton {recallTarget?.cartonNo ?? '—'}
       </DialogTitle>
@@ -1091,7 +1091,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     </Dialog>
     <Dialog open={cartonPickerOpen && needCartonChoice && !active} onClose={closeCartonPicker}
       aria-labelledby="lulu-carton-select-title" fullWidth maxWidth="xl"
-      PaperProps={{ sx: { borderRadius: 2.4, width: 'min(96vw, 1450px)', height: 'min(82dvh, 710px)',
+      PaperProps={{ sx: { borderRadius: '2px', width: 'min(96vw, 1450px)', height: 'min(82dvh, 710px)',
         maxHeight: 'calc(100dvh - 32px)', display: 'flex', overflow: 'hidden' } }}>
       <DialogTitle id="lulu-carton-select-title" sx={{ px: 2, py: 1.2, fontWeight: 800, borderBottom: '1px solid #E2E8F0' }}>
         Select Carton · PO {po?.poNumber || '—'}
@@ -1155,7 +1155,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       </Box>
       <DialogContent dividers sx={{ p: 1, minHeight: 0, flex: '1 1 auto', overflow: 'hidden' }}>
         {unassigned.length === 0 ? <Alert severity="warning">No unassigned Carton remains in this PO. Check its SSCC or refresh the PO.</Alert> :
-          <TableContainer sx={{ height: '100%', overflow: 'auto', borderRadius: 1, border: '1px solid #E2E8F0' }}>
+          <TableContainer sx={{ height: '100%', overflow: 'auto', borderRadius: '2px', border: '1px solid #E2E8F0' }}>
             <Table stickyHeader size="small" aria-label="Choose an unassigned Carton from current PO"
               sx={{ minWidth: pickerVisibleColumns.reduce((width, column) => width + column.minWidth, 125),
                 '& .MuiTableCell-root': { py: 0.7, px: 1, whiteSpace: 'nowrap', borderColor: 'divider' } }}>

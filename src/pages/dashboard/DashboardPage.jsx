@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(DEFAULT_TABLE_ROWS_PER_PAGE);
@@ -80,7 +82,7 @@ export default function DashboardPage() {
         <Grid container spacing={1}>
           {metricLabels.map(([key, label]) => (
             <Grid item xs={6} md={3} key={key}>
-              <Card variant="outlined" sx={{ height: '100%', borderRadius: 2 }}>
+              <Card variant="outlined" sx={{ height: '100%', borderRadius: '4px' }}>
                 <CardContent>
                   <Typography color="text.secondary" variant="body2">{label}</Typography>
                   <Typography variant="h4" fontWeight={900} sx={{ mt: 0.5 }}>
@@ -108,7 +110,7 @@ export default function DashboardPage() {
                     sx={{
                       cursor: 'pointer',
                       height: '100%',
-                      borderRadius: 2.5,
+                      borderRadius: '4px',
                       transition: 'transform 120ms ease, box-shadow 120ms ease',
                       '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 }
                     }}
@@ -116,7 +118,7 @@ export default function DashboardPage() {
                     <CardContent>
                       <Stack spacing={1.5}>
                         <Stack direction="row" spacing={1} alignItems="center">
-                          <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: 'action.hover', display: 'grid', placeItems: 'center' }}>
+                          <Box sx={{ width: 42, height: 42, borderRadius: '4px', bgcolor: 'action.hover', display: 'grid', placeItems: 'center' }}>
                             <StoreOutlined />
                           </Box>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -134,7 +136,7 @@ export default function DashboardPage() {
                             ['Items', summary.items]
                           ].map(([label, value]) => (
                             <Grid item xs={3} key={label}>
-                              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: '#F8FAFC', textAlign: 'center' }}>
+                              <Box sx={{ p: 1, borderRadius: '4px', bgcolor: '#F8FAFC', textAlign: 'center' }}>
                                 <Typography fontWeight={900}>{Number(value || 0).toLocaleString()}</Typography>
                                 <Typography variant="caption" color="text.secondary">{label}</Typography>
                               </Box>

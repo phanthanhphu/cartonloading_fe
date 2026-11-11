@@ -7,12 +7,12 @@ export default function Tab(theme) {
         root: {
           minHeight: 46,
           color: theme.palette.text.primary,
-          borderRadius: 4,
+          borderRadius: '4px',
           '&:hover': {
             color: theme.palette.primary.main
           },
           '&:focus-visible': {
-            borderRadius: 4,
+            borderRadius: '4px',
             outline: `2px solid ${theme.palette.secondary.dark}`,
             outlineOffset: -3
           },

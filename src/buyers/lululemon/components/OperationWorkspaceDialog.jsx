@@ -50,7 +50,7 @@ export default function OperationWorkspaceDialog({
           height: fitViewport ? '100dvh' : fullScreen ? '100dvh' : 'min(94vh, 980px)',
           maxHeight: fitViewport ? '100dvh' : fullScreen ? '100dvh' : '94vh',
           m: fitViewport ? 0 : fullScreen ? 0 : { xs: 0.5, md: 1.5 },
-          borderRadius: fullScreen ? 0 : { xs: 1.5, md: 2.5 },
+          borderRadius: fullScreen ? 0 : '2px',
           overflow: 'hidden'
         }
       }}

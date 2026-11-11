@@ -108,7 +108,7 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
     onCartonSaved?.(); onClose?.();
   };
   if (!cartonId) return null;
-  return <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: 2, borderColor: 'primary.light' }}>
+  return <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '4px', borderColor: 'primary.light' }}>
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} gap={1} sx={{ mb: 1.5 }}>
       <Box><Typography fontWeight={900} variant="h6">Carton {carton.cartonNo} · Assign SSCC / RFID / Weight</Typography>
         <Typography variant="body2" color="text.secondary">PO {poNumber} · Factory {factoryCode || '—'} · Process this selected Carton only</Typography></Box>
@@ -180,7 +180,7 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
         {saved && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Expected {numberText(saved.event.expectedWeightKg)} kg ±{numberText(saved.event.toleranceKg)} kg · Actual {numberText(saved.event.actualWeightKg)} kg</Typography>}
       </Box>
-      {saved && <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+      {saved && <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
           <Box><Typography fontWeight={900}>FINAL {finalStatus === FINAL_INSPECTION_RESULT.PASS ? 'PASS' : 'FAILED / HOLD'}</Typography>
             <Typography variant="caption" color="text.secondary">Processed {summary?.processed ?? '—'}/{summary?.total ?? '—'} · Remaining {summary?.remaining ?? '—'} · RFID and Weight must both PASS.</Typography></Box>

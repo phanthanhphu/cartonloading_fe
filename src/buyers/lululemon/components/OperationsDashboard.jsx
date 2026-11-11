@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Box, Button, Card, CardContent, Chip, CircularProgress, FormControl, InputLabel,
@@ -40,7 +41,7 @@ function Status({ value }) {
 
 function DashboardPanel({ title, subtitle, end, children, sx = {} }) {
   return (
-    <Card variant="outlined" sx={{ minWidth: 0, border: `1px solid ${C.line}`, borderRadius: 3, boxShadow: '0 5px 24px rgba(25,67,86,0.035)', ...sx }}>
+    <Card variant="outlined" sx={{ minWidth: 0, border: `1px solid ${C.line}`, borderRadius: '4px', boxShadow: '0 5px 24px rgba(25,67,86,0.035)', ...sx }}>
       <CardContent sx={{ p: { xs: 1.5, md: 2.25 }, '&:last-child': { pb: { xs: 1.5, md: 2.25 } } }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1.5} mb={2}>
           <Box minWidth={0}>
@@ -57,7 +58,7 @@ function DashboardPanel({ title, subtitle, end, children, sx = {} }) {
 
 function MetricTile({ icon, label, value, note, color, rate }) {
   return (
-    <Card variant="outlined" sx={{ height: '100%', minWidth: 0, borderColor: C.line, borderRadius: 2,
+    <Card variant="outlined" sx={{ height: '100%', minWidth: 0, borderColor: C.line, borderRadius: '4px',
       boxShadow: '0 2px 8px rgba(25,67,86,0.025)', overflow: 'hidden' }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', px: 1.5, py: 1.1, borderTop: `3px solid ${color}` }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={0.75}>
@@ -71,7 +72,7 @@ function MetricTile({ icon, label, value, note, color, rate }) {
         <Tooltip title={note || ''} arrow placement="bottom">
           <Typography sx={{ fontSize: 10.5, color: C.muted, mt: 'auto', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{note}</Typography>
         </Tooltip>
-        {typeof rate === 'number' && <Box sx={{ mt: 0.65, height: 4, bgcolor: '#edf2f5', borderRadius: 4, overflow: 'hidden' }}>
+        {typeof rate === 'number' && <Box sx={{ mt: 0.65, height: 4, bgcolor: '#edf2f5', borderRadius: '4px', overflow: 'hidden' }}>
           <Box sx={{ width: `${rate}%`, bgcolor: color, height: '100%' }} />
         </Box>}
       </Box>
@@ -113,7 +114,7 @@ function Donut({ title, segments, total, centerLabel }) {
         {segments.map(segment => (
           <Tooltip key={segment.label} title={`${segment.label}: ${fmt(segment.value)}`}>
             <Stack direction="row" alignItems="center" gap={0.4}>
-              <Box sx={{ bgcolor: segment.color, width: 8, height: 8, borderRadius: 1 }} />
+              <Box sx={{ bgcolor: segment.color, width: 8, height: 8, borderRadius: '4px' }} />
               <Typography sx={{ color: C.muted, fontSize: 10.5 }}>{segment.label} {fmt(segment.value)}</Typography>
             </Stack>
           </Tooltip>
@@ -131,8 +132,8 @@ function ProcessLane({ label, done, total, color, description, onClick }) {
         <Typography sx={{ fontWeight: 800, color: C.navy, fontSize: 13 }}>{label}</Typography>
         <Typography sx={{ color: C.muted, fontSize: 11.5 }}>{fmt(done)}/{fmt(total)} · <Box component="span" fontWeight={900} color={color}>{rate}%</Box></Typography>
       </Stack>
-      <Box sx={{ bgcolor: '#ebf1f5', borderRadius: 20, height: 11, overflow: 'hidden' }}>
-        <Box sx={{ bgcolor: color, borderRadius: 20, height: '100%', width: `${rate}%`, transition: 'width 200ms ease' }} />
+      <Box sx={{ bgcolor: '#ebf1f5', borderRadius: '4px', height: 11, overflow: 'hidden' }}>
+        <Box sx={{ bgcolor: color, borderRadius: '4px', height: '100%', width: `${rate}%`, transition: 'width 200ms ease' }} />
       </Box>
       <Typography sx={{ color: C.muted, fontSize: 10.5, mt: 0.4 }}>{description}</Typography>
     </Box>
@@ -157,7 +158,7 @@ function ComparisonChart({ rows, series, getLabel, onSelect, emptyText }) {
     <Box>
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 0.75 }}>
         {series.map(item => <Stack direction="row" alignItems="center" gap={0.5} key={item.key}>
-          <Box sx={{ width: 10, height: 10, bgcolor: item.color, borderRadius: 0.5 }} />
+          <Box sx={{ width: 10, height: 10, bgcolor: item.color, borderRadius: '4px' }} />
           <Typography sx={{ fontSize: 11, color: C.muted }}>{item.label}</Typography>
         </Stack>)}
       </Box>
@@ -200,7 +201,7 @@ function DataTable({ columns, rows, emptyText = 'No matching data', pageSize = 2
   useEffect(() => { setLimit(pageSize); }, [rows, pageSize]);
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: { xs: 'auto', md: '100%' } }}>
-      <TableContainer sx={{ border: `1px solid ${C.line}`, borderRadius: 1.5, flex: '1 1 0', minHeight: 0,
+      <TableContainer sx={{ border: `1px solid ${C.line}`, borderRadius: '4px', flex: '1 1 0', minHeight: 0,
         maxHeight: { xs: 440, md: 'none' }, overflow: 'auto', bgcolor: 'white' }}>
         <Table stickyHeader size="small" sx={{ ...borderedTable, '& th': { fontSize: 11.5, fontWeight: 800, color: C.navy, bgcolor: '#f4f8fb', py: 0.85 },
           '& td': { fontSize: 12, py: 0.8 }, '& .MuiTableRow-root:hover td': { bgcolor: '#f3fafc' } }}>
@@ -264,6 +265,7 @@ export default function OperationsDashboard() {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [orderFilter, setOrderFilter] = useState('ALL');
   const { factoryCode: selectedFactory, loading: factoryLoading } = useSelectedFactory(BUYER_CODE.LULULEMON);
   const [factoryFilter, setFactoryFilter] = useState('');
@@ -320,7 +322,7 @@ export default function OperationsDashboard() {
   return (
     <Paper variant="outlined" sx={{ height: { xs: 'auto', md: '100%' }, minHeight: 0,
       display: 'flex', flexDirection: 'column', gap: 1, p: { xs: 1, md: 1.25 }, mb: 0,
-      overflow: { xs: 'visible', md: 'hidden' }, borderRadius: 2.5, bgcolor: '#f6fafc', borderColor: C.line }}>
+      overflow: { xs: 'visible', md: 'hidden' }, borderRadius: '4px', bgcolor: '#f6fafc', borderColor: C.line }}>
       {/* One compact header replaces the oversized hero; global header still owns Factory switching. */}
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }}
         justifyContent="space-between" gap={1} sx={{ flexShrink: 0, px: { xs: 0.25, md: 0.5 }, py: 0.25 }}>
@@ -375,7 +377,7 @@ export default function OperationsDashboard() {
 
       {/* Chart-first one-page dashboard: keep KPI + charts, remove detail tables. */}
       <Card variant="outlined" sx={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column',
-        borderColor: C.line, borderRadius: 2, boxShadow: 'none', overflow: 'hidden' }}>
+        borderColor: C.line, borderRadius: '4px', boxShadow: 'none', overflow: 'hidden' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }}
           justifyContent="space-between" gap={0.6} sx={{ px: 1.5, pt: 1.1, pb: 0.6, flexShrink: 0 }}>
           <Box>

@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
@@ -15,10 +16,12 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [opened, setOpened] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  useAutoDismissFeedback(detailError, setDetailError, '', 'error');
   const [removing, setRemoving] = useState('');
   const [exporting, setExporting] = useState(false);
 
@@ -79,7 +82,7 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
   };
 
   return (
-    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', p: 1.25 }}>
+    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '4px', bgcolor: 'background.paper', p: 1.25 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ mb: 1 }}>
         <Typography fontWeight={800} variant="subtitle2">Shipping Dates</Typography>
         <Tooltip title="Refresh Shipping Dates"><span><IconButton size="small" disabled={loading} onClick={loadDays}>

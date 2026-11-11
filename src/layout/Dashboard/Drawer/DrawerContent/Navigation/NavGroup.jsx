@@ -101,7 +101,7 @@ function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
           mx: drawerOpen ? 0.65 : 0.45,
           my: 0.16,
           border: '1px solid transparent',
-          borderRadius: 1.25,
+          borderRadius: '4px',
           justifyContent: drawerOpen ? 'flex-start' : 'center',
           transition: 'background-color .18s ease, border-color .18s ease, color .18s ease',
           '&:hover': {
@@ -127,7 +127,7 @@ function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
                 height: 42,
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 2.25,
+                borderRadius: '4px',
                 bgcolor: 'transparent',
                 border: '1px solid transparent'
               })

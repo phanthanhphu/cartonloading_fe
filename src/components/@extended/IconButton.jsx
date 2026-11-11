@@ -100,14 +100,14 @@ const IconButtonStyle = styled(MuiIconButton, { shouldForwardProp: (prop) => pro
       top: 0,
       width: '100%',
       height: '100%',
-      borderRadius: shape === 'rounded' ? '50%' : 8,
+      borderRadius: shape === 'rounded' ? '50%' : '2px',
       opacity: 0,
       transition: 'all 0.5s'
     },
 
     ':active::after': {
       position: 'absolute',
-      borderRadius: shape === 'rounded' ? '50%' : 8,
+      borderRadius: shape === 'rounded' ? '50%' : '2px',
       left: 0,
       top: 0,
       opacity: 1,

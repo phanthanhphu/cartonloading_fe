@@ -62,7 +62,7 @@ export default function PoInspectionProgressCell({ row }) {
                 value={planned > 0 ? Math.min(100, (passed / planned) * 100) : 0}
                 color={color === 'inherit' ? 'primary' : color}
                 aria-label={`${name}: ${fmt(passed)} of ${fmt(planned)} cartons passed`}
-                sx={{ height: 4, borderRadius: 99, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: 99 } }}
+                sx={{ height: 4, borderRadius: '4px', bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: '4px' } }}
               />
             </Box>
           </Tooltip>

@@ -29,10 +29,10 @@ function RouteErrorPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#F4F7FB' }}>
-      <div style={{ width: 'min(560px, 100%)', padding: 24, borderRadius: 16, border: '1px solid #E5E7EB', background: '#FFFFFF', boxShadow: '0 12px 34px rgba(15, 23, 42, 0.08)' }}>
+      <div style={{ width: 'min(560px, 100%)', padding: 24, borderRadius: '4px', border: '1px solid #E5E7EB', background: '#FFFFFF', boxShadow: '0 12px 34px rgba(15, 23, 42, 0.08)' }}>
         <h2 style={{ margin: 0, color: '#103B5C' }}>{APP_MESSAGES.PAGE_OPEN_FAILED}</h2>
         <p style={{ color: '#64748B', lineHeight: 1.6 }}>{message}</p>
-        <button type="button" onClick={() => window.location.reload()} style={{ border: 0, borderRadius: 8, padding: '10px 16px', background: '#103B5C', color: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}>
+        <button type="button" onClick={() => window.location.reload()} style={{ border: 0, borderRadius: '4px', padding: '10px 16px', background: '#103B5C', color: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}>
           {APP_MESSAGES.RELOAD_PAGE}
         </button>
       </div>

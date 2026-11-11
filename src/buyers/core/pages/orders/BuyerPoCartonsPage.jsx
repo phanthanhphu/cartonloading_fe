@@ -1,6 +1,9 @@
+import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT } from '../../../../constants/appConstants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Breadcrumbs, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { CheckCircleOutlineRounded, ErrorOutlineRounded, AccessTimeRounded, VisibilityOutlined, ReplayRounded } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import ManagementTable from 'components/ManagementTable';
@@ -16,6 +19,27 @@ import PoRfidWeightWorkspace from 'buyers/lululemon/components/PoRfidWeightWorks
 import { unassignProcessingIdentity } from 'buyers/lululemon/services/cartonProcessing';
 import OperationWorkspaceDialog from 'buyers/lululemon/components/OperationWorkspaceDialog';
 import { useSelectedFactory } from 'utils/factorySelection';
+
+// Scan RFID / Weight intentionally retains the previous compact 2px corners.
+// An isolated MUI theme also preserves the corners on menus/confirmation dialogs
+// rendered through portals, without affecting the other application pages.
+const scanRfidWeightTheme = (base) => createTheme(base, {
+  shape: { borderRadius: 2 },
+  components: {
+    MuiButton: { styleOverrides: { root: {
+      borderRadius: '2px',
+      '&::after': { borderRadius: '2px' },
+      '&:active::after': { borderRadius: '2px' }
+    } } },
+    MuiChip: { styleOverrides: { root: { borderRadius: '2px' } } },
+    MuiAlert: { styleOverrides: { root: { borderRadius: '2px' } } },
+    MuiIconButton: { styleOverrides: { root: { borderRadius: '2px' } } },
+    MuiTab: { styleOverrides: { root: { borderRadius: '2px', '&:focus-visible': { borderRadius: '2px' } } } },
+    MuiLinearProgress: { styleOverrides: { root: { borderRadius: '2px' }, bar: { borderRadius: '2px' } } },
+    MuiListItemButton: { styleOverrides: { root: { borderRadius: '2px' } } },
+    MuiTableContainer: { styleOverrides: { root: { borderRadius: '2px' } } }
+  }
+});
 
 const initial = { page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false };
 const v = (x) => (x === null || x === undefined || x === '' ? '—' : x);
@@ -34,9 +58,12 @@ export default function BuyerPoCartonsPage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [scanDialogReady, setScanDialogReady] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const [reassignCarton, setReassignCarton] = useState(null);
   const [reassignError, setReassignError] = useState('');
+  useAutoDismissFeedback(reassignError, setReassignError, '', 'error');
   const [reassignBusy, setReassignBusy] = useState(false);
   const requestRef = useRef(0);
   const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
@@ -211,8 +238,8 @@ export default function BuyerPoCartonsPage() {
   );
 
   return (
-    <Box sx={{ p: { xs: 0.75, md: 1 } }}>
-      <Stack spacing={isLulu ? 0.75 : 1}>
+    <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
+      <Stack spacing={isLulu ? 0.75 : 1} sx={managementStackSx}>
         <CompactPageHeader
           title={`PO ${v(po?.poNumber)}`}
           subtitle={isLulu ? 'PO station: Scan / Assign SSCC + SKU → RFID → Weight. One scan button per PO; no PO picking or conveyor.' : 'Cartons are generated on first open; Items are generated only when a Carton is opened.'}
@@ -245,7 +272,7 @@ export default function BuyerPoCartonsPage() {
           This PO belongs to Factory {po.factoryCode}, but your selected Factory is {selectedFactory || 'not set'}. Switch Factory to continue.
         </Alert>}
         {!mismatch && isLulu && !canProcess && <Alert severity="info">RFID and Weight processing requires the assigned Weight operator permission. You can inspect cartons here.</Alert>}
-        {isLulu && canProcess && <OperationWorkspaceDialog
+        {isLulu && canProcess && <ThemeProvider theme={scanRfidWeightTheme}><OperationWorkspaceDialog
           open={Boolean(scanOpen && !mismatch && po?.id)}
           onClose={closeScan}
           title={`Carton Weighing · PO ${v(po?.poNumber)}`}
@@ -263,7 +290,7 @@ export default function BuyerPoCartonsPage() {
             po={po} factoryCode={selectedFactory}
             onCartonSaved={() => load(paginationRef.current.page, paginationRef.current.size)}
           />}
-        </OperationWorkspaceDialog>}
+        </OperationWorkspaceDialog></ThemeProvider>}
         {isLulu && <Dialog open={Boolean(reassignCarton)} onClose={closeReassign} maxWidth="sm" fullWidth
           aria-labelledby="reassign-identity-title">
           <DialogTitle id="reassign-identity-title">Re-assign SSCC &amp; SKU</DialogTitle>
@@ -292,6 +319,7 @@ export default function BuyerPoCartonsPage() {
           </DialogActions>
         </Dialog>}
         {!mismatch && <ManagementTable
+          fillAvailableHeight
           filterBar={<TableFilterBar
           fields={[
             ...(!isLulu ? [{ key: 'cartonNo', label: 'Carton No.' }] : []),

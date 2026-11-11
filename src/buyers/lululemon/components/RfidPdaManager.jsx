@@ -145,7 +145,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
   const readerStatus = getRfidReaderStatus(selected);
   const readerNeedsDefault = devices.length > 1 && !devices.some((device) => device.defaultReader);
   return (
-    <Box sx={{ mt: compact ? 0.3 : 1, mb: compact ? 0.3 : 1, p: compact ? 0.55 : 1.2, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ mt: compact ? 0.3 : 1, mb: compact ? 0.3 : 1, p: compact ? 0.55 : 1.2, borderRadius: '4px', border: '1px solid', borderColor: 'divider' }}>
       {(!compact || showTechnical) && <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
         <Stack direction="row" gap={0.75} alignItems="center"><Cable fontSize="small"/><Typography fontWeight={800} fontSize={13}>RFID · {factory || 'Factory unknown'}</Typography>
           <Chip size="small" variant="outlined" label={stationCode || 'Scale station'} /></Stack>
@@ -186,7 +186,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
           <Button size="small" variant="outlined" onClick={() => setPreviewOpen(true)}>Review all {preview.excelRawUniqueEpcCount ?? preview.uniqueCount} raw tags</Button>
         </Stack>
       </Stack> : null)}
-      {previewOpen && preview && <Paper variant="outlined" sx={{ mt: 1, p: 1.5, borderRadius: 2 }}>
+      {previewOpen && preview && <Paper variant="outlined" sx={{ mt: 1, p: 1.5, borderRadius: '4px' }}>
         <Typography variant="subtitle1" fontWeight={800}>RFID Export — Review EPCs for SSCC {sscc}</Typography>
           <Typography variant="body2" sx={{ mb: 1 }}>This is a PDA export preview, NOT a verified RFID PASS. Verify the file belongs to this carton before importing.</Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
@@ -206,7 +206,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
             Unsupported/non-TrueVUE raw EPCs (recorded as invalid, not silently discarded): {(preview?.rejectedEpcs || []).join(', ')}
           </Alert>}
           <TextField size="small" fullWidth label="Search EPC" value={epcFilter} onChange={(event) => setEpcFilter(event.target.value)} sx={{ mb: 1 }}/>
-          <TableContainer sx={{ maxHeight: 380, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+          <TableContainer sx={{ maxHeight: 380, border: '1px solid', borderColor: 'divider', borderRadius: '4px' }}>
             <Table size="small" stickyHeader aria-label="RFID PDA export EPC list">
               <TableHead><TableRow><TableCell sx={{ width: 65 }}>STT</TableCell><TableCell>Raw EPC (Excel)</TableCell><TableCell>COUNT</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
               <TableBody>

@@ -37,7 +37,7 @@ export default function AppBackButton() {
           minWidth: 76,
           height: 34,
           px: 1.1,
-          borderRadius: 1.5,
+          borderRadius: '4px',
           textTransform: 'none',
           fontWeight: 700,
           color: '#2E5F97',

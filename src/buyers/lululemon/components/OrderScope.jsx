@@ -93,7 +93,7 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
             placeholder={compact ? 'Search Order' : 'Search Order...'}
             sx={compact ? {
               bgcolor: '#FFFFFF',
-              borderRadius: 1.8,
+              borderRadius: '4px',
               '& .MuiOutlinedInput-root': { py: '1px !important' }
             } : undefined}
           />
@@ -103,5 +103,5 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
     </Stack>
   );
 
-  return embedded ? content : <Paper variant="outlined" sx={{ px: 0.9, py: 0.6, borderRadius: 1.9, borderColor: '#DFE7EF' }}>{content}</Paper>;
+  return embedded ? content : <Paper variant="outlined" sx={{ px: 0.9, py: 0.6, borderRadius: '4px', borderColor: '#DFE7EF' }}>{content}</Paper>;
 }

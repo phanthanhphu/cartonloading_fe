@@ -6,7 +6,7 @@ export default function ListItemButton(theme) {
       styleOverrides: {
         root: {
           color: theme.palette.secondary.main,
-          borderRadius: 8,
+          borderRadius: '4px',
           marginTop: 2,
           marginBottom: 2,
           '&.Mui-selected': {

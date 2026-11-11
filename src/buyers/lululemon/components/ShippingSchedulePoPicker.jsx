@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
@@ -173,6 +174,7 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
   const [columnMenuAnchor, setColumnMenuAnchor] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const requestRef = useRef(0);
   const existingRef = useRef(0);
   const knownDatesKey = knownDates.join(',');
@@ -349,13 +351,13 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
           </MenuItem>)}
         </Menu>
       </Stack>
-      {filtersOpen ? <Box sx={{ p: 1, bgcolor: 'background.default', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+      {filtersOpen ? <Box sx={{ p: 1, bgcolor: 'background.default', border: 1, borderColor: 'divider', borderRadius: '4px' }}>
         <TableFilterBar fields={FILTER_FIELDS} values={filters}
           onChange={(key, value) => setFilters((previous) => ({ ...previous, [key]: value }))}
           onClear={() => { setFilters(initialFilters()); setSearch(''); }} />
       </Box> : null}
       <TableContainer sx={{ flex: '1 1 auto', minHeight: 145, overflow: 'auto',
-        border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
+        border: 1, borderColor: 'divider', borderRadius: '4px' }}>
         <Table stickyHeader size="small" sx={{ minWidth: tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: SELECT_COLUMN_WIDTH }} />

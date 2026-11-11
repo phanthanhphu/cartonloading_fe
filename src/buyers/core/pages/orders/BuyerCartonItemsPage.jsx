@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Breadcrumbs, Chip, Link, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useParams } from 'react-router-dom';
@@ -23,6 +24,7 @@ export default function BuyerCartonItemsPage() {
   const [carton, setCarton] = useState(null);
   const [state, setState] = useState(initial);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const requestRef = useRef(0);
   const paginationRef = useRef({ page: 0, size: DEFAULT_TABLE_PAGE_SIZE });
   const [filters, setFilters] = useState({ itemNo: '', sku: '', style: '', color: '', sizeValue: '', status: '', scannedBy: '' });
@@ -123,11 +125,11 @@ export default function BuyerCartonItemsPage() {
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
 
         <Box sx={isLululemon ? {
-          '& .MuiPaper-root': { borderRadius: '12px', borderColor: '#D6E4F1' },
+          '& .MuiPaper-root': { borderRadius: '4px', borderColor: '#D6E4F1' },
           '& .MuiTableHead-root .MuiTableCell-root': { bgcolor: '#EDF4FC', color: '#324F70', fontWeight: 800, borderBottom: '1px solid #D6E4F1' },
           '& .MuiTableBody-root .MuiTableCell-root': { py: 1.1, borderColor: '#ECF1F7' },
           '& .MuiTableRow-hover:hover': { bgcolor: '#F4F9FF' },
-          '& .MuiTextField-root .MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: '#FFFFFF' },
+          '& .MuiTextField-root .MuiOutlinedInput-root': { borderRadius: '4px', bgcolor: '#FFFFFF' },
         } : undefined}>
         <ManagementTable
           filterBar={<TableFilterBar

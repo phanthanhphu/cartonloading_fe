@@ -3,21 +3,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   IconButton, MenuItem, Paper, Stack, TableBody, TableCell, TableHead, TableRow,
-  TextField, Tooltip, Typography, Checkbox, FormControlLabel
+  TextField, Tooltip, Typography, Checkbox, FormControlLabel, TablePagination
 } from '@mui/material';
 import { Visibility, Refresh, Search, Close, Tune, ViewColumn } from '@mui/icons-material';
 import SortableTable from 'components/SortableTable';
 import LululemonTableViewport from '../components/LululemonTableViewport';
+import { managementStackSx, managementPanelSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import { CompactPageHeader } from '../components/LululemonPageHeader';
 import StatusChip from 'components/StatusChip';
 import OrderScope from '../components/OrderScope';
 import { getUniqueInvalidEpcRows } from '../utils/trueVueEpc';
 import { listCartonHistory, listCartonHistoryFilters, getCartonHistoryDetail } from '../services/service';
 import { APP_MESSAGES } from '../../../constants/appMessages';
-import { WEIGHING_RESULT, ORGANIZATION_REALTIME as RT, KEYBOARD_KEY } from '../../../constants/appConstants';
+import { WEIGHING_RESULT, ORGANIZATION_REALTIME as RT, KEYBOARD_KEY, DEFAULT_TABLE_PAGE_SIZE, BUYER_CODE } from '../../../constants/appConstants';
 import { subscribeOrganizationChanges } from '../../../common/realtime/organizationSocket';
 import { useSelectedFactory } from 'utils/factorySelection';
-import { BUYER_CODE } from '../../../constants/appConstants';
 
 const emptyFilters = { masterPo: '', poNumber: '', packingPlan: '', salesOrderPts: '', keyword: '', scannedBy: '', weighedBy: '', status: '', rfidStatus: '', weightStatus: '', dateFrom: '', dateTo: '' };
 const emptyOptions = { masterPos: [], poNumbers: [], packingPlans: [], salesOrderPts: [] };
@@ -63,6 +63,7 @@ export default function TraceHistoryPage() {
   const [applied, setApplied] = useState(emptyFilters);
   const [options, setOptions] = useState(emptyOptions);
   const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_TABLE_PAGE_SIZE);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -73,19 +74,28 @@ export default function TraceHistoryPage() {
   useAutoDismissFeedback(notice, setNotice, null, 'success');
   const { factoryCode } = useSelectedFactory(BUYER_CODE.LULULEMON);
   const requestRef = useRef(0);
-  const currentSearch = useRef({ orderId, applied, page });
+  const currentSearch = useRef({ orderId, applied, page, rowsPerPage });
   const socketReloadRef = useRef(null);
-  currentSearch.current = { orderId, applied, page };
+  currentSearch.current = { orderId, applied, page, rowsPerPage };
 
   const load = useCallback(async (search, silent = false) => {
     if (!search.orderId) { setRows([]); setTotal(0); return; }
     const request = ++requestRef.current;
     if (!silent) setBusy(true);
     try {
-      const data = await listCartonHistory(search.orderId, search.applied, search.page, 50);
+      const data = await listCartonHistory(search.orderId, search.applied, search.page, search.rowsPerPage);
       if (request !== requestRef.current) return;
+      const nextTotal = Math.max(0, Number(data?.totalElements || 0));
+      const lastPage = Math.max(0, Math.ceil(nextTotal / search.rowsPerPage) - 1);
+      // A scan may disappear from the last page while the History screen is open.
+      // Refetch the last valid page rather than leaving a blank, out-of-range page.
+      if (search.page > lastPage) {
+        setTotal(nextTotal);
+        setPage(lastPage);
+        return;
+      }
       setRows(data?.content || []);
-      setTotal(Number(data?.totalElements || 0));
+      setTotal(nextTotal);
     } catch (error) {
       if (request === requestRef.current) {
         if (!silent) setRows([]);
@@ -94,7 +104,7 @@ export default function TraceHistoryPage() {
     } finally { if (request === requestRef.current) setBusy(false); }
   }, []);
 
-  useEffect(() => { load({ orderId, applied, page }); }, [orderId, applied, page, load]);
+  useEffect(() => { load({ orderId, applied, page, rowsPerPage }); }, [orderId, applied, page, rowsPerPage, load]);
   useEffect(() => {
     let active = true;
     setOptions(emptyOptions);
@@ -152,14 +162,34 @@ export default function TraceHistoryPage() {
       {(values || []).map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}
     </TextField>
   );
-  const totalPages = Math.ceil(total / 50);
+  const handleRowsPerPageChange = (event) => {
+    const nextSize = Number(event.target.value);
+    if (![10, 25, 50, 100].includes(nextSize)) return;
+    setPage(0);
+    setRowsPerPage(nextSize);
+  };
+  const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
+  const safePage = Math.min(page, totalPages - 1);
 
   return (
-    <Stack spacing={1} className="lululemon-compact-v16" sx={{ p: { xs: 0.25, md: 0.5 } }}>
+    <Stack spacing={1} className="lululemon-compact-v16" sx={{
+      p: { xs: 0.25, md: 0.5 },
+      ...managementStackSx,
+      // On phones the history is a card list, so do not constrain its height.
+      flex: { xs: 'initial', md: '1 1 0%' }
+    }}>
       <CompactPageHeader dense title="Carton History"
         meta={<Chip size="small" label={`${total} completed cartons`} />} />
       {notice && <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert>}
-      <Paper variant="outlined" sx={{ borderRadius: 2, p: 1 }}>
+      <Paper variant="outlined" sx={{
+        borderRadius: '4px', p: 1, flexShrink: 0,
+        // Expanded filters scroll inside their panel rather than pushing the
+        // horizontal scrollbar and pagination below the visible screen.
+        maxHeight: { md: showMoreFilters ? '38dvh' : '33dvh' },
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        '@media (max-height: 570px)': { maxHeight: 'none' }
+      }}>
+        <Box sx={{ minHeight: 0, overflowY: { xs: 'visible', md: 'auto' }, overflowX: 'hidden' }}>
         <OrderScope embedded compact value={orderId} onChange={chooseOrder} />
         <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
           <TextField size="small" type="date" label="Date From (weighed)" InputLabelProps={{ shrink: true }}
@@ -183,7 +213,8 @@ export default function TraceHistoryPage() {
           <TextField size="small" label="Weighed by" value={filters.weighedBy}
             onChange={(e) => setFilter('weighedBy', e.target.value)} sx={{ flex: '1 1 160px' }} />
         </Stack>}
-        <Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
+        </Box>
+        <Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ mt: 1, flexShrink: 0 }}>
           <Button startIcon={<Tune />} variant="text" onClick={() => setShowMoreFilters((old) => !old)}>
             {showMoreFilters ? 'Show Less Filters' : 'Show More Filters'}
           </Button>
@@ -193,20 +224,34 @@ export default function TraceHistoryPage() {
           </Stack>
         </Stack>
       </Paper>
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Stack direction="row" justifyContent="flex-end" sx={{ p: 0.7, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Paper variant="outlined" sx={{
+        borderRadius: '4px',
+        ...managementPanelSx,
+        display: { xs: 'block', md: 'flex' },
+        flex: { xs: 'initial', md: '1 1 0%' },
+        minHeight: { xs: 0, md: 0 },
+        overflow: { xs: 'visible', md: 'hidden' },
+        '@media (max-height: 570px)': { flex: '0 0 auto', minHeight: 'auto', overflow: 'visible' }
+      }}>
+        <Stack direction="row" justifyContent="flex-end" sx={{ p: 0.7, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
           <Button size="small" variant="outlined" startIcon={<ViewColumn />} onClick={() => setShowColumnChooser((old) => !old)}>
             Customize Columns
           </Button>
         </Stack>
-        {showColumnChooser && <Stack direction="row" flexWrap="wrap" gap={1} sx={{ px: 1, py: 0.5 }}>
+        {showColumnChooser && <Stack direction="row" flexWrap="wrap" gap={1} sx={{
+          px: 1, py: 0.5, flexShrink: 0,
+          maxHeight: { md: 'min(120px, 16dvh)' }, overflowY: { md: 'auto' }
+        }}>
           {OPTIONAL_HISTORY_COLUMNS.map((column) => <FormControlLabel key={column.key}
             control={<Checkbox size="small" checked={extraColumns.includes(column.key)}
               onChange={(e) => setExtraColumns((current) => e.target.checked ? [...current, column.key] : current.filter((key) => key !== column.key))} />}
             label={column.label} />)}
         </Stack>}
-        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-        <LululemonTableViewport sx={{ border: 0 }}>
+        <Box sx={{
+          display: { xs: 'none', md: 'flex' },
+          flexDirection: 'column', flex: '1 1 0%', minHeight: 0, minWidth: 0
+        }}>
+        <LululemonTableViewport fillAvailableHeight sx={{ border: 0, ...managementTableViewportSx }}>
           <SortableTable stickyHeader size="small">
             <TableHead><TableRow>
               {['Factory', 'Order', 'Master PO', 'PO', 'Packing Plan', 'SO (PTS)', 'SSCC-18', 'SKU',
@@ -245,7 +290,7 @@ export default function TraceHistoryPage() {
         </LululemonTableViewport>
         </Box>
         <Stack spacing={0.8} sx={{ display: { xs: 'flex', md: 'none' }, p: 1 }}>
-          {rows.map((row) => <Paper key={row.cartonId} variant="outlined" sx={{ p: 1, borderRadius: 1.8 }}>
+          {rows.map((row) => <Paper key={row.cartonId} variant="outlined" sx={{ p: 1, borderRadius: '4px' }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Typography fontWeight={800}>{row.orderName || '—'} · PO {row.poNumber || '—'}</Typography>
               <Tooltip title="View carton history"><IconButton color="primary" aria-label="View history"
@@ -266,13 +311,18 @@ export default function TraceHistoryPage() {
             {busy ? 'Loading history…' : 'No completed RFID + Weight cartons match these filters.'}
           </Typography>}
         </Stack>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1 }}>
-          <Typography variant="caption" color="text.secondary">Page {page + 1} of {Math.max(1, totalPages)} · {total} cartons</Typography>
-          <Stack direction="row" spacing={1}>
-            <Button size="small" disabled={busy || page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-            <Button size="small" disabled={busy || page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
-          </Stack>
-        </Stack>
+        {/* Match User Management. The API supplies one page; never paginate the current rows again. */}
+        <TablePagination
+          component="div"
+          count={total}
+          page={safePage}
+          rowsPerPage={rowsPerPage}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          onPageChange={(_, nextPage) => { if (!busy && orderId) setPage(nextPage); }}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          labelRowsPerPage="Rows per page:"
+          sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
+        />
       </Paper>
       <Dialog open={Boolean(selectedRow)} onClose={closeDetail} fullWidth maxWidth="xl" scroll="paper">
         <DialogTitle sx={{ pb: 0.6 }}>
@@ -282,7 +332,7 @@ export default function TraceHistoryPage() {
           </Stack>
         </DialogTitle>
         <DialogContent dividers>
-          {selectedRow && <Paper variant="outlined" sx={{ p: 1, mb: 1, borderRadius: 2 }}>
+          {selectedRow && <Paper variant="outlined" sx={{ p: 1, mb: 1, borderRadius: '4px' }}>
             <Stack direction="row" gap={2} flexWrap="wrap" sx={{ mb: 1 }}>
               {Object.entries({ Factory: selectedRow.factoryCode, Order: selectedRow.orderName,
                 'Master PO': selectedRow.masterPo, PO: selectedRow.poNumber,
@@ -304,9 +354,9 @@ export default function TraceHistoryPage() {
             </Typography>
           </Paper>}
           {detailBusy && <Typography color="text.secondary">Loading detailed history…</Typography>}
-      {selected ? <Paper variant="outlined" sx={{ p: 0.9, borderRadius: 2 }}>
+      {selected ? <Paper variant="outlined" sx={{ p: 0.9, borderRadius: '4px' }}>
         <Typography variant="subtitle2" fontWeight={750} sx={{ mb: 0.5 }}>RFID Scan History</Typography>
-        <LululemonTableViewport paginate sx={{ maxHeight: 300 }}>
+        <LululemonTableViewport pageScroll={false} paginate sx={{ maxHeight: 300 }}>
           <SortableTable stickyHeader size="small">
             <TableHead><TableRow><TableCell>Start time</TableCell><TableCell>End time</TableCell><TableCell>Status</TableCell><TableCell>Expected / Unique EPC</TableCell><TableCell>Total reads</TableCell><TableCell>Reason / Invalid EPC</TableCell><TableCell>Station</TableCell><TableCell>User</TableCell></TableRow></TableHead>
             <TableBody>
@@ -330,31 +380,31 @@ export default function TraceHistoryPage() {
         </LululemonTableViewport>
         <Typography variant="subtitle2" fontWeight={750} sx={{ mt: 1.4, mb: 0.5 }}>Weight Check History</Typography>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Action</TableCell><TableCell>Result</TableCell><TableCell>Expected kg</TableCell><TableCell>Actual kg</TableCell><TableCell>Difference kg</TableCell><TableCell>Tolerance kg</TableCell><TableCell>Station</TableCell><TableCell>Source</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.weightEvents || []).map((event) => <TableRow key={event.id}><TableCell>{event.action || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.expectedWeightKg ?? '—'}</TableCell><TableCell>{event.actualWeightKg ?? '—'}</TableCell><TableCell>{event.differenceKg ?? '—'}</TableCell><TableCell>{event.toleranceKg ?? '—'}</TableCell><TableCell>{event.stationCode || '—'}</TableCell><TableCell>{event.source || '—'}</TableCell><TableCell>{event.userId || '—'}</TableCell><TableCell>{timeText(event.createdAt)}</TableCell></TableRow>)}{!selected.weightEvents?.length ? <TableRow><TableCell colSpan={10} align="center">No weighing events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
+          <LululemonTableViewport pageScroll={false} paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Action</TableCell><TableCell>Result</TableCell><TableCell>Expected kg</TableCell><TableCell>Actual kg</TableCell><TableCell>Difference kg</TableCell><TableCell>Tolerance kg</TableCell><TableCell>Station</TableCell><TableCell>Source</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.weightEvents || []).map((event) => <TableRow key={event.id}><TableCell>{event.action || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.expectedWeightKg ?? '—'}</TableCell><TableCell>{event.actualWeightKg ?? '—'}</TableCell><TableCell>{event.differenceKg ?? '—'}</TableCell><TableCell>{event.toleranceKg ?? '—'}</TableCell><TableCell>{event.stationCode || '—'}</TableCell><TableCell>{event.source || '—'}</TableCell><TableCell>{event.userId || '—'}</TableCell><TableCell>{timeText(event.createdAt)}</TableCell></TableRow>)}{!selected.weightEvents?.length ? <TableRow><TableCell colSpan={10} align="center">No weighing events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
         </Box>
         <Stack spacing={0.55} sx={{ display: { xs: 'flex', md: 'none' } }}>
-          {(selected.weightEvents || []).map((event) => <Paper key={event.id} variant="outlined" sx={{ p: 0.75, borderRadius: 1.4 }}><Stack direction="row" justifyContent="space-between"><Typography fontWeight={900}>{event.action || 'WEIGHT'}</Typography>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : null}</Stack><Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 0.5, mt: 0.5 }}><Box><Typography variant="caption" color="text.secondary">Expected</Typography><Typography fontWeight={850}>{event.expectedWeightKg ?? '—'}</Typography></Box><Box><Typography variant="caption" color="text.secondary">Actual</Typography><Typography fontWeight={850}>{event.actualWeightKg ?? '—'}</Typography></Box><Box><Typography variant="caption" color="text.secondary">Diff</Typography><Typography fontWeight={850}>{event.differenceKg ?? '—'}</Typography></Box></Box><Typography variant="caption" color="text.secondary">Station {event.stationCode || '—'} · {event.userId || '—'} · {timeText(event.createdAt)}</Typography></Paper>)}
+          {(selected.weightEvents || []).map((event) => <Paper key={event.id} variant="outlined" sx={{ p: 0.75, borderRadius: '4px' }}><Stack direction="row" justifyContent="space-between"><Typography fontWeight={900}>{event.action || 'WEIGHT'}</Typography>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : null}</Stack><Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 0.5, mt: 0.5 }}><Box><Typography variant="caption" color="text.secondary">Expected</Typography><Typography fontWeight={850}>{event.expectedWeightKg ?? '—'}</Typography></Box><Box><Typography variant="caption" color="text.secondary">Actual</Typography><Typography fontWeight={850}>{event.actualWeightKg ?? '—'}</Typography></Box><Box><Typography variant="caption" color="text.secondary">Diff</Typography><Typography fontWeight={850}>{event.differenceKg ?? '—'}</Typography></Box></Box><Typography variant="caption" color="text.secondary">Station {event.stationCode || '—'} · {event.userId || '—'} · {timeText(event.createdAt)}</Typography></Paper>)}
           {!selected.weightEvents?.length ? <Typography variant="body2" color="text.secondary">No weighing events.</Typography> : null}
         </Stack>
-        <Box component="details" sx={{ mt: 1.5, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+        <Box component="details" sx={{ mt: 1.5, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: '4px' }}>
           <Box component="summary" sx={{ cursor: 'pointer', fontWeight: 700, color: 'text.secondary' }}>
             Additional barcode / item activity ({selected.events?.length || 0} events, {selected.items?.length || 0} items)
           </Box>
         <Typography variant="subtitle2" fontWeight={750} sx={{ mt: 1.4, mb: 0.5 }}>Barcode Item Assignment / Scan Events</Typography>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Item</TableCell><TableCell>Status</TableCell><TableCell>Assigned SKU</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.items || []).map((item) => <TableRow key={item.id}><TableCell>{item.itemNo}</TableCell><TableCell><StatusChip status={item.status} /></TableCell><TableCell>{item.expectedSku || item.scannedSku || '—'}</TableCell><TableCell>{item.scannedBy || '—'}</TableCell><TableCell>{timeText(item.scannedAt)}</TableCell></TableRow>)}{!selected.items?.length ? <TableRow><TableCell colSpan={5} align="center">No generated/scanned items.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
+          <LululemonTableViewport pageScroll={false} paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Item</TableCell><TableCell>Status</TableCell><TableCell>Assigned SKU</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.items || []).map((item) => <TableRow key={item.id}><TableCell>{item.itemNo}</TableCell><TableCell><StatusChip status={item.status} /></TableCell><TableCell>{item.expectedSku || item.scannedSku || '—'}</TableCell><TableCell>{item.scannedBy || '—'}</TableCell><TableCell>{timeText(item.scannedAt)}</TableCell></TableRow>)}{!selected.items?.length ? <TableRow><TableCell colSpan={5} align="center">No generated/scanned items.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
         </Box>
         <Stack spacing={0.55} sx={{ display: { xs: 'flex', md: 'none' } }}>
-          {(selected.items || []).map((item) => <Paper key={item.id} variant="outlined" sx={{ p: 0.75, borderRadius: 1.4 }}><Stack direction="row" justifyContent="space-between"><Box><Typography fontWeight={900}>Item {item.itemNo}</Typography><Typography variant="body2">SKU {item.expectedSku || item.scannedSku || '—'}</Typography></Box><StatusChip status={item.status} /></Stack><Typography variant="caption" color="text.secondary">{item.scannedBy || '—'} · {timeText(item.scannedAt)}</Typography></Paper>)}
+          {(selected.items || []).map((item) => <Paper key={item.id} variant="outlined" sx={{ p: 0.75, borderRadius: '4px' }}><Stack direction="row" justifyContent="space-between"><Box><Typography fontWeight={900}>Item {item.itemNo}</Typography><Typography variant="body2">SKU {item.expectedSku || item.scannedSku || '—'}</Typography></Box><StatusChip status={item.status} /></Stack><Typography variant="caption" color="text.secondary">{item.scannedBy || '—'} · {timeText(item.scannedAt)}</Typography></Paper>)}
           {!selected.items?.length ? <Typography variant="body2" color="text.secondary">No generated/scanned items.</Typography> : null}
         </Stack>
 
         <Typography variant="subtitle2" fontWeight={750} sx={{ mt: 1.4, mb: 0.5 }}>Scan / Exception Events</Typography>
         <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <LululemonTableViewport paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Type</TableCell><TableCell>Result</TableCell><TableCell>Raw</TableCell><TableCell>Message</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.events || []).map((event) => <TableRow key={event.id}><TableCell>{event.scanType || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.rawValue || event.raw || '—'}</TableCell><TableCell>{event.message || '—'}</TableCell><TableCell>{event.actor || '—'}</TableCell><TableCell>{timeText(event.createdAt)}</TableCell></TableRow>)}{!selected.events?.length ? <TableRow><TableCell colSpan={6} align="center">No scan events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
+          <LululemonTableViewport pageScroll={false} paginate sx={{ maxHeight: 280 }}><SortableTable stickyHeader size="small"><TableHead><TableRow><TableCell>Type</TableCell><TableCell>Result</TableCell><TableCell>Raw</TableCell><TableCell>Message</TableCell><TableCell>User</TableCell><TableCell>Time</TableCell></TableRow></TableHead><TableBody>{(selected.events || []).map((event) => <TableRow key={event.id}><TableCell>{event.scanType || '—'}</TableCell><TableCell>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : '—'}</TableCell><TableCell>{event.rawValue || event.raw || '—'}</TableCell><TableCell>{event.message || '—'}</TableCell><TableCell>{event.actor || '—'}</TableCell><TableCell>{timeText(event.createdAt)}</TableCell></TableRow>)}{!selected.events?.length ? <TableRow><TableCell colSpan={6} align="center">No scan events.</TableCell></TableRow> : null}</TableBody></SortableTable></LululemonTableViewport>
         </Box>
         <Stack spacing={0.55} sx={{ display: { xs: 'flex', md: 'none' } }}>
-          {(selected.events || []).map((event) => <Paper key={event.id} variant="outlined" sx={{ p: 0.75, borderRadius: 1.4 }}><Stack direction="row" justifyContent="space-between" spacing={1}><Typography fontWeight={900}>{event.scanType || 'EVENT'}</Typography>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : null}</Stack><Typography variant="body2" sx={{ mt: 0.25 }}>{event.message || '—'}</Typography><Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>{event.rawValue || event.raw || '—'} · {event.actor || '—'} · {timeText(event.createdAt)}</Typography></Paper>)}
+          {(selected.events || []).map((event) => <Paper key={event.id} variant="outlined" sx={{ p: 0.75, borderRadius: '4px' }}><Stack direction="row" justifyContent="space-between" spacing={1}><Typography fontWeight={900}>{event.scanType || 'EVENT'}</Typography>{displayWeightResult(event.result) ? <StatusChip status={displayWeightResult(event.result)} /> : null}</Stack><Typography variant="body2" sx={{ mt: 0.25 }}>{event.message || '—'}</Typography><Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>{event.rawValue || event.raw || '—'} · {event.actor || '—'} · {timeText(event.createdAt)}</Typography></Paper>)}
           {!selected.events?.length ? <Typography variant="body2" color="text.secondary">No scan events.</Typography> : null}
         </Stack>
 

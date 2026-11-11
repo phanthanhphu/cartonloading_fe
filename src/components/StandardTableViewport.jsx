@@ -1,11 +1,12 @@
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from 'react';
 import { Box, TableBody, TableContainer, TablePagination } from '@mui/material';
+import { tableScrollbarSx } from 'components/TableScrollbarStyles';
 import { PAGE_TABLE_HEIGHT } from 'components/TableViewportHeights';
 import SortableTable, { compare, directCells, extractText } from 'components/SortableTable';
 
 const flatten = (children) => Children.toArray(children);
 
-/** Fixed-height list viewport with optional client-side pagination.
+/** Fixed-height native-scroll viewport by default, with optional pagination.
  * Only enable paginate for tables receiving an unpaged complete list. Tables
  * paged by the server must retain their existing TablePagination instead.
  */
@@ -15,6 +16,8 @@ export default function LululemonTableViewport({
   viewportHeight = PAGE_TABLE_HEIGHT,
   paginate = false,
   defaultRowsPerPage = 25,
+  pageScroll = false,
+  fillAvailableHeight = false,
   ...props
 }) {
   const [page, setPage] = useState(0);
@@ -60,20 +63,22 @@ export default function LululemonTableViewport({
     }, tableParts.map((part) => part === body ? cloneElement(body, {}, pageRows) : part));
   }, [table, body, count, children, tableParts, realRows, safePage, rowsPerPage, sortIndex, sortDirection]);
 
+  // Preserve the original native scrollbar inside the table. An explicit
+  // pageScroll opt-in is retained for backwards compatibility.
   const viewport = (
     <TableContainer
       {...props}
       sx={[
         {
           width: '100%',
-          height: viewportHeight,
+          height: pageScroll ? 'auto' : viewportHeight,
           maxWidth: '100%',
-          overflow: 'auto',
+          overflowX: 'auto',
+          overflowY: pageScroll ? 'visible' : 'scroll',
           overscrollBehavior: 'contain',
-          scrollbarGutter: 'stable',
           border: '1px solid',
           borderColor: 'divider',
-          borderRadius: 2,
+          borderRadius: '4px',
           bgcolor: 'background.paper',
           '& .MuiTableCell-root': { py: 0.65, px: 0.9 },
           '& .MuiTableCell-head': {
@@ -82,7 +87,13 @@ export default function LululemonTableViewport({
             boxShadow: '0 1px 0 #D6E0EA', py: 0.7
           }
         },
-        ...extraSx
+        ...extraSx,
+        ...(fillAvailableHeight ? [{ flex: '1 1 0%', minHeight: 0, height: 'auto', maxHeight: 'none' }] : []),
+        // Some screens pass overflow: 'auto' in sx. Override that shorthand
+        // last so the reserved vertical track never appears empty.
+        ...(pageScroll
+          ? [{ height: 'auto', minHeight: 0, maxHeight: 'none', overflowY: 'visible', scrollbarGutter: 'auto' }]
+          : [tableScrollbarSx])
       ]}
     >
       {paginate ? displayedTable : children}
@@ -91,10 +102,13 @@ export default function LululemonTableViewport({
 
   if (!paginate || !body) return viewport;
   return (
-    <Box sx={{ minWidth: 0, width: '100%' }}>
+    <Box sx={{ minWidth: 0, width: '100%',
+      ...(fillAvailableHeight ? { display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0 } : {})
+    }}>
       {viewport}
       <TablePagination component="div" count={count} page={safePage} rowsPerPage={rowsPerPage}
         rowsPerPageOptions={[10, 25, 50, 100]}
+        sx={{ flexShrink: 0 }}
         onPageChange={(_, next) => setPage(next)}
         onRowsPerPageChange={(event) => { setRowsPerPage(Number(event.target.value)); setPage(0); }}
       />

@@ -15,7 +15,7 @@ export default function LogoIcon() {
         mx: 'auto',
         display: 'grid',
         placeItems: 'center',
-        borderRadius: 2.5,
+        borderRadius: '4px',
 
         // glass feel
         bgcolor: alpha('#ffffff', 0.06),

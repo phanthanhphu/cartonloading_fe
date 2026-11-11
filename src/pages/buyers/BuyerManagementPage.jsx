@@ -1,3 +1,4 @@
+import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Checkbox, FormControlLabel, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
@@ -54,7 +55,7 @@ export default function BuyerManagementPage() {
 
   const openOrders = (row) => {
     if (!isSessionBuyer(row?.buyerKey)) {
-      setError('Switching Buyer requires signing in again with the new Buyer and Type.');
+      window.dispatchEvent(new CustomEvent('bsl:working-context:open', { detail: { buyerCode: row?.buyerKey, target: 'orders' } }));
       return;
     }
     const buyer = saveSelectedBuyer({
@@ -94,14 +95,15 @@ export default function BuyerManagementPage() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 0.75, md: 1 } }}>
-      <Stack spacing={1}>
+    <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
+      <Stack spacing={1} sx={managementStackSx}>
         <Stack direction="row" justifyContent="flex-end">
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add Buyer</Button>
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
         
         <ManagementTable
+          fillAvailableHeight
           filterBar={<TableFilterBar
           fields={[
             { key: 'buyerKey', label: 'Buyer Key' },

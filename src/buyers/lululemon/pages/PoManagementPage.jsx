@@ -1,3 +1,4 @@
+import { managementPageSx, managementPanelSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import LululemonExcelActions from '../components/LululemonExcelActions';
 import PoDuplicateConflictDialog from '../components/PoDuplicateConflictDialog';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
@@ -336,7 +337,7 @@ export default function PoManagementPage() {
   const tableColSpan = Math.max(1, visibleColumns.length);
 
   return (
-    <Stack spacing={0.9} className="lululemon-compact-v16">
+    <Stack spacing={0.9} className="lululemon-compact-v16" sx={{ ...managementPageSx, px: { xs: 0.25, md: 0.5 } }}>
       <CompactPageHeader
         dense
         title={`${BUYER_LABEL[BUYER_CODE.LULULEMON]} · PO Master Data`}
@@ -390,7 +391,7 @@ export default function PoManagementPage() {
         </Menu>
       </CompactToolbar>
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden', ...managementPanelSx }}>
         <Box sx={{ px: 1, py: 0.9, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#FBFCFE' }}>
       <TableFilterBar
         fields={[
@@ -408,7 +409,7 @@ export default function PoManagementPage() {
       />
         </Box>
 
-      <LululemonTableViewport sx={{ maxWidth: '100%', overflowX: 'auto', border: 0, borderRadius: 0 }}>
+      <LululemonTableViewport sx={{ maxWidth: '100%', overflowX: 'auto', border: 0, borderRadius: 0, ...managementTableViewportSx }}>
         <SortableTable size="small" stickyHeader rowNumberStart={page * rowsPerPage} sx={{ minWidth: Math.max(900, visibleColumns.length * 125) + 64 }}>
           <TableHead>
             <TableRow>
@@ -441,6 +442,7 @@ export default function PoManagementPage() {
         </SortableTable>
       </LululemonTableViewport>
       <TablePagination
+        sx={{ flexShrink: 0 }}
         component="div"
         count={filteredRows.length}
         page={Math.min(page, Math.max(0, Math.ceil(filteredRows.length / rowsPerPage) - 1))}

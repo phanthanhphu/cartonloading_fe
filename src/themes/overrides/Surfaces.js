@@ -32,7 +32,7 @@ export default function Surfaces() {
     MuiAlert: {
       styleOverrides: {
         root: {
-          borderRadius: 10,
+          borderRadius: '4px',
           border: '1px solid rgba(80, 105, 130, 0.12)'
         }
       }

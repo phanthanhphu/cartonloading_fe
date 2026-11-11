@@ -44,7 +44,7 @@ export default function Chip(theme) {
             width: 18,
             height: 18
           },
-          borderRadius: 12,
+          borderRadius: '4px',
           '&:active': {
             boxShadow: 'none'
           },

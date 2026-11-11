@@ -1,3 +1,4 @@
+import TransientAlert from '../../../../components/TransientAlert';
 import { EXCEL_FILE_ACCEPT, IMPORT_MODE } from '../../../../constants/appConstants';
 import { useEffect, useState } from 'react';
 import {
@@ -49,11 +50,11 @@ export default function PackingAllocationImportDialog({ open, importing, result,
             </RadioGroup>
           </FormControl>
           {result && (
-            <Alert severity={result.applied ? 'success' : 'error'}>
+            <TransientAlert messageKey={JSON.stringify(result)} severity={result.applied ? 'success' : 'error'}>
               {result.applied
                 ? `Completed: ${result.created || 0} created, ${result.updated || 0} updated, ${result.deleted || 0} deleted.`
                 : `Import failed. ${result.errors?.[0]?.message || APP_MESSAGES.PLEASE_CHECK_FILE}`}
-            </Alert>
+            </TransientAlert>
           )}
         </Stack>
       </DialogContent>

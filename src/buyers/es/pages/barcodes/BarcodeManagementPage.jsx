@@ -1,3 +1,4 @@
+import { managementPageSx, managementPanelSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
@@ -243,7 +244,7 @@ export default function BarcodeManagementPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 }, width: '100%' }}>
+    <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 }, width: '100%', ...managementPageSx }}>
       <Stack direction="row" spacing={0.75} justifyContent="flex-end" flexWrap="wrap" useFlexGap sx={{ mb: 0.65 }}>
         <Button size="small" variant="outlined" startIcon={<RefreshOutlined />} onClick={loadRows} disabled={loading}>Refresh</Button>
         <Button size="small" variant="outlined" startIcon={<PrintOutlined />} onClick={() => printRows(printableSelected)} disabled={!printableSelected.length || printing}>
@@ -255,7 +256,7 @@ export default function BarcodeManagementPage() {
       {error && <Alert severity="error" sx={{ mb: 1.25 }}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 1.25 }}>{notice}</Alert>}
 
-      <Paper variant="outlined" sx={{ p: 1, mb: 0, borderRadius: '8px 8px 0 0', borderColor: '#DCE4EC', borderBottom: 0 }}>
+      <Paper variant="outlined" sx={{ p: 1, mb: 0, borderRadius: '2px 2px 0 0', borderColor: '#DCE4EC', borderBottom: 0 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: '2fr 1fr 1fr 1fr' }, gap: 1 }}>
           <TextField size="small" label="Barcode / Batch / PO / Article" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && runSearch()} />
           <FormControl size="small">
@@ -280,8 +281,8 @@ export default function BarcodeManagementPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderRadius: '0 0 8px 8px', overflow: 'hidden', borderColor: '#DCE4EC' }}>
-        <StandardTableViewport paginate sx={{ minHeight: 380, maxHeight: 'calc(100vh - 245px)', overflowX: 'auto' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '0 0 2px 2px', overflow: 'hidden', borderColor: '#DCE4EC', ...managementPanelSx }}>
+        <StandardTableViewport paginate fillAvailableHeight sx={{ overflowX: 'auto' }}>
           <SortableTable size="small" sx={{ minWidth: 1420 }}>
             <TableHead>
               <TableRow>
@@ -348,7 +349,7 @@ export default function BarcodeManagementPage() {
             <TextField type="number" label="Year" value={generateYear} onChange={(event) => setGenerateYear(Number(event.target.value))} inputProps={{ min: 2000, max: 2099 }} />
             <TextField label="Factory Code" value={generateFactoryCode} onChange={(event) => setGenerateFactoryCode(event.target.value.replace(/\D/g, '').slice(0, 3))} helperText={APP_MESSAGES.FACTORY_CODE_HELPER} />
             <TextField type="number" label="Quantity" value={generateQuantity} onChange={(event) => setGenerateQuantity(event.target.value)} inputProps={{ min: 1, max: 1000 }} />
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, bgcolor: '#F8FAFC' }}>
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px', bgcolor: '#F8FAFC' }}>
               <Typography variant="caption" color="text.secondary">Next Running Number</Typography>
               <Typography sx={{ fontSize: '1.25rem', fontWeight: 750, color: '#103B5C' }}>{sequence?.nextRunningNumber ? Number(sequence.nextRunningNumber).toLocaleString() : '—'}</Typography>
               <Typography variant="caption" color="text.secondary">Next Factory Barcode</Typography>

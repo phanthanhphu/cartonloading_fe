@@ -1,3 +1,4 @@
+import { managementPageSx, managementPanelSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
@@ -132,7 +133,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
   if (!buyer) return <Alert severity="warning">{APP_MESSAGES.NO_BUYER_ACCESS_CONTACT_ADMIN}</Alert>;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} sx={{ ...managementPageSx, px: { xs: 0.25, md: 0.5 } }}>
       {sales && <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#F8FBFF', borderColor: '#CFE0F2' }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
           <Typography sx={{ fontWeight: 850, color: '#173B63' }}>Sales Shipment Planning:</Typography>
@@ -153,7 +154,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       </Stack>
       <Tabs value={tab} onChange={(_, value) => setTab(value)}><Tab label={sales ? 'Plan New Shipment' : 'Carton tracking'} /><Tab label={sales ? 'Sales Shipment Plans' : 'Shipment plans'} /></Tabs>
       {tab === 0 && <>
-        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden', ...managementPanelSx }}>
         <Box sx={{ p: 1.25, bgcolor: '#FBFCFE', borderBottom: '1px solid', borderColor: 'divider' }}><Stack spacing={2}>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <TextField size="small" label="Find Order for shipment planning" value={orderKeyword} onChange={(event) => setOrderKeyword(event.target.value)} helperText={APP_MESSAGES.SHIPMENT_ORDER_SEARCH_HELPER} />
@@ -184,7 +185,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
             Step 2: Select eligible cartons. Sales cannot create new cartons here; shipment planning only uses physical cartons generated from Master Total Ctns and already assigned a Factory Barcode.
           </Alert>}
         </Stack></Box>
-        <StandardTableViewport sx={{ border: 0, borderRadius: 0 }}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
+        <StandardTableViewport sx={{ border: 0, borderRadius: 0, ...managementTableViewportSx }}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
           {sales && <TableCell padding="checkbox"><Checkbox aria-label="Select available cartons on this page" disabled={!orderId || loading || !eligible.length}
             checked={eligible.length > 0 && eligible.every((row) => selected.includes(row.id))}
             indeterminate={eligible.some((row) => selected.includes(row.id)) && !eligible.every((row) => selected.includes(row.id))}
@@ -212,7 +213,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       </>}
       {tab === 1 && <>
         <Alert severity="info">{APP_MESSAGES.SHIPMENT_DISPATCH_RULES}</Alert>
-        <StandardTableViewport component={Paper}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label="Shipment plans"><TableHead><TableRow>
+        <StandardTableViewport component={Paper} sx={{ ...managementTableViewportSx }}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label="Shipment plans"><TableHead><TableRow>
           {['Shipment', 'Destination / Carrier', 'Planned date', 'Status', 'Progress (cartons)', 'Actions'].map((label) => <TableCell key={label}>{label}</TableCell>)}
         </TableRow></TableHead><TableBody>
           {!loading && !shipments.content.length && <TableRow><TableCell colSpan={6}>No Sales Shipment Plans yet. Open “Plan New Shipment”, select an Order and eligible cartons, then create a plan.</TableCell></TableRow>}

@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { discoverPcPorts, listPcAgents, registerPcAgent, revokePcAgent } from '../services/factoryPcAgents';
@@ -6,13 +7,14 @@ const errorText = (e) => e?.response?.data?.message || e?.message || 'Could not 
 
 /** One Windows Agent per PC, multiple COM ports; configuration stays in Web + MongoDB. */
 export default function FactoryScaleAgentPanel({ factoryCode, selectedAgentId = '', selectedPort = '',
-  onSelectAgent, onSelectPort, readOnly = false }) {
+  onSelectAgent, onSelectPort, readOnly = false, showHelp = false }) {
   const [pcs, setPcs] = useState([]);
   const [ports, setPorts] = useState([]);
   const [pcName, setPcName] = useState('');
   const [secret, setSecret] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const refresh = useCallback(async () => {
     if (!factoryCode) return;
     try {
@@ -60,11 +62,11 @@ export default function FactoryScaleAgentPanel({ factoryCode, selectedAgentId = 
     finally { setBusy(false); }
   };
 
-  return <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+  return <Box sx={{ mt: 1.5, p: 1.5, borderRadius: '4px', border: '1px solid', borderColor: 'divider' }}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
       <Box>
         <Typography variant="subtitle2" fontWeight={800}>Factory PC Agents · {factoryCode}</Typography>
-        <Typography variant="caption" color="text.secondary">Install one Agent per Windows PC. Configure all PLC/Scale COM settings here on Web.</Typography>
+        {showHelp && <Typography variant="caption" color="text.secondary">Install one Agent per Windows PC. Configure PLC/Scale COM here on Web.</Typography>}
       </Box>
       <Button size="small" variant="outlined" onClick={refresh} disabled={busy}>Refresh PCs</Button>
     </Stack>
@@ -78,7 +80,7 @@ export default function FactoryScaleAgentPanel({ factoryCode, selectedAgentId = 
     </Stack>
     {selectedAgentId && <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 1 }}>
       <Chip size="small" color={current?.online ? 'success' : 'default'} label={current?.online ? 'PC Agent Online' : 'PC Agent Offline'} />
-      <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>Agent ID: {selectedAgentId}</Typography>
+      {showHelp && <Typography variant="caption" sx={{ overflowWrap: 'anywhere' }}>Agent ID: {selectedAgentId}</Typography>}
     </Stack>}
     {ports.length > 0 && <TextField select size="small" fullWidth label="Detected COM port on selected PC" sx={{ mt: 1.5 }}
       value={ports.includes(selectedPort) ? selectedPort : ''} disabled={busy || readOnly}
@@ -86,15 +88,15 @@ export default function FactoryScaleAgentPanel({ factoryCode, selectedAgentId = 
       <MenuItem value="">Select COM port…</MenuItem>
       {ports.map((port) => <MenuItem key={port} value={port}>{port}</MenuItem>)}
     </TextField>}
-    {selectedAgentId && ports.length === 0 && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+    {showHelp && selectedAgentId && ports.length === 0 && <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
       Use Detect COM Ports while PC Agent is Online; COM can still be entered manually if Windows detection fails.
     </Typography>}
-    <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 2 }}>
-      <TextField size="small" fullWidth label="Register another PC name" value={pcName} disabled={busy || readOnly}
+    {!readOnly && <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 2 }}>
+      <TextField size="small" fullWidth label="Register PC name" value={pcName} disabled={busy || readOnly}
         placeholder="e.g. F3-Weight-PC-01" onChange={(e) => setPcName(e.target.value)} />
       <Button variant="outlined" size="small" disabled={!pcName.trim() || busy || readOnly} onClick={register}>Add PC Agent</Button>
       <Button variant="outlined" color="warning" size="small" disabled={!current || busy || readOnly} onClick={revoke}>Revoke PC</Button>
-    </Stack>
+    </Stack>}
     {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
     {secret && <Alert severity="warning" sx={{ mt: 1.5 }}>
       <Typography variant="body2" fontWeight={700}>One-time PC pairing credentials (IT only)</Typography>
@@ -103,8 +105,8 @@ export default function FactoryScaleAgentPanel({ factoryCode, selectedAgentId = 
       <TextField size="small" fullWidth label="One-time Token" value={secret.token} sx={{ mt: 1 }} InputProps={{ readOnly: true }} />
       <Button size="small" onClick={() => setSecret(null)}>Hide token</Button>
     </Alert>}
-    <Alert severity="info" sx={{ mt: 1.5 }}>
+    {showHelp && <Alert severity="info" sx={{ mt: 1.5 }}>
       Device assignment: select PC → Detect COM → choose port → Test PLC Connection → Save. Agent Online does not mean PLC Connected. Currently PC Agent supports read-only Delta PLC Scale, not Conveyor motor controls or RFID protocols.
-    </Alert>
+    </Alert>}
   </Box>;
 }

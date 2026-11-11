@@ -192,7 +192,7 @@ export default function OrderScanPage() {
     const soft = isPass ? '#F0FDF4' : '#FEF2F2';
     const Icon = isPass ? CheckCircleOutlineOutlined : WarningAmberOutlined;
     return (
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', borderColor: isPass ? '#BBF7D0' : '#FECACA', minWidth: 0 }}>
+      <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden', borderColor: isPass ? '#BBF7D0' : '#FECACA', minWidth: 0 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ px: 1.5, py: 1.05, bgcolor: soft, borderBottom: `1px solid ${isPass ? '#BBF7D0' : '#FECACA'}` }}>
           <Stack direction="row" spacing={0.8} alignItems="center">
             <Icon sx={{ color: tone, fontSize: 21 }} />
@@ -264,9 +264,9 @@ export default function OrderScanPage() {
       </Stack>
 
       {loading ? (
-        <Paper variant="outlined" sx={{ py: 8, textAlign: 'center', borderRadius: 2 }}><CircularProgress /></Paper>
+        <Paper variant="outlined" sx={{ py: 8, textAlign: 'center', borderRadius: '4px' }}><CircularProgress /></Paper>
       ) : !weightStageReady ? (
-        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px' }}>
           <Alert severity="warning" sx={{ py: 0.25, '& .MuiAlert-message': { py: 0.35, fontSize: '0.78rem' } }}>
             Weight Check is available only after Barcode Assignment reaches 100%.
           </Alert>
@@ -283,7 +283,7 @@ export default function OrderScanPage() {
             variant="outlined"
             sx={{
               p: { xs: 1, md: 1.2 },
-              borderRadius: 2,
+              borderRadius: '4px',
               borderColor: '#DCE5EF',
               boxShadow: '0 5px 18px rgba(16, 59, 92, 0.04)',
               bgcolor: '#FFFFFF'

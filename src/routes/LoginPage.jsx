@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../hooks/useAutoDismissFeedback';
 // src/pages/LoginPage.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -193,13 +194,15 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [accountNotice] = useState(() => {
+  useAutoDismissFeedback(loginError, setLoginError, '', 'error');
+  const [accountNotice, setAccountNotice] = useState(() => {
     const query = new URLSearchParams(window.location.search);
     if (query.get('accountChanged') !== 'true') return '';
     return query.get('accountDisabled') === 'true'
       ? 'Your account is no longer available for this session. It may have been disabled, deleted, or its email address may have changed. Please contact your administrator for assistance.'
       : 'An administrator has updated your account or access permissions. You have been signed out automatically. Please sign in again.';
   });
+  useAutoDismissFeedback(accountNotice, setAccountNotice, '', 'info');
 
   // A successful self-service password change invalidates all existing JWTs.
   useEffect(() => {
@@ -408,7 +411,7 @@ export default function LoginPage() {
           width: 'min(1120px, calc(100vw - 48px))',
           minWidth: 980,
           overflow: 'hidden',
-          borderRadius: 4,
+          borderRadius: '4px',
           display: 'flex',
           flexDirection: 'row',
           boxShadow: '0 28px 85px rgba(3, 22, 35, 0.28)',
@@ -524,7 +527,7 @@ export default function LoginPage() {
           }}
         >
           <Box sx={{ width: '100%', maxWidth: 350 }}>
-            <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+            <ToastContainer position="top-right" autoClose={5000} hideProgressBar />
 
             <Typography
               sx={{
@@ -568,7 +571,7 @@ export default function LoginPage() {
                   }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      borderRadius: 2.5,
+                      borderRadius: '4px',
                       backgroundColor: '#FFFFFF',
                       '& fieldset': { borderColor: alpha('#0B5A76', 0.2) },
                       '&:hover fieldset': { borderColor: alpha('#0B5A76', 0.45) },
@@ -612,7 +615,7 @@ export default function LoginPage() {
                   error={Boolean(loginError)}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      borderRadius: 2.5,
+                      borderRadius: '4px',
                       backgroundColor: '#FFFFFF',
                       '& fieldset': { borderColor: alpha('#0B5A76', 0.2) },
                       '&:hover fieldset': { borderColor: alpha('#0B5A76', 0.45) },
@@ -645,7 +648,7 @@ export default function LoginPage() {
                   }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      borderRadius: 2.5,
+                      borderRadius: '4px',
                       backgroundColor: '#FFFFFF',
                       '& fieldset': { borderColor: alpha('#0B5A76', 0.2) },
                       '&:hover fieldset': { borderColor: alpha('#0B5A76', 0.45) },
@@ -672,7 +675,7 @@ export default function LoginPage() {
                   }}
                   helperText="Select RFID, UnRFID, or Factory Use Only. Your access permissions are checked when you sign in."
                   InputLabelProps={{ sx: { fontWeight: 750 } }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5, backgroundColor: '#FFFFFF' } }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px', backgroundColor: '#FFFFFF' } }}
                 >
                   <MenuItem value="" disabled>Select Type</MenuItem>
                   {SYSTEM_TYPE_OPTIONS.map((option) => {
@@ -687,7 +690,7 @@ export default function LoginPage() {
                   <Box
                     sx={{
                       p: 1.2,
-                      borderRadius: 2,
+                      borderRadius: '4px',
                       border: `1px solid ${alpha('#DC2626', 0.28)}`,
                       backgroundColor: alpha('#DC2626', 0.07)
                     }}
@@ -706,7 +709,7 @@ export default function LoginPage() {
                   sx={{
                     height: 53,
                     mt: 0.5,
-                    borderRadius: 2.5,
+                    borderRadius: '4px',
                     textTransform: 'none',
                     fontWeight: 900,
                     fontSize: '1rem',

@@ -1,10 +1,10 @@
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Autocomplete, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
-import { Add, AutoAwesome, CheckCircleOutline, Close, ContentCopy, Delete, Edit, EmailOutlined, LockReset, VisibilityOutlined } from '@mui/icons-material';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Autocomplete, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Add, AddAPhotoOutlined, AutoAwesome, CheckCircleOutline, Close, ContentCopy, Delete, Edit, EmailOutlined, LockReset, VisibilityOutlined } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
-import { createDepartment, createUser, deleteUser, generateUserPassword, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser } from 'services/adminService';
+import { createDepartment, createUser, createUserWithAvatar, deleteUser, generateUserPassword, getUserAvatarForAdmin, listBuyersAdmin, listDepartments, listUsers, resetUserPassword, updateUser, updateUserWithAvatar } from 'services/adminService';
 import { ACCESS_PERMISSION, ACCESS_PERMISSION_LABEL, ROLE, USER_ACCESS_PERMISSIONS, LULULEMON_PERMISSION_LABEL, BUYER_CODE, SYSTEM_TYPE, DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
 import useActiveFactories from '../../common/factory/useActiveFactories';
 import { isFactoryCode } from '../../common/factory/factoryCodes';
@@ -28,7 +28,10 @@ const permissionGroupsForUser = (user) => {
   ].filter((group) => group.items.length > 0);
 };
 
-const permissionChipSx = { height: 25, fontWeight: 700, fontSize: '0.72rem', borderRadius: '7px' };
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const VALID_AVATAR_TYPES = ['image/jpeg', 'image/png'];
+
+const permissionChipSx = { height: 25, fontWeight: 700, fontSize: '0.72rem', borderRadius: '4px' };
 
 function PermissionSummaryCell({ user, onView }) {
   if (user.role === ROLE.ADMIN) {
@@ -75,7 +78,7 @@ function PermissionDetailsDialog({ user, onClose, onEdit }) {
               Buyer permissions grant actions only within assigned Factories; Department does not grant access.
             </Alert>
             {groups.map((group) => (
-              <Box key={group.code} sx={{ border: '1px solid #E2E8F0', borderRadius: 2, overflow: 'hidden' }}>
+              <Box key={group.code} sx={{ border: '1px solid #E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center"
                   sx={{ px: 1.75, py: 1.15, bgcolor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                   <Typography fontWeight={800} fontSize="0.83rem">{group.label}</Typography>
@@ -106,7 +109,7 @@ function PermissionChoice({ title, detail, checked, disabled, onChange }) {
   return (
     <FormControlLabel
       sx={{ m: 0, minWidth: 0, alignItems: 'center', border: '1px solid', borderColor: checked ? '#A5BFFF' : '#E2E8F0',
-        bgcolor: checked ? '#F3F7FF' : '#FFFFFF', borderRadius: 1.5, px: 0.75, py: 0.65,
+        bgcolor: checked ? '#F3F7FF' : '#FFFFFF', borderRadius: '4px', px: 0.75, py: 0.65,
         '&:hover': disabled ? {} : { borderColor: '#99B7F1' } }}
       control={<Checkbox size="small" checked={checked} disabled={disabled} onChange={onChange} sx={{ p: 0.75, mr: 0.55 }} />}
       label={<Box sx={{ minWidth: 0, py: 0.25 }}>
@@ -174,9 +177,21 @@ export default function UserManagementPage() {
   useOrganizationRealtime(ORGANIZATION_REALTIME.USER, () => load(state.page, state.size));
   useEffect(() => { listBuyersAdmin({ active: true, page: 0, size: 200 }).then((r) => setBuyers(r.content || [])).catch(() => {}); }, []);
 
-  const save = async (body) => {
-    // Let the dialog show API validation errors without closing or hiding them behind the overlay.
-    dialog?.id ? await updateUser(dialog.id, body) : await createUser(body);
+  const save = async (body, { file = null, remove = false } = {}) => {
+    // Admin saves the user and optional photo together, never from My Profile.
+    // Server validates image bytes before mutating user details.
+    const editingId = dialog?.id;
+    if (editingId) {
+      if (file || remove) await updateUserWithAvatar(editingId, body, { file, remove });
+      else await updateUser(editingId, body);
+    } else if (file) {
+      await createUserWithAvatar(body, file);
+    } else {
+      await createUser(body);
+    }
+    // Refresh private Header avatar if the edited user was the current Admin.
+    // The event is harmless when Admin edited another account.
+    if (editingId && (file || remove)) window.dispatchEvent(new Event('bsl:avatar-changed'));
     setDialog(null);
     await load(0, state.size);
   };
@@ -311,6 +326,75 @@ function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCo
     weighingFactoryPermissions: row.weighingFactoryPermissions || []
   });
 
+  const avatarInputRef = useRef(null);
+  const storedAvatarRef = useRef('');
+  const previewAvatarRef = useRef('');
+  const [existingAvatarUrl, setExistingAvatarUrl] = useState('');
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(Boolean(row.id));
+  const [avatarError, setAvatarError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadAvatar = async () => {
+      if (!row.id) { setAvatarLoading(false); return; }
+      try {
+        const response = await getUserAvatarForAdmin(row.id);
+        if (!active) return;
+        const blob = response.status === 200 ? response.data : null;
+        const url = blob?.size ? URL.createObjectURL(blob) : '';
+        storedAvatarRef.current = url;
+        setExistingAvatarUrl(url);
+      } catch (error) {
+        if (active) setAvatarError('Could not load the existing photo. You can still save User details.');
+      } finally {
+        if (active) setAvatarLoading(false);
+      }
+    };
+    loadAvatar();
+    return () => {
+      active = false;
+      if (storedAvatarRef.current) URL.revokeObjectURL(storedAvatarRef.current);
+      if (previewAvatarRef.current) URL.revokeObjectURL(previewAvatarRef.current);
+      storedAvatarRef.current = '';
+      previewAvatarRef.current = '';
+    };
+  }, [row.id]);
+
+  const selectAvatar = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    if (!VALID_AVATAR_TYPES.includes(file.type) || !file.size || file.size > MAX_AVATAR_BYTES) {
+      // Do not leave a previously selected photo queued when a new selection is invalid.
+      if (previewAvatarRef.current) URL.revokeObjectURL(previewAvatarRef.current);
+      previewAvatarRef.current = '';
+      setAvatarFile(null);
+      setAvatarPreviewUrl('');
+      setAvatarError(!VALID_AVATAR_TYPES.includes(file.type)
+        ? 'Choose a JPG or PNG photo.' : 'Photo must be 5 MB or smaller.');
+      return;
+    }
+    if (previewAvatarRef.current) URL.revokeObjectURL(previewAvatarRef.current);
+    const url = URL.createObjectURL(file);
+    previewAvatarRef.current = url;
+    setAvatarFile(file);
+    setAvatarPreviewUrl(url);
+    setRemoveAvatar(false);
+    setAvatarError('');
+  };
+
+  const clearAvatar = () => {
+    if (previewAvatarRef.current) URL.revokeObjectURL(previewAvatarRef.current);
+    previewAvatarRef.current = '';
+    setAvatarFile(null);
+    setAvatarPreviewUrl('');
+    setRemoveAvatar(Boolean(row.id && existingAvatarUrl));
+    setAvatarError('');
+  };
+
   const [quickAdd, setQuickAdd] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -326,13 +410,13 @@ function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCo
     && (!esSelected || f.accessPermissions.length > 0));
   const canSave = Boolean(f.username.trim() && f.email.trim() && (editing || f.password.length >= 8)
     && hasRequiredAccess && !missingSelectedDepartment && (!luluSelected || inactiveFactoryCodes.length === 0)
-    && !saving && (!factoriesLoading || f.role === ROLE.ADMIN) && (!factoryError || f.role === ROLE.ADMIN));
+    && !saving && !avatarLoading && (!factoriesLoading || f.role === ROLE.ADMIN) && (!factoryError || f.role === ROLE.ADMIN));
   const submit = async () => {
     if (!canSave) return;
     setSaving(true);
     setFormError('');
-    try { await onSave(body); }
-    catch (error) { setFormError(error?.response?.data?.message || error.message || 'Unable to save user'); }
+    try { await onSave(body, { file: avatarFile, remove: removeAvatar }); }
+    catch (error) { setFormError(error?.response?.data?.message || error.message || 'Unable to save user and photo'); }
     finally { setSaving(false); }
   };
   const addFactory = async (values) => {
@@ -410,6 +494,28 @@ function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCo
       <DialogTitle>{editing ? 'Edit' : 'Add'} User</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ pb: 1 }}>
+            <Avatar src={avatarPreviewUrl || (!removeAvatar ? existingAvatarUrl : '') || undefined}
+              alt={f.username} sx={{ width: 74, height: 74, bgcolor: '#E9F1FF', color: '#2563EB', fontSize: 26, fontWeight: 800 }}>
+              {(f.username || 'U').slice(0, 1).toUpperCase()}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography fontWeight={800} variant="body2">User Avatar</Typography>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
+                <input ref={avatarInputRef} hidden type="file" accept="image/jpeg,image/png" onChange={selectAvatar} />
+                <Button variant="outlined" size="small" startIcon={<AddAPhotoOutlined />}
+                  disabled={saving || avatarLoading} onClick={() => avatarInputRef.current?.click()}>
+                  {avatarFile || existingAvatarUrl ? 'Change Photo' : 'Upload Photo'}
+                </Button>
+                <Button size="small" color="error" disabled={saving || avatarLoading || (!avatarFile && (!existingAvatarUrl || removeAvatar))}
+                  onClick={clearAvatar}>Remove</Button>
+              </Stack>
+              <Typography variant="caption" color="text.secondary">Admin only · JPG / PNG, max 5 MB · saved with User details</Typography>
+              {avatarLoading ? <Typography variant="caption" sx={{ display: 'block' }}>Loading photo…</Typography> : null}
+              {avatarError ? <Alert sx={{ mt: 0.75, py: 0 }} severity="warning" onClose={() => setAvatarError('')}>{avatarError}</Alert> : null}
+            </Box>
+          </Stack>
+          <Divider />
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
             <TextField fullWidth label="Username" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />
             <TextField fullWidth label="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
@@ -479,7 +585,7 @@ function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCo
             const types = supportedSystemTypes(buyer).filter((type) =>
               buyer.buyerKey === BUYER_CODE.LULULEMON ? type === SYSTEM_TYPE.RFID
                 : buyer.buyerKey === BUYER_CODE.ENGELBERT_STRAUSS ? type === SYSTEM_TYPE.FACTORY_USE_ONLY : true);
-            return <Box key={buyer.buyerKey} sx={{ p: 1.25, border: '1px solid #DFE7EF', borderRadius: 2 }}>
+            return <Box key={buyer.buyerKey} sx={{ p: 1.25, border: '1px solid #DFE7EF', borderRadius: '4px' }}>
               <Typography fontWeight={700} fontSize="0.86rem">{buyer.buyerName || buyer.buyerKey}</Typography>
               <Stack direction="row" flexWrap="wrap">
                 {types.map((type) => <FormControlLabel key={type} control={<Checkbox
@@ -497,12 +603,12 @@ function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCo
           {f.role === ROLE.ADMIN ? (
             <Alert severity="info">Administrator has full access. Individual permission selections are not required.</Alert>
           ) : f.buyerPermissions.length === 0 ? (
-            <Box sx={{ p: 2, border: '1px dashed #CBD5E1', borderRadius: 2, bgcolor: '#F8FAFC' }}>
+            <Box sx={{ p: 2, border: '1px dashed #CBD5E1', borderRadius: '4px', bgcolor: '#F8FAFC' }}>
               <Typography variant="body2" color="text.secondary">Select a Buyer above to configure its permissions.</Typography>
             </Box>
           ) : null}
           {f.role !== ROLE.ADMIN && f.buyerPermissions.includes(BUYER_CODE.LULULEMON) && (
-            <Box sx={{ p: { xs: 1.25, sm: 2 }, border: '1px solid #DFE7EF', borderRadius: 2, bgcolor: '#F8FAFC' }}>
+            <Box sx={{ p: { xs: 1.25, sm: 2 }, border: '1px solid #DFE7EF', borderRadius: '4px', bgcolor: '#F8FAFC' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
                 <Typography fontWeight={800} fontSize="0.92rem">LULULEMON</Typography>
                 <Chip size="small" label={`${(f.buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || []).length} selected`} sx={permissionChipSx} />
@@ -526,7 +632,7 @@ function UserDialog({ row, departments, buyers, activeFactories, activeFactoryCo
             </Box>
           )}
           {f.role !== ROLE.ADMIN && f.buyerPermissions.includes(BUYER_CODE.ENGELBERT_STRAUSS) && (
-            <Box sx={{ p: { xs: 1.25, sm: 2 }, border: '1px solid #DFE7EF', borderRadius: 2, bgcolor: '#F8FAFC' }}>
+            <Box sx={{ p: { xs: 1.25, sm: 2 }, border: '1px solid #DFE7EF', borderRadius: '4px', bgcolor: '#F8FAFC' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
                 <Typography fontWeight={800} fontSize="0.92rem">ENGELBERT STRAUSS</Typography>
                 <Chip size="small" label={`${f.accessPermissions.length} selected`} sx={permissionChipSx} />

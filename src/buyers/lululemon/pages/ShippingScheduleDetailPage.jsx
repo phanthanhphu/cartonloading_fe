@@ -1,3 +1,5 @@
+import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Chip, CircularProgress, Divider, IconButton, ListItemText,
   Menu, MenuItem, Stack, Tooltip, Typography } from '@mui/material';
@@ -54,11 +56,14 @@ export default function ShippingScheduleDetailPage() {
   const editable = writable && Boolean(detail) && !detail.submitted;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [success, setSuccess] = useState('');
+  useAutoDismissFeedback(success, setSuccess, '', 'success');
   const [removing, setRemoving] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportError, setExportError] = useState('');
+  useAutoDismissFeedback(exportError, setExportError, '', 'error');
   const [adding, setAdding] = useState(false);
   const [filters, setFilters] = useState(emptyFilters);
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
@@ -274,7 +279,7 @@ export default function ShippingScheduleDetailPage() {
     await Promise.all([loadHeader(), loadTable(pagination.current.page, pagination.current.size)]);
   };
 
-  return <Box sx={{ p: { xs: 1, md: 1.5 } }}><Stack gap={1.25}>
+  return <Box sx={{ p: { xs: 1, md: 1.5 }, ...managementPageSx }}><Stack gap={1.25} sx={managementStackSx}>
     <Stack direction={{ xs: 'column', lg: 'row' }} alignItems={{ lg: 'center' }} justifyContent="space-between" gap={1}>
       <Stack direction="row" alignItems="center" gap={1}>
         <Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(backPath)}>Shipping Schedules</Button>
@@ -302,6 +307,7 @@ export default function ShippingScheduleDetailPage() {
     {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
     {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
     <ManagementTable
+          fillAvailableHeight
       title="POs in this Shipping Schedule"
       filterBar={<TableFilterBar fields={[
         { key: 'poNumber', label: 'PO No.' },
@@ -310,7 +316,7 @@ export default function ShippingScheduleDetailPage() {
         { key: 'sku', label: 'SKU' },
         { key: 'destination', label: 'Destination' },
         { key: 'status', label: 'Workflow Status' },
-        { key: 'inspectionStatus', label: 'Inspection Progress', options: [
+        { key: 'inspectionStatus', label: 'QC Progress', options: [
           { value: 'COMPLETED', label: 'Completed' }, { value: 'INCOMPLETE', label: 'Incomplete' },
           { value: 'IMPORTING', label: 'Importing' }, { value: 'NOT_STARTED', label: 'Imported / Not Started' }
         ] },

@@ -678,9 +678,9 @@ export const ACTIVE_FACTORY_HEADER = 'X-Active-Factory';
 
 // Operation feedback only. Persistent warnings, system status and confirmations must not auto-dismiss.
 export const FEEDBACK_DURATION_MS = Object.freeze({
-  SUCCESS: 4000,
-  ERROR: 6000,
-  INFO: 4500,
+  SUCCESS: 5000,
+  ERROR: 5000,
+  INFO: 5000,
 });
 
 // ALL_BP duplicate identity business errors returned by the shared backend.

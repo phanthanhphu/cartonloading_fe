@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, MenuItem, Paper, Stack, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
@@ -18,7 +19,9 @@ export default function StationDeviceAssignmentPage({ factoryCode = null }) {
   const [device, setDevice] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const load = useCallback(async () => {
     const [d, b] = await Promise.all([listStationDeviceCatalog(), listStationDeviceBindings()]);
     setCatalog(Array.isArray(d) ? d : []);
@@ -49,7 +52,7 @@ export default function StationDeviceAssignmentPage({ factoryCode = null }) {
     <Alert severity="info" sx={{ mb: 1 }}>Assign existing Conveyor and Scale devices to the appropriate Factory/Station. RFID Simulator is preserved and continues using its existing configuration and capture flow. Device user permissions are still enforced separately.</Alert>
     {error && <Alert severity="error" sx={{ mb: 1 }} onClose={()=>setError('')}>{error}</Alert>}
     {notice && <Alert severity="success" sx={{ mb: 1 }} onClose={()=>setNotice('')}>{notice}</Alert>}
-    <Paper variant="outlined" sx={{ borderRadius: 2, p: 1.5, mb: 1.5 }}>
+    <Paper variant="outlined" sx={{ borderRadius: '4px', p: 1.5, mb: 1.5 }}>
       <Stack direction={{xs:'column', md:'row'}} gap={1} alignItems={{md:'center'}}>
         {factoryCode ? <TextField size="small" label="Factory" sx={{ minWidth: 150 }} value={factoryCode} disabled />
           : <TextField select size="small" label="Factory" sx={{ minWidth: 150 }} value={factory} onChange={e=>{setFactory(e.target.value);setDevice('');}}>
@@ -66,7 +69,7 @@ export default function StationDeviceAssignmentPage({ factoryCode = null }) {
       </Stack>
       {factory && !candidates.length && <Typography variant="caption" color="text.secondary">No eligible {role.toLowerCase()} device for the chosen Factory/Station. Configure it in its own tab first.</Typography>}
     </Paper>
-    <Paper variant="outlined" sx={{ borderRadius: 2 }}>
+    <Paper variant="outlined" sx={{ borderRadius: '4px' }}>
       <TableContainer><Table size="small">
         <TableHead><TableRow>{['Factory','Station','Role','Device','Status','Actions'].map(x=><TableCell key={x}>{x}</TableCell>)}</TableRow></TableHead>
         <TableBody>

@@ -1,26 +1,12 @@
 import { useMemo } from 'react';
-import { AUTH_STORAGE_KEYS, BUYER_CODE, buyerOrderStorageKey } from '../../../../constants/appConstants';
-import { saveSelectedFactory, useSelectedFactory } from 'utils/factorySelection';
 import { matchPath, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import SwapHorizOutlined from '@mui/icons-material/SwapHorizOutlined';
 
 import Profile from './Profile';
-import {
-  getAccessibleBuyers,
-  getBuyerBySlug,
-  buyerPath,
-  readSelectedBuyer,
-  saveSelectedBuyer
-} from 'utils/buyerAccess';
-import { readStoredUser } from 'utils/accessControl';
-import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
-
+import WorkingContextSwitcher from './WorkingContextSwitcher';
+import { getBuyerBySlug } from '../../../../utils/buyerAccess';
 // Every real route gets an explicit page name. Keep specific routes above generic ones.
 // The app bar owns the page title; page bodies display only functional controls.
 const PAGE_MAP = [
@@ -90,31 +76,9 @@ const resolvePage = (pathname) => {
   };
 };
 
-const buyerSwitchTarget = (_pathname, buyer) => {
-  if (!buyer) return '/dashboard';
-  // Each Buyer owns a different workflow/menu. Switching Buyer must therefore open that
-  // Buyer's own landing page instead of forcing the legacy ES /orders route.
-  return getBuyerAccessLandingPath(buyer);
-};
-
 export default function HeaderContent() {
   const { pathname } = useLocation();
   const page = useMemo(() => resolvePage(pathname), [pathname]);
-  const user = readStoredUser();
-  const buyers = getAccessibleBuyers(user);
-  const pathBuyerMatch = pathname.match(/^\/buyers\/([^/]+)/i) || pathname.match(/^\/assign-barcode\/([^/]+)\//i) || pathname.match(/^\/packing\/shipments\/([^/]+)\//i);
-  const pathBuyer = pathBuyerMatch ? getBuyerBySlug(pathBuyerMatch[1]) : null;
-  const storedBuyer = readSelectedBuyer();
-  const activeBuyer = pathBuyer || buyers.find((buyer) => buyer.code === storedBuyer?.code) || buyers[0] || null;
-  const factory = useSelectedFactory(activeBuyer?.code);
-
-  const changeBuyer = (buyerCode) => {
-    const nextBuyer = buyers.find((buyer) => buyer.code === buyerCode);
-    if (!nextBuyer || nextBuyer.code === activeBuyer?.code) return;
-    // Buyer and Type are immutable claims in the JWT. Switching needs new login.
-    AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
-    window.location.assign('/login');
-  };
 
   return (
     <Box sx={{ width: 1, display: 'flex', alignItems: 'center', minWidth: 0, gap: 1.2 }}>
@@ -139,86 +103,7 @@ export default function HeaderContent() {
         </Typography>
       </Stack>
 
-      {buyers.length > 1 && activeBuyer ? (
-        <Select
-          size="small"
-          value={activeBuyer.code}
-          onChange={(event) => changeBuyer(event.target.value)}
-          renderValue={(value) => {
-            const selected = buyers.find((buyer) => buyer.code === value) || activeBuyer;
-            return (
-              <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
-                <SwapHorizOutlined sx={{ fontSize: 17, color: '#315C8A' }} />
-                <Typography sx={{ fontSize: '0.76rem', fontWeight: 800, color: '#183658', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {selected?.label || value}
-                </Typography>
-              </Stack>
-            );
-          }}
-          sx={{
-            minWidth: { xs: 118, sm: 150 },
-            maxWidth: 190,
-            height: 38,
-            borderRadius: 1.4,
-            bgcolor: '#FFFFFF',
-            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#D8E2EC' },
-            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#AFC3D8' },
-            '& .MuiSelect-select': { py: 0.75, pl: 1.15, pr: 4 }
-          }}
-        >
-          {buyers.map((buyer) => (
-            <MenuItem key={buyer.code} value={buyer.code}>
-              <Stack spacing={0.1}>
-                <Typography sx={{ fontSize: '0.79rem', fontWeight: 800 }}>{buyer.label}</Typography>
-                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>{buyer.code}</Typography>
-              </Stack>
-            </MenuItem>
-          ))}
-        </Select>
-      ) : null}
-
-      {buyers.length === 1 && activeBuyer ? (
-        <Typography sx={{ fontSize: '0.76rem', fontWeight: 800, color: '#183658', px: 1.1, whiteSpace: 'nowrap' }}>
-          {activeBuyer.label}
-        </Typography>
-      ) : null}
-
-      {activeBuyer ? (
-        <Button size="small" variant="text" onClick={() => {
-          AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
-          window.location.assign('/login');
-        }} sx={{ fontSize: '0.69rem', whiteSpace: 'nowrap' }}>
-          Switch Buyer / Type
-        </Button>
-      ) : null}
-
-      {activeBuyer?.code === BUYER_CODE.LULULEMON && !factory.loading && (factory.factories.length > 1 ? (
-        <Select size="small" aria-label="Switch Factory" value={factory.factoryCode}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (!factory.factories.includes(next) || next === factory.factoryCode) return;
-            // An Order / PO / Carton URL contains an Order ID from the previous Factory.
-            // A plain reload keeps that ID, producing a misleading empty PO list after
-            // the user switches Factory. Always return to the new Factory's Orders list.
-            const orderDetailMatch = pathname.match(/^\/buyers\/([^/]+)\/orders\/[^/]+(?:\/|$)/i);
-            const isCurrentBuyerOrder = orderDetailMatch &&
-              getBuyerBySlug(orderDetailMatch[1])?.code === activeBuyer.code;
-            saveSelectedFactory(next);
-            // Remembered Orders are not portable across Factory scopes.
-            localStorage.removeItem(buyerOrderStorageKey(activeBuyer.code));
-            if (isCurrentBuyerOrder) {
-              window.location.replace(buyerPath(activeBuyer, 'orders'));
-            } else {
-              // Full reload also clears request caches and in-progress page state.
-              window.location.reload();
-            }
-          }}
-          sx={{ minWidth: 92, height: 38, bgcolor: '#fff', borderRadius: 1.4 }}>
-          {factory.factories.map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
-        </Select>
-      ) : <Typography variant="caption" sx={{ px: 1, fontWeight: 800, color: '#315C8A' }}>
-        {factory.factoryCode || 'No Factory'}
-      </Typography>)}
+      <WorkingContextSwitcher pathname={pathname} />
 
       <Profile />
     </Box>

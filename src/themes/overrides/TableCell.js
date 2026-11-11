@@ -35,7 +35,7 @@ export default function TableCell() {
       styleOverrides: {
         root: {
           borderColor: '#DFE7EF',
-          borderRadius: 10,
+          borderRadius: '4px',
           // TableContainer is a scroll surface. `overflow: hidden` clipped rows/columns
           // and made Rows per page / Columns look as if they were not applied.
           overflowX: 'auto',

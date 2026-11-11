@@ -4,7 +4,7 @@ import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Checkbox, Chip, CircularProgress,
   Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Paper, Stack, TextField, Tooltip, Typography
 } from '@mui/material';
-import { Cable, Close, EditOutlined, ExpandMore, SettingsEthernet } from '@mui/icons-material';
+import { Cable, Close, EditOutlined, ExpandMore, HelpOutline, SettingsEthernet } from '@mui/icons-material';
 import { listScalePlcDevices } from '../services/scalePlcDevices';
 import { loadDeviceStatusSnapshot } from '../services/deviceStatusSocket';
 import {
@@ -86,6 +86,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
   const [labError, setLabError] = useState('');
   const [showMismatchWarning, setShowMismatchWarning] = useState(false);
   const [showConnectionWarning, setShowConnectionWarning] = useState(false);
+  const [showSetupHelp, setShowSetupHelp] = useState(false);
 
   // Only transient operation messages disappear. Safety instructions and blocking
   // configuration errors stay visible until the underlying issue is resolved.
@@ -129,6 +130,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
     let active = true;
     setLoading(true); setError(''); setSaveError(''); setLoadFailed(false); setNotice(''); setTestResult(null); setTestFailed(false);
     setLabInfo(null); setLabStatus(null); setLabError(''); setObservedStatus(null);
+    setShowSetupHelp(false);
     // No stale Factory data may be saved when a new Factory is selected.
     setDevices([]); setScales([]); setForm(blank(factoryCode));
     setConnection(connectionDraft([], []));
@@ -390,10 +392,18 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
           <SettingsEthernet color="primary" />
           <Box>
             <Typography variant="h6" fontWeight={800}>Conveyor Configuration</Typography>
-            <Typography variant="caption" color="text.secondary">Factory: {factoryName || factoryCode} ({factoryCode}) · One conveyor per Factory</Typography>
+            <Typography variant="caption" color="text.secondary">Factory: {factoryName || factoryCode} ({factoryCode})</Typography>
           </Box>
         </Stack>
-        <Tooltip title="Close"><span><IconButton disabled={busy || labBusy} onClick={close}><Close /></IconButton></span></Tooltip>
+        <Stack direction="row" alignItems="center" spacing={0.5}>
+          <Button size="small" variant="text" startIcon={<HelpOutline fontSize="small" />}
+            aria-label={showSetupHelp ? 'Hide conveyor configuration help' : 'Show conveyor configuration help'}
+            onClick={() => setShowSetupHelp((previous) => !previous)}
+            sx={{ minWidth: 0, whiteSpace: 'nowrap' }}>
+            {showSetupHelp ? 'Hide help' : 'Help'}
+          </Button>
+          <Tooltip title="Close"><span><IconButton disabled={busy || labBusy} onClick={close}><Close /></IconButton></span></Tooltip>
+        </Stack>
       </Stack>
     </DialogTitle>
     <DialogContent dividers>
@@ -415,7 +425,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
                 : existing ? 'Configured · not live-tested' : 'Not configured'} />
           </Stack>
           {editing && !plc && <Alert severity="warning">No Factory PLC is configured yet. Create it in the PLC column first; the Conveyor cannot create a second, independent PLC.</Alert>}
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#FAFCFF', borderRadius: 2 }}>
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#FAFCFF', borderRadius: '4px' }}>
             <Typography fontWeight={800} variant="subtitle2" sx={{ mb: 1 }}>Shared PLC connection</Typography>
             {editing ? <Stack gap={1.5}>
               <TextField select size="small" fullWidth label="Source" value={connection.source} disabled={busy}
@@ -427,7 +437,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
                 <TextField size="small" fullWidth required label="PLC IP / Host" value={connection.host} disabled={busy}
                   onChange={(e) => changeConnection('host', e.target.value)}
-                  helperText="Private/local IPv4 address" />
+                  helperText={showSetupHelp ? 'Private/local IPv4 address' : undefined} />
                 <TextField size="small" fullWidth required type="number" label="TCP Port" value={connection.port}
                   disabled={busy} inputProps={{ min: 1, max: 65535, step: 1 }}
                   onChange={(e) => changeConnection('port', e.target.value)} />
@@ -435,9 +445,9 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
                   disabled={busy} inputProps={{ min: 1, max: 247, step: 1 }}
                   onChange={(e) => changeConnection('unitId', e.target.value)} />
               </Box>
-              <Typography variant="caption" color="text.secondary">
+              {showSetupHelp && <Typography variant="caption" color="text.secondary">
                 Conveyor and Scale can use separate Modbus Unit IDs on the same server. Saving here never changes Scale PLC settings.
-              </Typography>
+              </Typography>}
               {connectionChanged && showConnectionWarning &&
                 <Alert severity="warning" sx={{ py: 0.5 }}>Saving will update Conveyor only: {pendingEndpointChanges.join('; ')}. Confirm the Conveyor slave before saving.</Alert>}
             </Stack> : endpoint?.host
@@ -445,7 +455,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
               : <Typography color="text.secondary" variant="body2">No shared PLC endpoint configured</Typography>}
             {mismatch && showMismatchWarning && <Alert severity="warning" sx={{ mt: 1 }}>Conveyor and Scale PLC use different IP/Port values: {endpointDifferences.join('; ')}. This may be intentional. Save changes to Conveyor only; Scale PLC is not changed.</Alert>}
           </Paper>
-          {!editing && existing ? <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+          {!editing && existing ? <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px' }}>
             {infoGrid([
               ['Device name', form.name], ['Device code', form.deviceCode], ['Packing station', form.stationCode],
               ['Mode', form.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'ModbusPal Simulator' : 'Real PLC profile (configuration only)'],
@@ -477,7 +487,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
               <Typography variant="body2">Conveyor enabled</Typography>
             </Stack>
           </>}
-          <Alert severity="info" sx={{ py: 0.25 }}>Test reads ModbusPal coils only. It does not run the motor. Conveyor RUN/STOP stays in Carton Weighing, and web STOP is not an emergency stop.</Alert>
+          {showSetupHelp && <Alert severity="info" sx={{ py: 0.25 }}>Test reads ModbusPal coils only. It does not run the motor. Conveyor RUN/STOP stays in Carton Weighing, and web STOP is not an emergency stop.</Alert>}
           {!editing && existing?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR && !mismatch && <Accordion variant="outlined" sx={{ '&:before': { display: 'none' } }}>
             <AccordionSummary expandIcon={<ExpandMore />}><Typography variant="subtitle2" fontWeight={700}>ModbusPal Test Lab · Admin only</Typography></AccordionSummary>
             <AccordionDetails>

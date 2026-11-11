@@ -1,3 +1,4 @@
+import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
@@ -92,8 +93,8 @@ export default function DepartmentManagement() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 0.75, md: 1 } }}>
-      <Stack spacing={1}>
+    <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
+      <Stack spacing={1} sx={managementStackSx}>
         <Typography fontWeight={800}>Factory & Department Management</Typography>
         {/* Match the compact underline tabs used in the LULULEMON All POs view. */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 0.25 }}>
@@ -140,7 +141,7 @@ export default function DepartmentManagement() {
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
         {activeTab === ORGANIZATION_MANAGEMENT_TAB.FACTORIES ? (
-          <ManagementTable rows={factories} count={factories.length} page={0} size={Math.max(factories.length, 1)}
+          <ManagementTable fillAvailableHeight autoHeight rows={factories} count={factories.length} page={0} size={Math.max(factories.length, 1)}
             rowsPerPage={Math.max(factories.length, 1)} columns={[
               { key: 'code', label: 'Factory Code' },
               { key: 'name', label: 'Factory Name' },
@@ -153,6 +154,8 @@ export default function DepartmentManagement() {
               <Alert severity="info">No Departments found. Choose Add Department to create one for an ACTIVE Factory.</Alert>
             ) : null}
             <ManagementTable
+              fillAvailableHeight
+              autoHeight
               filterBar={<TableFilterBar
                 fields={[
                   { key: 'factory', label: 'Factory', options: activeFactoryCodes.map((v) => ({ value: v, label: v })) },

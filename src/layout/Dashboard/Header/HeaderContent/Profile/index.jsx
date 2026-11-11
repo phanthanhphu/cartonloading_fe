@@ -3,7 +3,7 @@ import { alpha } from '@mui/material/styles';
 import {
   Alert, Box, Button, ButtonBase, Chip, CircularProgress, ClickAwayListener, Dialog, DialogActions,
   DialogContent, DialogTitle, Divider, IconButton, InputAdornment, ListItemIcon, ListItemText,
-  MenuItem, Paper, Popper, Stack, TextField, Typography
+  MenuItem, Paper, Popper, Stack, TextField, Typography, Avatar
 } from '@mui/material';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
@@ -11,7 +11,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import SecurityOutlinedIcon from '@mui/icons-material/SecurityOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import { changeMyPassword, getMyAccount } from '../../../../../services/accountService';
+import { changeMyPassword, getMyAccount, getMyAvatar } from '../../../../../services/accountService';
 import { clearAuthSession } from '../../../../../routes/globalApi';
 import { ACCESS_PERMISSION_LABEL, ROLE, STORAGE_KEY } from '../../../../../constants/appConstants';
 import useAutoDismissFeedback from '../../../../../hooks/useAutoDismissFeedback';
@@ -26,7 +26,7 @@ const readUser = () => {
 };
 
 const EMPTY_PASSWORDS = { currentPassword: '', newPassword: '', confirmPassword: '' };
-const compactSection = { p: 1.5, border: '1px solid #E4EAF1', borderRadius: 2, minWidth: 0 };
+const compactSection = { p: 1.5, border: '1px solid #E4EAF1', borderRadius: '4px', minWidth: 0 };
 
 function GrantList({ values, emptyText = 'Not assigned' }) {
   const items = [...new Set((values || []).filter(Boolean))];
@@ -49,6 +49,9 @@ function PermissionSection({ title, children }) {
 
 export default function Profile() {
   const anchorRef = useRef(null);
+  const storedAvatarUrl = useRef(null);
+  const avatarVersionRef = useRef(0);
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -60,6 +63,31 @@ export default function Profile() {
   const user = readUser();
   const firstLetter = String(user.username || 'U').charAt(0).toUpperCase();
   useAutoDismissFeedback(error, setError, '', 'error');
+
+  // Photo is read-only here. Admin uploads and removes it in User Management.
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      const version = ++avatarVersionRef.current;
+      getMyAvatar().then(response => {
+        if (!active || version !== avatarVersionRef.current) return;
+        const blob = response.status === 200 ? response.data : null;
+        const nextUrl = blob?.size ? URL.createObjectURL(blob) : '';
+        if (storedAvatarUrl.current) URL.revokeObjectURL(storedAvatarUrl.current);
+        storedAvatarUrl.current = nextUrl;
+        setAvatarUrl(nextUrl);
+      }).catch(() => { /* Keep initials if private photo cannot load. */ });
+    };
+    refresh();
+    window.addEventListener('bsl:avatar-changed', refresh);
+    return () => {
+      active = false;
+      ++avatarVersionRef.current;
+      window.removeEventListener('bsl:avatar-changed', refresh);
+      if (storedAvatarUrl.current) URL.revokeObjectURL(storedAvatarUrl.current);
+      storedAvatarUrl.current = null;
+    };
+  }, []);
 
   const logout = () => { clearAuthSession(); window.location.assign('/login'); };
   const closeDialog = () => {
@@ -115,20 +143,27 @@ export default function Profile() {
   const account = profile?.user;
   const admin = account?.role === ROLE.ADMIN || account?.role === ROLE.ROLE_ADMIN;
   const labels = (account?.accessPermissions || []).map(value => ACCESS_PERMISSION_LABEL[value] || value);
+  const avatarDisplay = (src, size = 38) => (
+    <Avatar src={src || undefined} alt={user.username} sx={{ width: size, height: size, bgcolor: alpha('#3B82F6', 0.08), color: '#2563EB', fontWeight: 900, fontSize: size > 60 ? 27 : 16 }}>
+      {firstLetter}
+    </Avatar>
+  );
 
   return (
     <Box sx={{ flexShrink: 0, ml: 0.75 }}>
       <ButtonBase ref={anchorRef} aria-label="open user menu" aria-haspopup="true" aria-expanded={open}
         onClick={() => setOpen(value => !value)} sx={{ width: 46, height: 46, p: 0.4, borderRadius: '50%', '&:hover': { bgcolor: alpha('#3B82F6', 0.07) } }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `2px solid ${alpha('#3B82F6', 0.78)}`, bgcolor: alpha('#3B82F6', 0.08), color: '#2563EB', fontWeight: 900 }}>{firstLetter}</Box>
+        <Box sx={{ borderRadius: '50%', border: `2px solid ${alpha('#3B82F6', 0.78)}`, overflow: 'hidden' }}>
+          {avatarDisplay(avatarUrl)}
+        </Box>
       </ButtonBase>
       <Popper placement="bottom-end" open={open} anchorEl={anchorRef.current}
         sx={{ zIndex: theme => theme.zIndex.modal + 1 }}
         popperOptions={{ modifiers: [{ name: 'offset', options: { offset: [0, 10] } }] }}>
         <ClickAwayListener onClickAway={() => setOpen(false)}>
-          <Paper sx={{ width: 270, borderRadius: 2.5, overflow: 'hidden', border: '1px solid #E8EEF5', boxShadow: '0 18px 60px rgba(24,54,84,.14)' }}>
+          <Paper sx={{ width: 270, borderRadius: '4px', overflow: 'hidden', border: '1px solid #E8EEF5', boxShadow: '0 18px 60px rgba(24,54,84,.14)' }}>
             <Stack direction="row" spacing={1.2} alignItems="center" sx={{ p: 2 }}>
-              <Box sx={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: alpha('#3B82F6', .08), color: '#2563EB' }}><AccountCircleOutlinedIcon sx={{ fontSize: 20 }} /></Box>
+              {avatarDisplay(avatarUrl)}
               <Box sx={{ minWidth: 0 }}><Typography sx={{ fontWeight: 800 }} noWrap>{user.username}</Typography>
                 <Typography sx={{ fontSize: '.72rem', color: 'text.secondary' }} noWrap>{user.email || user.role}</Typography></Box>
             </Stack>
@@ -152,7 +187,13 @@ export default function Profile() {
           {loading && <Stack direction="row" gap={1} alignItems="center"><CircularProgress size={18} /><Typography>Loading permissions...</Typography></Stack>}
           {account && <>
             <PermissionSection title="Account">
-              <Typography><b>{account.username || 'User'}</b> · {account.email}</Typography>
+              <Stack direction="row" gap={1.5} alignItems="center" sx={{ mb: 1.2 }}>
+                {avatarDisplay(avatarUrl, 56)}
+                <Box>
+                  <Typography><b>{account.username || 'User'}</b> · {account.email}</Typography>
+                  <Typography variant="caption" color="text.secondary">Photo managed by Admin in User Management</Typography>
+                </Box>
+              </Stack>
               <Typography variant="body2" color="text.secondary">Role: {account.role} · {account.enabled ? 'Active' : 'Disabled'}</Typography>
               {account.departmentId && <Typography variant="body2" color="text.secondary">Department: {account.departmentId}</Typography>}
             </PermissionSection>

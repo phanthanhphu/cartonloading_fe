@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useRef, useState } from 'react';
 import {
   Alert, Box, Button, CircularProgress, Dialog, DialogActions,
@@ -19,6 +20,7 @@ export default function LululemonExcelActions({ orderId, buyer = BUYER_CODE.LULU
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [duplicates, setDuplicates] = useState([]);
 
   const handleError = (err) => {

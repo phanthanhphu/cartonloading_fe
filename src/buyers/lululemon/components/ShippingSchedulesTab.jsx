@@ -1,3 +1,6 @@
+import { managementPanelSx, managementStackSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
+import { tableScrollbarSx } from 'components/TableScrollbarStyles';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, IconButton, Stack, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
@@ -14,7 +17,7 @@ const todayInVietnam = () => new Intl.DateTimeFormat('sv-SE', {
 }).format(new Date());
 
 /** Tab 2 is ONLY the Shipping Date list. View opens a dedicated PO table page. */
-export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoading, creating, onCloseCreating, visibleColumns }) {
+export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoading, creating, onCloseCreating, visibleColumns, fillAvailableHeight = false }) {
   const writable = canManageShipping();
   const canCreate = canCreateShippingSchedule();
   const canReopen = canReopenShippingSchedule();
@@ -26,7 +29,9 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
   const visibleColumnCount = ['stt', 'shippingDate', 'poCount', 'status', 'action'].filter((key) => columnsToShow.has(key)).length;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [success, setSuccess] = useState('');
+  useAutoDismissFeedback(success, setSuccess, '', 'success');
   const [deleting, setDeleting] = useState('');
   const [changingStatus, setChangingStatus] = useState('');
   const requestRef = useRef(0);
@@ -103,7 +108,7 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
     navigate(`/buyers/lululemon/orders/${encodeURIComponent(orderId)}/shipping-schedules/${encodeURIComponent(day)}`);
   };
 
-  return <Box sx={{ p: { xs: 0.5, md: 0.75 } }}><Stack spacing={1}>
+  return <Box sx={{ p: { xs: 0.5, md: 0.75 }, ...(fillAvailableHeight ? managementPanelSx : {}) }}><Stack spacing={1} sx={fillAvailableHeight ? managementStackSx : undefined}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
       <Stack direction="row" alignItems="center" gap={1}>
         <Typography variant="subtitle1" fontWeight={800}>Shipping Schedules</Typography>
@@ -117,8 +122,9 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
     </Stack>
     {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
     {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
-    <TableContainer sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2 }}>
-      <Table size="small"><TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
+    <TableContainer sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: '4px',
+      ...(fillAvailableHeight ? { overflowX: 'auto', ...managementTableViewportSx, ...tableScrollbarSx } : {}) }}>
+      <Table size="small" stickyHeader={fillAvailableHeight}><TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
         {columnsToShow.has('stt') && <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>}
         <TableCell sx={{ fontWeight: 800 }}>Shipping Date</TableCell>
         {columnsToShow.has('poCount') && <TableCell sx={{ fontWeight: 800 }}>Total POs</TableCell>}

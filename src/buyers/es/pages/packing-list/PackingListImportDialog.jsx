@@ -1,3 +1,4 @@
+import TransientAlert from '../../../../components/TransientAlert';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -49,11 +50,11 @@ export default function PackingListImportDialog({ open, importing, result, onClo
             </RadioGroup>
           </FormControl>
           {result && (
-            <Alert severity={result.applied ? 'success' : 'error'}>
+            <TransientAlert messageKey={JSON.stringify(result)} severity={result.applied ? 'success' : 'error'}>
               {result.applied
                 ? `Import completed: ${result.created || 0} created and ${result.updated || 0} updated.`
                 : `Import failed. ${result.errors?.[0]?.message || APP_MESSAGES.PLEASE_CHECK_FILE}`}
-            </Alert>
+            </TransientAlert>
           )}
         </Stack>
       </DialogContent>

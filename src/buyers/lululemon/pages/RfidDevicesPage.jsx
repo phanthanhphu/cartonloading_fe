@@ -145,7 +145,7 @@ export default function RfidDevicesPage({ factoryCode = null }) {
           </Button>
         </Stack>
       </Stack>
-      <Paper variant="outlined" sx={{ mt: 0.9, p: 1.05, borderRadius: 2 }}>
+      <Paper variant="outlined" sx={{ mt: 0.9, p: 1.05, borderRadius: '4px' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} gap={0.8} sx={{ mb: 0.9 }}>
           <TextField size="small" fullWidth label="Search Reader / ADB Serial" value={search} onChange={(e) => setSearch(e.target.value)} />
           {factoryCode ? <Button size="small" variant="outlined" onClick={() => setShowAvailable((current) => !current)}>
@@ -157,7 +157,7 @@ export default function RfidDevicesPage({ factoryCode = null }) {
             </TextField>}
         </Stack>
         {!devices.length && <Alert severity="info">No registered RFID Readers. Connect PDA through ADB, authorize USB debugging, then Refresh Readers.</Alert>}
-        <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, maxHeight: 'min(69vh, 760px)' }}>
+        <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '4px', maxHeight: 'min(69vh, 760px)' }}>
           <Table size="small" stickyHeader>
             <TableHead><TableRow>
               <TableCell sx={{ width: 60 }}>STT</TableCell>
@@ -206,7 +206,7 @@ export default function RfidDevicesPage({ factoryCode = null }) {
         </Typography>
       </Paper>
 
-      {editSerial && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: 2 }}>
+      {editSerial && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: '4px' }}>
         <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>ADMIN · {isNew ? 'Add RFID Reader' : 'Edit RFID Reader / Assign Factories'}</Typography>
           <Stack gap={1.5} sx={{ pt: 0.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -265,7 +265,7 @@ export default function RfidDevicesPage({ factoryCode = null }) {
           </Button>
         </Stack>
       </Paper>}
-      {deleteSerial && <Paper variant="outlined" sx={{ mt: 1.5, p: 2, borderRadius: 2, borderColor: 'error.main' }}>
+      {deleteSerial && <Paper variant="outlined" sx={{ mt: 1.5, p: 2, borderRadius: '4px', borderColor: 'error.main' }}>
         <Typography variant="subtitle1" fontWeight={800}>Delete RFID Reader?</Typography>
           <Typography>Remove configuration and Factory assignments for <strong>{deleteSerial}</strong>?</Typography>
           <Alert severity="info" sx={{ mt: 1 }}>Only configuration and Factory assignments are deleted, not EPC/history. If still physically connected, the Reader remains listed as DETECTED until disconnected.</Alert>

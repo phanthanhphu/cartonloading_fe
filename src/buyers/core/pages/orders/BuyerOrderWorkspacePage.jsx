@@ -1,3 +1,4 @@
+import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import LululemonExcelActions from 'buyers/lululemon/components/LululemonExcelActions';
 import ShippingSchedulesTab from 'buyers/lululemon/components/ShippingSchedulesTab';
 import PoDuplicateConflictDialog from 'buyers/lululemon/components/PoDuplicateConflictDialog';
@@ -29,7 +30,7 @@ import { createShippingSchedule, createWeighingOrder, deletePo, importAllBp, lis
 import { generatePackingList, importPackingAllocationLines } from 'buyers/es/services/packingListService';
 import { generateCartonPlanFromWsp } from 'buyers/es/services/cartonLoadingService';
 
-const emptyPoFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '', dcCode: '', masterPo: '', description: '', color: '' });
+const emptyPoFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '', dcCode: '', masterPo: '', description: '', color: '', channel: '' });
 const pageState = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
 const isSsccWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.LULULEMON;
 const isBarcodeWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.ENGELBERT_STRAUSS;
@@ -732,8 +733,8 @@ export default function BuyerOrderWorkspacePage() {
   const openPo = (row) => navigate(`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(row.key)}`);
 
   return (
-    <Box sx={{ p: { xs: 0.75, md: 1 } }}>
-      <Stack spacing={1}>
+    <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
+      <Stack spacing={1} sx={managementStackSx}>
         <CompactPageHeader
           title={order?.orderName || 'Order'}
           subtitle={isSsccWorkflowBuyer(buyer) ? 'Import Lululemon PO Excel (headers on row 2). Factory comes from this Order. Open a PO for SSCC / RFID / Weight.' : 'Purchase Orders · Cartons and Items are generated only when opened.'}
@@ -912,10 +913,10 @@ export default function BuyerOrderWorkspacePage() {
         {isSsccWorkflowBuyer(buyer) && poTab === 'scheduled' ? (
           <ShippingSchedulesTab orderId={orderId} factoryCode={selectedFactory} factoryLoading={factoryLoading}
             creating={creatingShippingSchedule} onCloseCreating={() => setCreatingShippingSchedule(false)}
-            visibleColumns={scheduleColumnKeys} />
+            visibleColumns={scheduleColumnKeys} fillAvailableHeight />
         ) : null}
 
-        {!(isSsccWorkflowBuyer(buyer) && poTab === 'scheduled') ? <ManagementTable
+        {!(isSsccWorkflowBuyer(buyer) && poTab === 'scheduled') ? <ManagementTable fillAvailableHeight
           filterBar={<TableFilterBar
           minFilterWidth={isSsccWorkflowBuyer(buyer) ? 210 : 150}
           desktopColumns={buyerCode === BUYER_CODE.LULULEMON ? 4 : undefined}
@@ -927,6 +928,7 @@ export default function BuyerOrderWorkspacePage() {
             { key: 'style', label: 'Style#' },
             { key: 'description', label: 'Description' },
             { key: 'color', label: 'Color description' },
+            { key: 'channel', label: 'Channel' },
             { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' }
           ] : [
             // Preserve the existing ES workflow filters.
@@ -1022,7 +1024,7 @@ export default function BuyerOrderWorkspacePage() {
               <Divider />
 
               {(poEditor.allBpRows || []).map((sourceRow, rowIndex) => (
-                <Box key={`all-bp-row-${rowIndex}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 1.5, p: 1.25 }}>
+                <Box key={`all-bp-row-${rowIndex}`} sx={{ border: 1, borderColor: 'divider', borderRadius: '4px', p: 1.25 }}>
                   <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
                     <Typography variant="subtitle2" fontWeight={900}>ALL_BP Row {rowIndex + 1}</Typography>
                     <Chip size="small" variant="outlined" label={`${(poEditor.headers || []).length} columns`} />

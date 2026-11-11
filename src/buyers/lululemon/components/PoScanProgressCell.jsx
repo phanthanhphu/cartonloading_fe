@@ -67,9 +67,9 @@ export default function PoScanProgressCell({ row, canonical, metrics }) {
             height: 5,
             width: '100%',
             maxWidth: 160,
-            borderRadius: 99,
+            borderRadius: '4px',
             bgcolor: 'action.hover',
-            '& .MuiLinearProgress-bar': { borderRadius: 99, transition: 'transform 300ms ease' }
+            '& .MuiLinearProgress-bar': { borderRadius: '4px', transition: 'transform 300ms ease' }
           }}
         />
       </Tooltip>

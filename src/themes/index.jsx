@@ -42,7 +42,7 @@ export default function ThemeCustomization({ children }) {
       },
       palette: theme.palette,
       shape: {
-        borderRadius: 8
+        borderRadius: 4
       },
       customShadows: themeCustomShadows,
       typography: themeTypography

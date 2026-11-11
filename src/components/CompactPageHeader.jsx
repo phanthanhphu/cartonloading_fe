@@ -32,7 +32,7 @@ export function CompactToolbar({ children, sx }) {
       sx={{
         px: 1.25,
         py: 0.9,
-        borderRadius: 2.25,
+        borderRadius: '4px',
         borderColor: '#DFE7EF',
         bgcolor: '#FFFFFF',
         boxShadow: '0 1px 2px rgba(30, 55, 80, 0.025)',
@@ -48,7 +48,7 @@ export function CompactToolbar({ children, sx }) {
 
 export function CompactStat({ label, value }) {
   return (
-    <Stack direction="row" spacing={0.5} alignItems="baseline" sx={{ px: 0.9, py: 0.45, borderRadius: 1.4, bgcolor: '#F5F8FB', border: '1px solid #EDF1F5' }}>
+    <Stack direction="row" spacing={0.5} alignItems="baseline" sx={{ px: 0.9, py: 0.45, borderRadius: '4px', bgcolor: '#F5F8FB', border: '1px solid #EDF1F5' }}>
       <Typography variant="caption" color="text.secondary">{label}</Typography>
       <Typography variant="body2" fontWeight={750} color="text.primary">{value ?? '—'}</Typography>
     </Stack>

@@ -1,3 +1,4 @@
+import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -212,8 +213,8 @@ export default function BuyerOrdersPage() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 0.75, md: 1 } }}>
-      <Stack spacing={1}>
+    <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
+      <Stack spacing={1} sx={managementStackSx}>
         {isLululemon && factoryError && <Alert severity="error">{factoryError}</Alert>}
         {isLululemon && !factoryLoading && !factoryCode && !factoryError && <Alert severity="warning">
           No active Factory assigned for LULULEMON. Ask Admin to assign a Factory before creating Orders or importing Excel.
@@ -239,6 +240,7 @@ export default function BuyerOrdersPage() {
         
 
         <ManagementTable
+          fillAvailableHeight
           filterBar={<TableFilterBar
           fields={[
             { key: 'orderDate', label: 'Start Order', type: 'date' },

@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import { DEFAULT_TABLE_PAGE_SIZE, OPERATION_ROUTE, BARCODE_CARTON_STATUS, COMMON_FILTER, PROGRESS_STATUS, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
@@ -94,7 +95,9 @@ export default function BarcodeAssignmentPage() {
   const [loadingOrder, setLoadingOrder] = useState(true);
   const [loadingRows, setLoadingRows] = useState(true);
   const [pageError, setPageError] = useState('');
+  useAutoDismissFeedback(pageError, setPageError, '', 'error');
   const [pageNotice, setPageNotice] = useState('');
+  useAutoDismissFeedback(pageNotice, setPageNotice, '', 'success');
 
   const [selectedMaster, setSelectedMaster] = useState(null);
   const [cartons, setCartons] = useState([]);
@@ -107,7 +110,9 @@ export default function BarcodeAssignmentPage() {
   const [checkingBarcode, setCheckingBarcode] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [detailError, setDetailError] = useState('');
+  useAutoDismissFeedback(detailError, setDetailError, '', 'error');
   const [detailNotice, setDetailNotice] = useState('');
+  useAutoDismissFeedback(detailNotice, setDetailNotice, '', 'success');
 
   const eligibleCartons = useMemo(() => cartons.filter((carton) => (
     !carton.factoryBarcode
@@ -341,7 +346,7 @@ export default function BarcodeAssignmentPage() {
       {pageError && <Alert severity="error" sx={{ mb: 1 }}>{pageError}</Alert>}
       {pageNotice && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setPageNotice('')}>{pageNotice}</Alert>}
 
-      <Paper variant="outlined" sx={{ p: 1.15, mb: 0, borderRadius: '8px 8px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
+      <Paper variant="outlined" sx={{ p: 1.15, mb: 0, borderRadius: '2px 2px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ lg: 'center' }}>
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontWeight: 800, color: '#173B63' }}>Choose the Master row before packing</Typography>
@@ -372,7 +377,7 @@ export default function BarcodeAssignmentPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '0 0 2px 2px', overflow: 'hidden' }}>
         <StandardTableViewport sx={{ minHeight: 430, maxHeight: 'calc(100vh - 310px)', overflow: 'auto' }}>
           <SortableTable stickyHeader size="small" rowNumberStart={page * pageSize} sx={{ minWidth: 1680 }}>
             <TableHead>
@@ -478,7 +483,7 @@ export default function BarcodeAssignmentPage() {
                     variant="outlined"
                     sx={{
                       p: { xs: 1.25, md: 1.5 },
-                      borderRadius: 2,
+                      borderRadius: '4px',
                       borderColor: checkedBarcode ? 'success.main' : '#CBD5E1',
                       bgcolor: checkedBarcode ? '#F4FBF7' : '#FFFFFF'
                     }}
@@ -553,7 +558,7 @@ export default function BarcodeAssignmentPage() {
                   </Alert>
                 )}
 
-                <Paper variant="outlined" sx={{ borderRadius: 1.5, overflow: 'hidden', opacity: checkedBarcode || eligibleCartons.length === 0 ? 1 : 0.72 }}>
+                <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden', opacity: checkedBarcode || eligibleCartons.length === 0 ? 1 : 0.72 }}>
                   <Box sx={{ px: 1.2, py: 0.9, bgcolor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={0.4} alignItems={{ sm: 'center' }}>
                       <Box>
@@ -570,7 +575,7 @@ export default function BarcodeAssignmentPage() {
                       />
                     </Stack>
                   </Box>
-                  <StandardTableViewport sx={{ maxHeight: 310 }}>
+                  <StandardTableViewport pageScroll={false} sx={{ maxHeight: 310 }}>
                     <SortableTable stickyHeader size="small" sx={{ minWidth: 930 }}>
                       <TableHead>
                         <TableRow>
@@ -669,7 +674,7 @@ export default function BarcodeAssignmentPage() {
                     variant="outlined"
                     sx={{
                       p: { xs: 1.25, md: 1.5 },
-                      borderRadius: 2,
+                      borderRadius: '4px',
                       borderColor: quantityMismatch ? 'error.main' : '#8AB9E8',
                       bgcolor: quantityMismatch ? '#FFF7F7' : '#F7FBFF'
                     }}

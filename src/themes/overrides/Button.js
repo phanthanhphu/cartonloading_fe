@@ -93,14 +93,14 @@ export default function Button(theme) {
             top: 0,
             width: '100%',
             height: '100%',
-            borderRadius: 8,
+            borderRadius: '4px',
             opacity: 0,
             transition: 'all 0.5s'
           },
 
           '&:active::after': {
             position: 'absolute',
-            borderRadius: 8,
+            borderRadius: '4px',
             left: 0,
             top: 0,
             opacity: 1,

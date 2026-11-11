@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -26,7 +27,7 @@ const statusSx = (value) => {
     IN_PROGRESS: { color: '#7A4E00', backgroundColor: '#FFF4CC' },
     NOT_STARTED: { color: '#315C8A', backgroundColor: '#EDF4FB' }
   };
-  return { height: 22, borderRadius: 999, fontWeight: 750, fontSize: '0.67rem', ...(colors[status] || { color: '#475569', backgroundColor: '#F1F5F9' }) };
+  return { height: 22, borderRadius: '4px', fontWeight: 750, fontSize: '0.67rem', ...(colors[status] || { color: '#475569', backgroundColor: '#F1F5F9' }) };
 };
 
 export default function AssignBarcodePage() {
@@ -47,6 +48,7 @@ export default function AssignBarcodePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
 
   const buyer = useMemo(() => buyers.find((item) => item.code === buyerCode) || null, [buyers, buyerCode]);
 
@@ -102,7 +104,7 @@ export default function AssignBarcodePage() {
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
       {error ? <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> : null}
 
-      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.75, overflow: 'hidden', bgcolor: '#FFFFFF' }}>
+      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={0.8} alignItems={{ lg: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
           <TextField size="small" label="Search Order" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { lg: 260 } }} />
           <TextField select size="small" label="Barcode Assignment Status" value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 170 } }}>
@@ -123,7 +125,7 @@ export default function AssignBarcodePage() {
             ['Barcode Assigned', `${assigned.toLocaleString(FORMAT_LOCALE.EN_US)} / ${cartons.toLocaleString(FORMAT_LOCALE.EN_US)}`, <QrCode2Outlined key="c" />],
             ['Assignment completed', completedOrders.toLocaleString(FORMAT_LOCALE.EN_US), <QrCode2Outlined key="d" />]
           ].map(([title, value, icon]) => (
-            <Stack key={title} direction="row" spacing={0.8} alignItems="center" sx={{ p: 0.8, bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 1.35 }}>
+            <Stack key={title} direction="row" spacing={0.8} alignItems="center" sx={{ p: 0.8, bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '4px' }}>
               <Box sx={{ color: '#0A6ED1', display: 'grid', placeItems: 'center', '& svg': { fontSize: 20 } }}>{icon}</Box>
               <Box>
                 <Typography sx={{ fontSize: '0.67rem', color: '#71849A', fontWeight: 650 }}>{title}</Typography>

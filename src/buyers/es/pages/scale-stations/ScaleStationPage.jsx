@@ -104,7 +104,7 @@ export default function ScaleStationPage() {
 
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
-      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.75, overflow: 'hidden', bgcolor: '#fff' }}>
+      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#fff' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ px: 1, py: 0.75, borderBottom: '1px solid #DCE4EC' }}>
           <Typography sx={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 650 }}>{rows.length} station(s)</Typography>
           <Stack direction="row" spacing={0.6}>
@@ -187,7 +187,7 @@ export default function ScaleStationPage() {
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={notice.open} autoHideDuration={4500} onClose={() => setNotice((v) => ({ ...v, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((v) => ({ ...v, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert severity={notice.severity} onClose={() => setNotice((v) => ({ ...v, open: false }))}>{notice.message}</Alert>
       </Snackbar>
     </Box>

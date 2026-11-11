@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,6 +19,7 @@ export default function PackingShipmentInboxPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!buyerCode || busy) return undefined;

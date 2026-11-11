@@ -1,3 +1,6 @@
+import { managementPageSx, managementStackSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
+import { tableScrollbarSx } from 'components/TableScrollbarStyles';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, IconButton, Stack, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
@@ -26,7 +29,9 @@ export default function ShippingSchedulesPage() {
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [success, setSuccess] = useState('');
+  useAutoDismissFeedback(success, setSuccess, '', 'success');
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState('');
   const [changingStatus, setChangingStatus] = useState('');
@@ -82,8 +87,8 @@ export default function ShippingSchedulesPage() {
     finally { setChangingStatus(''); }
   };
 
-  return <Box sx={{ p: { xs: 1, md: 2 } }}>
-    <Stack spacing={1.5}>
+  return <Box sx={{ p: { xs: 1, md: 2 }, ...managementPageSx }}>
+    <Stack spacing={1.5} sx={managementStackSx}>
       <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ md: 'center' }} justifyContent="space-between" gap={1}>
         <Stack direction="row" alignItems="center" gap={1}>
           <Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(basePath)}>All POs</Button>
@@ -104,8 +109,8 @@ export default function ShippingSchedulesPage() {
       </Stack>
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
-      <TableContainer sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2 }}>
-        <Table size="small"><TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
+      <TableContainer sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: '4px', overflowX: 'auto', ...managementTableViewportSx, ...tableScrollbarSx }}>
+        <Table size="small" stickyHeader><TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
           <TableCell sx={{ fontWeight: 800 }}>Shipping Date</TableCell>
           <TableCell sx={{ fontWeight: 800 }}>POs</TableCell>
           <TableCell sx={{ fontWeight: 800 }}>Factory</TableCell>

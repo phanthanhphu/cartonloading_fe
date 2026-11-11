@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Paper, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
@@ -21,7 +22,9 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState('');
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
   const [notice, setNotice] = useState('');
+  useAutoDismissFeedback(notice, setNotice, '', 'success');
   const [advanced, setAdvanced] = useState(false);
   const load = useCallback(async () => {
     const devices = await listConveyorDevices();
@@ -65,7 +68,7 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
     <Alert severity="warning" sx={{ mb: 1 }}>SIMULATOR: ModbusPal on port 1502 supports RUN/STOP testing. REAL: register a device profile for later commissioning; no physical motor commands are enabled. The existing RFID Simulator is unchanged.</Alert>
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 1 }}>{error}</Alert>}
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 1 }}>{notice}</Alert>}
-    <Paper variant="outlined" sx={{ borderRadius: 2, p: 1 }}>
+    <Paper variant="outlined" sx={{ borderRadius: '4px', p: 1 }}>
       {!factoryCode && <TextField size="small" select label="Factory" value={filter} sx={{ minWidth: 160, mb: 1 }} onChange={e => setFilter(e.target.value)}>
         <MenuItem value="ALL">All factories</MenuItem>{factories.map(f => <MenuItem key={f} value={f}>{f}</MenuItem>)}
       </TextField>}
@@ -92,7 +95,7 @@ export default function ConveyorPlcDevicesPage({ factoryCode = null }) {
         </TableBody>
       </Table></TableContainer>
     </Paper>
-    {form && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: 2 }}>
+    {form && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: '4px' }}>
       <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>{editing ? 'Edit Conveyor Device' : 'Add Conveyor Device'}</Typography>
       <Stack spacing={1.5}>
         <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>

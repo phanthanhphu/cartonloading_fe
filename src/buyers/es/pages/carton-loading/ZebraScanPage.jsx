@@ -103,7 +103,7 @@ function StatCard({ label, value, icon, color = 'primary.main', suffix = '' }) {
       sx={{
         p: 1.5,
         height: '100%',
-        borderRadius: 2.5,
+        borderRadius: '4px',
         bgcolor: 'background.paper'
       }}
     >
@@ -113,7 +113,7 @@ function StatCard({ label, value, icon, color = 'primary.main', suffix = '' }) {
             width: 42,
             height: 42,
             flexShrink: 0,
-            borderRadius: 2,
+            borderRadius: '4px',
             bgcolor: `${color}14`,
             color,
             display: 'grid',
@@ -423,7 +423,7 @@ export default function ZebraScanPage() {
           variant="outlined"
           sx={{
             p: { xs: 1.75, md: 2.25 },
-            borderRadius: 3,
+            borderRadius: '4px',
             background: 'linear-gradient(135deg, rgba(20, 94, 168, 0.08) 0%, rgba(255,255,255,1) 48%)'
           }}
         >
@@ -459,7 +459,7 @@ export default function ZebraScanPage() {
         <Grid container spacing={2} alignItems="stretch">
           <Grid item xs={12} xl={9}>
             <Stack spacing={2}>
-              <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: 3 }}>
+              <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '4px' }}>
                 <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
                   <TuneOutlinedIcon color="primary" />
                   <Typography variant="h5" fontWeight={950}>Workstation setup</Typography>
@@ -521,7 +521,7 @@ export default function ZebraScanPage() {
               </Paper>
 
               {progress && (
-                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3 }}>
+                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px' }}>
                   <Grid container spacing={1.25}>
                     <Grid item xs={12} sm={6} lg={3}>
                       <StatCard label="Planned cartons" value={progress.plannedCartons} icon={<Inventory2OutlinedIcon />} />
@@ -541,14 +541,14 @@ export default function ZebraScanPage() {
                       <StatCard label="Order progress" value={percent.toFixed(1)} suffix="%" icon={<HistoryOutlinedIcon />} color="info.main" />
                     </Grid>
                   </Grid>
-                  <LinearProgress variant="determinate" value={percent} sx={{ mt: 1.25, height: 9, borderRadius: 8 }} />
+                  <LinearProgress variant="determinate" value={percent} sx={{ mt: 1.25, height: 9, borderRadius: '4px' }} />
                 </Paper>
               )}
 
               <Card
                 variant="outlined"
                 sx={{
-                  borderRadius: 3,
+                  borderRadius: '4px',
                   borderWidth: 2,
                   borderColor: waiting
                     ? 'warning.main'
@@ -669,7 +669,7 @@ export default function ZebraScanPage() {
                     </Box>
                   )}
 
-                  {busy && <LinearProgress sx={{ mt: 1.5, height: 8, borderRadius: 8 }} />}
+                  {busy && <LinearProgress sx={{ mt: 1.5, height: 8, borderRadius: '4px' }} />}
 
                   {waiting && (
                     <Stack spacing={1.5} alignItems="center" textAlign="center" py={2}>
@@ -682,7 +682,7 @@ export default function ZebraScanPage() {
                       <Alert severity="warning" sx={{ width: '100%' }}>
                         Place this carton on the scale. Zebra scanning and manual input are locked until PLC returns a stable weight.
                       </Alert>
-                      <LinearProgress sx={{ width: '100%', height: 10, borderRadius: 8 }} />
+                      <LinearProgress sx={{ width: '100%', height: 10, borderRadius: '4px' }} />
                     </Stack>
                   )}
 
@@ -714,7 +714,7 @@ export default function ZebraScanPage() {
 
           <Grid item xs={12} xl={3}>
             <Stack spacing={2} height="100%">
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px' }}>
                 <Typography variant="h5" fontWeight={950} mb={0.5}>Workstation status</Typography>
                 <Typography variant="body2" color="text.secondary" mb={1.25}>Current desktop web station information.</Typography>
                 <Divider />
@@ -735,7 +735,7 @@ export default function ZebraScanPage() {
                 <DetailRow label="Pallet / Location" value={palletCode || 'Not specified'} />
               </Paper>
 
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, flexGrow: 1 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px', flexGrow: 1 }}>
                 <Typography variant="h5" fontWeight={950} mb={1}>Current job</Typography>
                 {transaction ? (
                   <Stack spacing={1}>
@@ -761,7 +761,7 @@ export default function ZebraScanPage() {
                 )}
               </Paper>
 
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px' }}>
                 <Typography variant="h5" fontWeight={950} mb={1}>Automatic workflow</Typography>
                 <Stack spacing={1}>
                   {[
@@ -780,7 +780,7 @@ export default function ZebraScanPage() {
           </Grid>
         </Grid>
 
-        <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden' }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1} px={2} py={1.5}>
             <Stack direction="row" spacing={1} alignItems="center">
               <HistoryOutlinedIcon color="primary" />
@@ -834,7 +834,7 @@ export default function ZebraScanPage() {
 
       <Snackbar
         open={notice.open}
-        autoHideDuration={4500}
+        autoHideDuration={5000}
         onClose={() => setNotice((value) => ({ ...value, open: false }))}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >

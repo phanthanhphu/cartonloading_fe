@@ -42,7 +42,7 @@ export default function Header() {
           width: 36,
           height: 36,
           p: 0,
-          borderRadius: 1.5,
+          borderRadius: '4px',
           color: '#2E5F97',
           bgcolor: '#F7F9FC',
           border: `1px solid ${alpha('#3B82F6', 0.12)}`,

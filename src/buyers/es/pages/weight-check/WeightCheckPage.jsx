@@ -1,3 +1,4 @@
+import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -28,7 +29,7 @@ const statusChipSx = (value) => {
   };
   return {
     height: 22,
-    borderRadius: 999,
+    borderRadius: '4px',
     fontSize: '0.67rem',
     fontWeight: 750,
     ...(palette[status] || { color: '#475569', backgroundColor: '#F1F5F9' })
@@ -55,6 +56,7 @@ export default function WeightCheckPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useAutoDismissFeedback(error, setError, '', 'error');
 
   const buyer = useMemo(() => buyers.find((item) => item.code === buyerCode) || null, [buyers, buyerCode]);
 
@@ -126,7 +128,7 @@ export default function WeightCheckPage() {
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
       {error ? <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> : null}
 
-      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.75, overflow: 'hidden', bgcolor: '#FFFFFF' }}>
+      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={0.8} alignItems={{ lg: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
           <TextField select size="small" label="Buyer" value={buyerCode} onChange={(event) => changeBuyer(event.target.value)} sx={{ minWidth: { lg: 190 } }}>
             {buyers.map((item) => <MenuItem key={item.code} value={item.code}>{item.label}</MenuItem>)}
@@ -158,7 +160,7 @@ export default function WeightCheckPage() {
             ['Weight PASS', pagePass.toLocaleString(FORMAT_LOCALE.EN_US), <CheckCircleOutlineOutlined key="c" fontSize="small" />],
             ['Weight FAIL', pageFail.toLocaleString(FORMAT_LOCALE.EN_US), <ScaleOutlined key="d" fontSize="small" />]
           ].map(([label, value, icon]) => (
-            <Stack key={label} direction="row" spacing={0.8} alignItems="center" sx={{ p: 0.8, bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 1.35 }}>
+            <Stack key={label} direction="row" spacing={0.8} alignItems="center" sx={{ p: 0.8, bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '4px' }}>
               <Box sx={{ color: '#0A6ED1', display: 'grid', placeItems: 'center' }}>{icon}</Box>
               <Box>
                 <Typography sx={{ fontSize: '0.67rem', color: '#71849A', fontWeight: 650 }}>{label}</Typography>

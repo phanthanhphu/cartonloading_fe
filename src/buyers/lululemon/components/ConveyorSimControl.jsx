@@ -62,7 +62,7 @@ export default function ConveyorSimControl({ factoryCode, endAction = null, noti
     ? 'Connection verified by the device read. Simulator connections are not physical PLC connections.'
     : devices.length ? 'Device is not responding.' : 'No conveyor assigned to this Factory. Configure it in Device Management.');
 
-  return <Paper variant="outlined" sx={{ px: { xs: 1, sm: 1.5 }, py: 0.65, borderRadius: 2,
+  return <Paper variant="outlined" sx={{ px: { xs: 1, sm: 1.5 }, py: 0.65, borderRadius: '2px',
     borderColor: '#DBE6F4', bgcolor: '#fff' }}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap" useFlexGap>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>

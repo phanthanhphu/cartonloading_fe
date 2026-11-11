@@ -75,9 +75,9 @@ const weightMeta = (status) => {
 
 function StatCard({ label, value, icon, color = 'primary.main' }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.1, height: '100%', borderRadius: 2 }}>
+    <Paper variant="outlined" sx={{ p: 1.1, height: '100%', borderRadius: '4px' }}>
       <Stack direction="row" spacing={0.8} alignItems="center">
-        <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{icon}</Box>
+        <Box sx={{ width: 34, height: 34, borderRadius: '4px', bgcolor: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{icon}</Box>
         <Box minWidth={0}>
           <Typography variant="caption" color="text.secondary">{label}</Typography>
           <Typography variant="h5" fontWeight={950}>{Number(value || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</Typography>
@@ -94,7 +94,7 @@ function MasterItemCard({ item, selected, disabled, onClick }) {
     <Card
       variant="outlined"
       sx={{
-        borderRadius: 3,
+        borderRadius: '4px',
         borderWidth: selected ? 2 : 1,
         borderColor: selected ? 'primary.main' : 'divider',
         bgcolor: selected ? 'action.selected' : 'background.paper'
@@ -132,7 +132,7 @@ function ChildCartonCard({ carton, disabled, onClick }) {
     <Card
       variant="outlined"
       sx={{
-        borderRadius: 2.5,
+        borderRadius: '4px',
         height: '100%',
         borderColor: carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT ? 'warning.main' : carton.status === BARCODE_CARTON_STATUS.COMPLETED ? 'success.light' : 'divider'
       }}
@@ -527,7 +527,7 @@ export default function CartonLoadingMobilePage() {
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', pb: 9, px: { xs: 0.5, sm: 1 } }}>
       <Stack spacing={1.4}>
-        <Paper elevation={0} sx={{ p: { xs: 1.3, sm: 2 }, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+        <Paper elevation={0} sx={{ p: { xs: 1.3, sm: 2 }, borderRadius: '4px', border: '1px solid', borderColor: 'divider' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} mb={1.3}>
             <Box minWidth={0}>
               <Typography variant="h4" fontWeight={950}>Item Scan & Weight</Typography>
@@ -568,7 +568,7 @@ export default function CartonLoadingMobilePage() {
         </Paper>
 
         {progress && (
-          <Paper variant="outlined" sx={{ p: 1.2, borderRadius: 3 }}>
+          <Paper variant="outlined" sx={{ p: 1.2, borderRadius: '4px' }}>
             <Grid container spacing={0.8}>
               <Grid item xs={4}><StatCard label="Planned" value={progress.plannedCartons} icon={<Inventory2OutlinedIcon />} /></Grid>
               <Grid item xs={4}><StatCard label="Weighed" value={(progress.completedCartons || 0) + (progress.warningCartons || 0)} icon={<CheckCircleOutlineOutlinedIcon />} color="success.main" /></Grid>
@@ -576,13 +576,13 @@ export default function CartonLoadingMobilePage() {
             </Grid>
             <Box mt={1}>
               <Stack direction="row" justifyContent="space-between"><Typography variant="caption">Progress</Typography><Typography variant="caption" fontWeight={900}>{percent.toFixed(1)}%</Typography></Stack>
-              <LinearProgress variant="determinate" value={percent} sx={{ mt: 0.4, height: 8, borderRadius: 9 }} />
+              <LinearProgress variant="determinate" value={percent} sx={{ mt: 0.4, height: 8, borderRadius: '4px' }} />
             </Box>
           </Paper>
         )}
 
         {waiting && (
-          <Card variant="outlined" sx={{ borderRadius: 3, borderWidth: 2, borderColor: 'warning.main' }}>
+          <Card variant="outlined" sx={{ borderRadius: '4px', borderWidth: 2, borderColor: 'warning.main' }}>
             <CardContent>
               <Stack spacing={1.2} alignItems="center" textAlign="center">
                 <ScaleOutlinedIcon color="warning" sx={{ fontSize: 52 }} />
@@ -592,7 +592,7 @@ export default function CartonLoadingMobilePage() {
                   <Typography color="text.secondary">Article {transaction.articleNumber} · Station {transaction.stationCode}</Typography>
                 </Box>
                 <Alert severity="warning" sx={{ width: '100%' }}>{APP_MESSAGES.PLACE_ITEM_ON_SCALE}</Alert>
-                <LinearProgress sx={{ width: '100%', height: 8, borderRadius: 8 }} />
+                <LinearProgress sx={{ width: '100%', height: 8, borderRadius: '4px' }} />
                 <Button variant="outlined" startIcon={<KeyboardOutlinedIcon />} onClick={openWaitingManual}>PLC unavailable — switch to manual entry</Button>
               </Stack>
             </CardContent>
@@ -600,7 +600,7 @@ export default function CartonLoadingMobilePage() {
         )}
 
         {completed && (
-          <Card variant="outlined" sx={{ borderRadius: 3, borderWidth: 2, borderColor: 'success.main' }}>
+          <Card variant="outlined" sx={{ borderRadius: '4px', borderWidth: 2, borderColor: 'success.main' }}>
             <CardContent>
               <Stack spacing={1} alignItems="center" textAlign="center">
                 <CheckCircleOutlineOutlinedIcon color="success" sx={{ fontSize: 54 }} />
@@ -617,7 +617,7 @@ export default function CartonLoadingMobilePage() {
           </Card>
         )}
 
-        <Paper variant="outlined" sx={{ p: 1.3, borderRadius: 3 }}>
+        <Paper variant="outlined" sx={{ p: 1.3, borderRadius: '4px' }}>
           <Stack spacing={1.1}>
             <Box>
               <Typography fontWeight={950}>1. Scan QR / Item Code</Typography>
@@ -654,7 +654,7 @@ export default function CartonLoadingMobilePage() {
         )}
 
         {matchedItems.length > 0 && (
-          <Paper variant="outlined" sx={{ p: 1.3, borderRadius: 3 }}>
+          <Paper variant="outlined" sx={{ p: 1.3, borderRadius: '4px' }}>
             <Stack spacing={1.1}>
               <Box>
                 <Typography fontWeight={950}>2. Select the Correct Item</Typography>
@@ -672,7 +672,7 @@ export default function CartonLoadingMobilePage() {
         )}
 
         {selectedItem && (
-          <Paper variant="outlined" sx={{ p: 1.3, borderRadius: 3 }}>
+          <Paper variant="outlined" sx={{ p: 1.3, borderRadius: '4px' }}>
             <Stack spacing={1.2}>
               <Box>
                 <Typography fontWeight={950}>3. Select Child Item 1–{selectedItem.plannedCartons}</Typography>
@@ -748,12 +748,12 @@ export default function CartonLoadingMobilePage() {
           </Stack>
           <Box sx={{ flex: 1, position: 'relative', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
             <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            <Box sx={{ position: 'absolute', width: '82%', height: 190, border: '3px solid #fff', borderRadius: 3, boxShadow: '0 0 0 9999px rgba(0,0,0,.35)' }} />
+            <Box sx={{ position: 'absolute', width: '82%', height: 190, border: '3px solid #fff', borderRadius: '4px', boxShadow: '0 0 0 9999px rgba(0,0,0,.35)' }} />
           </Box>
         </Box>
       </Dialog>
 
-      <Snackbar open={notice.open} autoHideDuration={4500} onClose={() => setNotice((value) => ({ ...value, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((value) => ({ ...value, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <Alert severity={notice.severity} onClose={() => setNotice((value) => ({ ...value, open: false }))} sx={{ width: '100%' }}>{notice.message}</Alert>
       </Snackbar>
     </Box>

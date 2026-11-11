@@ -148,7 +148,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
         <Button startIcon={<Refresh/>} size="small" variant="outlined" onClick={() => load().catch((e) => setError(errorText(e)))}>Refresh</Button>
       </Stack>
     </Stack>
-    <Accordion variant="outlined" disableGutters sx={{ mb: 1.5, borderRadius: '8px !important', '&:before': { display: 'none' } }}>
+    <Accordion variant="outlined" disableGutters sx={{ mb: 1.5, borderRadius: '2px !important', '&:before': { display: 'none' } }}>
       <AccordionSummary expandIcon={<ExpandMore/>} sx={{ minHeight: 42, '& .MuiAccordionSummary-content': { my: 0.8 } }}>
         <Typography variant="body2" fontWeight={700} color="text.secondary">Connection & simulator setup notes</Typography>
       </AccordionSummary>
@@ -162,7 +162,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
     </Accordion>
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 1 }}>{error}</Alert>}
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 1 }}>{notice}</Alert>}
-    <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
+    <Paper variant="outlined" sx={{ p: 1, borderRadius: '4px' }}>
       {!factoryCode && <TextField select size="small" label="Factory" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ minWidth: 160, mb: 1 }}>
         <MenuItem value="ALL">All factories</MenuItem>
         {activeFactories.map((factory) => <MenuItem key={factory} value={factory}>{factory}</MenuItem>)}
@@ -219,7 +219,7 @@ export default function ScalePlcDevicesPage({ factoryCode = null }) {
         <Button color="error" variant="contained" disabled={loading} onClick={() => remove(rows.find((d) => d.stationCode === deleteCode))}>Confirm Remove</Button>
       </Stack>
     </Paper>}
-    {form && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: 2 }}>
+    {form && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: '4px' }}>
       <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>{editing ? 'Edit Scale / PLC Station' : 'Add Scale / PLC Station'}</Typography>
       <Stack spacing={1.5} sx={{ pt: 1 }}>
         <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>

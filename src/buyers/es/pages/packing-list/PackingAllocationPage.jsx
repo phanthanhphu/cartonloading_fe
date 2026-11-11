@@ -90,7 +90,7 @@ const emptyPackingFilters = {
 };
 
 const summaryCard = (label, value) => (
-  <Paper key={label} elevation={0} sx={{ p: 1.2, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+  <Paper key={label} elevation={0} sx={{ p: 1.2, border: '1px solid #e2e8f0', borderRadius: '4px' }}>
     <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>{label}</Typography>
     <Typography sx={{ fontSize: '1rem', fontWeight: 750, color: '#103B5C' }}>{Number(value || 0).toLocaleString()}</Typography>
   </Paper>
@@ -586,7 +586,7 @@ export default function PackingAllocationPage() {
       </Stack>
 
       {!assignmentWorkspace && (
-        <Paper elevation={0} sx={{ mb: 1.4, border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+        <Paper elevation={0} sx={{ mb: 1.4, border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
           <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
             <Tab label={`Order Items (${Number(order?.masterLineCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)})`} />
             <Tab label={`Packing List (${Number(order?.packingLineCount || 0).toLocaleString()})`} />
@@ -620,7 +620,7 @@ export default function PackingAllocationPage() {
             )}
           </Stack>
 
-          <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 2, overflow: 'hidden' }}>
+          <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden' }}>
             <Box sx={{ p: 1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E5E7EB' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
               <TextField size="small" label="General keyword" value={masterFilters.keyword} onChange={(event) => setMasterFilters((current) => ({ ...current, keyword: event.target.value }))} />
@@ -700,7 +700,7 @@ export default function PackingAllocationPage() {
             </Stack>
           </Stack>
 
-          <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 2, overflow: 'hidden' }}>
+          <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden' }}>
             <Box sx={{ p: 1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E5E7EB' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
               <TextField size="small" label="General keyword" value={packingFilters.keyword} onChange={(event) => setPackingFilters((current) => ({ ...current, keyword: event.target.value }))} />
@@ -804,8 +804,8 @@ export default function PackingAllocationPage() {
             {cartonItemLoading ? (
               <Box textAlign="center" py={5}><CircularProgress /></Box>
             ) : cartonItemChildren.length ? (
-              <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.5, overflow: 'hidden' }}>
-                <StandardTableViewport paginate sx={{ maxHeight: 480 }}>
+              <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden' }}>
+                <StandardTableViewport pageScroll={false} paginate sx={{ maxHeight: 480 }}>
                   <SortableTable stickyHeader size="small" sx={{ minWidth: 1120 }}>
                     <TableHead>
                       <TableRow>
@@ -939,7 +939,7 @@ export default function PackingAllocationPage() {
         <DialogTitle sx={{ fontWeight: 750 }}>Assign Factory Barcode</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.25}>
-            <Paper elevation={0} sx={{ p: 1.2, border: '1px solid #DCE4EC', borderRadius: 1.5, bgcolor: '#F8FAFC' }}>
+            <Paper elevation={0} sx={{ p: 1.2, border: '1px solid #DCE4EC', borderRadius: '4px', bgcolor: '#F8FAFC' }}>
               <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 650 }}>Selected physical carton</Typography>
               <Typography sx={{ mt: 0.3, fontSize: '1rem', color: '#103B5C', fontWeight: 800 }}>
                 {cartonAssignTarget?.cartonCode || `Carton #${cartonAssignTarget?.cartonSequence || '—'}`}
@@ -1074,7 +1074,7 @@ export default function PackingAllocationPage() {
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={notice.open} autoHideDuration={4500} onClose={() => setNotice((current) => ({ ...current, open: false }))}>
+      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))}>
         <Alert severity={notice.severity} variant="filled">{notice.message}</Alert>
       </Snackbar>
     </Box>

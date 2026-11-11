@@ -1,3 +1,5 @@
+import TransientAlert from '../../../components/TransientAlert';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, Divider, IconButton, Paper, Stack, Tooltip, Typography } from '@mui/material';
@@ -26,6 +28,7 @@ const display = Object.fromEntries(SHIPPING_EXPORT_COLUMN_OPTIONS.map(({ key, la
 export default function ShippingScheduleExportDialog({ open, exporting, error, onClose, onExport }) {
   const [selected, setSelected] = useState(storedColumns);
   const [message, setMessage] = useState('');
+  useAutoDismissFeedback(message, setMessage, '', 'info');
   useEffect(() => {
     if (!open) return;
     setSelected(storedColumns());
@@ -66,7 +69,7 @@ export default function ShippingScheduleExportDialog({ open, exporting, error, o
         <Typography variant="body2" color="text.secondary">
           Select export columns and change their order. The default is 12 columns. This does not change the All POs table.
         </Typography>
-        {error && <Alert severity="error">{error}</Alert>}
+        {error && <TransientAlert messageKey={error} severity="error">{error}</TransientAlert>}
         {message && <Alert severity="info" onClose={() => setMessage('')}>{message}</Alert>}
         <Typography fontWeight={750} variant="subtitle2">Selected columns ({selected.length}) — exported from top to bottom</Typography>
         <Stack spacing={0.6}>

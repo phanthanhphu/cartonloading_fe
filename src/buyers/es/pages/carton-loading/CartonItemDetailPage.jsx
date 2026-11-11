@@ -383,7 +383,7 @@ export default function CartonItemDetailPage() {
           px: { xs: 1.5, md: 2 },
           py: 1.25,
           mb: 1.25,
-          borderRadius: 2,
+          borderRadius: '4px',
           bgcolor: '#FFFFFF'
         }}
       >
@@ -408,7 +408,7 @@ export default function CartonItemDetailPage() {
         sx={{
           p: { xs: 1.5, md: 2 },
           mb: 1.25,
-          borderRadius: 2,
+          borderRadius: '4px',
           borderWidth: 2,
           borderColor: waitingForWeight ? 'info.main' : '#D7E0EA',
           boxShadow: waitingForWeight ? '0 8px 24px rgba(14, 165, 233, 0.08)' : 'none'
@@ -511,7 +511,7 @@ export default function CartonItemDetailPage() {
               variant="outlined"
               sx={{
                 p: { xs: 1.5, md: 2 },
-                borderRadius: 2,
+                borderRadius: '4px',
                 bgcolor: '#F0F9FF',
                 borderColor: '#7DD3FC'
               }}
@@ -522,7 +522,7 @@ export default function CartonItemDetailPage() {
                     sx={{
                       width: 84,
                       height: 84,
-                      borderRadius: 2,
+                      borderRadius: '4px',
                       bgcolor: '#0EA5E9',
                       color: '#FFFFFF',
                       display: 'flex',
@@ -582,7 +582,7 @@ export default function CartonItemDetailPage() {
                 )}
 
                 {weightMode === WEIGHT_SOURCE.MANUAL && (
-                  <Box sx={{ p: { xs: 1.25, md: 1.5 }, borderRadius: 2, bgcolor: '#FFFFFF', border: '1px solid #BAE6FD' }}>
+                  <Box sx={{ p: { xs: 1.25, md: 1.5 }, borderRadius: '4px', bgcolor: '#FFFFFF', border: '1px solid #BAE6FD' }}>
                     <Typography sx={{ mb: 1.1, fontWeight: 950, color: '#103B5C' }}>Manual weight entry</Typography>
                     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.1} alignItems="stretch">
                       <TextField
@@ -642,7 +642,7 @@ export default function CartonItemDetailPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 1.25, mb: 0, borderRadius: '8px 8px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
+      <Paper variant="outlined" sx={{ p: 1.25, mb: 0, borderRadius: '2px 2px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
           <Box sx={{ flex: 1 }}>
             <TableFilterBar
@@ -673,7 +673,7 @@ export default function CartonItemDetailPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={{ borderRadius: '0 0 2px 2px', overflow: 'hidden' }}>
         <StandardTableViewport sx={{ minHeight: 420, overflowX: 'auto' }}>
           <SortableTable disableRowNumber size="medium" sx={{ minWidth: 1430 }}>
             <TableHead>

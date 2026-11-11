@@ -35,7 +35,7 @@ const statusSx = (value) => {
     IN_PROGRESS: { color: '#7A4E00', backgroundColor: '#FFF4CC' },
     COMPLETED: { color: '#126B42', backgroundColor: '#E6F5EE' }
   };
-  return { height: 22, borderRadius: 999, fontWeight: 700, fontSize: '0.67rem', ...(colors[status] || { color: '#475569', backgroundColor: '#F1F5F9' }) };
+  return { height: 22, borderRadius: '4px', fontWeight: 700, fontSize: '0.67rem', ...(colors[status] || { color: '#475569', backgroundColor: '#F1F5F9' }) };
 };
 
 export default function PackingListPage() {
@@ -125,7 +125,7 @@ export default function PackingListPage() {
 
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
-      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: 1.75, overflow: 'hidden', bgcolor: '#fff' }}>
+      <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#fff' }}>
         <Stack direction={{ xs: 'column', xl: 'row' }} spacing={0.8} alignItems={{ xl: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
           <TextField size="small" type="date" label="Start Order" value={filters.orderDate} onChange={(e) => changeFilter('orderDate', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ minWidth: { xl: 150 } }} />
           <TextField size="small" label="Order Name" value={filters.orderName} onChange={(e) => changeFilter('orderName', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { xl: 210 } }} />
@@ -190,7 +190,7 @@ export default function PackingListPage() {
         <DialogContent><Typography>Delete Order <strong>{deleteTarget?.orderName}</strong>? This also deletes all Order Items and Packing List rows inside the Order.</Typography></DialogContent>
         <DialogActions><Button onClick={() => setDeleteTarget(null)}>Cancel</Button><Button color="error" variant="contained" onClick={removeOrder}>Delete</Button></DialogActions>
       </Dialog>
-      <Snackbar open={notice.open} autoHideDuration={4000} onClose={() => setNotice((current) => ({ ...current, open: false }))}><Alert severity={notice.severity} variant="filled">{notice.message}</Alert></Snackbar>
+      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))}><Alert severity={notice.severity} variant="filled">{notice.message}</Alert></Snackbar>
     </Box>
   );
 }
