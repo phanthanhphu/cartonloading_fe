@@ -4,7 +4,7 @@ const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).
 
 /** Four PO bars count only cartons with BOTH current RFID PASS and Weight PASS.
  * Planned denominators come from ALL_BP; numerators come from persisted carton inspections. */
-export default function PoScanProgressCell({ row, canonical, metrics }) {
+export default function PoScanProgressCell({ row, canonical, metrics, compact = false }) {
   // Never substitute uninspected ALL_BP planned numbers for progress when running
   // against an older backend. A missing field means data is unavailable, not zero.
   if (!row || row.completedQty === null || row.completedQty === undefined) {
@@ -33,11 +33,32 @@ export default function PoScanProgressCell({ row, canonical, metrics }) {
     total = totalFullCartons;
     subtitle = 'Completed / Full cartons';
   } else if (canonical === 'REMAINDER') {
-    if (!oddCount) return <Typography variant="body2">No odd carton</Typography>;
+    if (!oddCount && !compact) return <Typography variant="body2">No odd carton</Typography>;
     current = row.completedRemainderQty;
     total = oddQty;
     subtitle = `${fmt(row.completedRemainderCartons)} / ${fmt(oddCount)} odd carton${oddCount > 1 ? 's' : ''} completed`;
   } else return null;
+
+  // In All POs / Unscheduled POs, show one clean number per quantity column.
+  // This is display-only: the saved inspection counts and completion rules are unchanged.
+  // Keep the detailed progress bars for other pages that still use this component.
+  if (compact) {
+    const display = canonical === 'REMAINDER'
+      ? `${fmt(row.completedRemainderCartons)} / ${fmt(oddCount)}${oddCount ? ` (${fmt(oddQty)} pcs)` : ''}`
+      : `${fmt(current)} / ${fmt(total)}`;
+    const details = canonical === 'REMAINDER'
+      ? oddCount
+        ? `${fmt(row.completedRemainderCartons)} / ${fmt(oddCount)} odd cartons completed; ${fmt(row.completedRemainderQty)} / ${fmt(oddQty)} remainder pcs completed. RFID PASS and Weight PASS required.`
+        : 'No odd carton planned.'
+      : `${subtitle}. RFID PASS and Weight PASS required.`;
+    return (
+      <Tooltip title={details} arrow placement="top">
+        <Typography component="span" variant="body2" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {display}
+        </Typography>
+      </Tooltip>
+    );
+  }
 
   // A recalled/FAILED inspection removes its carton immediately on the next refresh.
   // Clamp unexpected over-planned data visually, never change the persisted numbers.

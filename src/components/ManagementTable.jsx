@@ -48,7 +48,7 @@ export default function ManagementTable({ title, columns = [], rows = [], loadin
                 {columns.map((c) => {
                   const value = row?.[c.key];
                   const isStatus = c.status === true || String(c.key || '').toLowerCase().includes('status');
-                  return <TableCell key={c.key}>{c.render ? c.render(row) : (isStatus && value != null ? <StatusChip status={value} /> : (value ?? '—'))}</TableCell>;
+                  return <TableCell key={c.key} data-sort-value={c.sortValue ? c.sortValue(row) : undefined}>{c.render ? c.render(row) : (isStatus && value != null ? <StatusChip status={value} /> : (value ?? '—'))}</TableCell>;
                 })}
               </TableRow>;
             })}

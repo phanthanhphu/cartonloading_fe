@@ -48,6 +48,12 @@ const systemColumns = WORKSPACE_SYSTEM_COLUMN_DEFINITIONS.map((column) => ({
   }
 }));
 
+// Default-hidden PO columns remain individually selectable through Customize Columns.
+// Do not change WORKSPACE_DEFAULT_COLUMN_KEYS: ShippingScheduleDetailPage shares it.
+const PO_DEFAULT_COLUMN_KEYS = Object.freeze(
+  WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => key !== 'sys:factory' && key !== 'sys:sku')
+);
+const PO_DEFAULT_HIDDEN_KEYS = new Set(['sys:factory', 'sys:sku']);
 const UNSCHEDULED_COLUMN_STORAGE_KEY = `${DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY}.unscheduled`;
 const SCHEDULE_COLUMN_STORAGE_KEY = 'lululemon.shippingScheduleDays.columns.v1';
 // Shipping Schedules is a date list, not a PO table: customize its columns separately.
@@ -67,8 +73,23 @@ const loadColumnPreference = (storageKey) => {
     return null;
   }
 };
-const loadSavedColumns = () => loadColumnPreference(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY);
-const loadUnscheduledColumns = () => loadColumnPreference(UNSCHEDULED_COLUMN_STORAGE_KEY);
+// One-time migration: hide Factory and SKU from pre-existing saved table layouts.
+// After migration, an explicit user selection in Columns is preserved on reload.
+const loadPoColumnPreference = (storageKey) => {
+  const saved = loadColumnPreference(storageKey);
+  const migrationKey = `${storageKey}.factory-sku-default-hidden.v1`;
+  try {
+    if (localStorage.getItem(migrationKey) === '1') return saved;
+    const migrated = Array.isArray(saved) ? saved.filter((key) => !PO_DEFAULT_HIDDEN_KEYS.has(key)) : null;
+    if (migrated !== null) localStorage.setItem(storageKey, JSON.stringify(migrated));
+    localStorage.setItem(migrationKey, '1');
+    return migrated;
+  } catch {
+    return Array.isArray(saved) ? saved.filter((key) => !PO_DEFAULT_HIDDEN_KEYS.has(key)) : null;
+  }
+};
+const loadSavedColumns = () => loadPoColumnPreference(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY);
+const loadUnscheduledColumns = () => loadPoColumnPreference(UNSCHEDULED_COLUMN_STORAGE_KEY);
 const loadScheduleColumns = () => {
   const saved = loadColumnPreference(SCHEDULE_COLUMN_STORAGE_KEY);
   if (!saved) return SCHEDULE_COLUMNS.map((column) => column.key);
@@ -427,7 +448,7 @@ export default function BuyerOrderWorkspacePage() {
           sourceIndex: index,
           render: (row) => {
             if (buyerCode === BUYER_CODE.LULULEMON && ['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(canonical)) {
-              const progress = <PoScanProgressCell row={row} canonical={canonical} metrics={calculatedCartonMetrics(row)} />;
+              const progress = <PoScanProgressCell row={row} canonical={canonical} metrics={calculatedCartonMetrics(row)} compact />;
               // Never fall back to ALL_BP raw numbers: those are planned, not completed.
               // The progress component explicitly marks missing old-API data as unavailable.
               return progress;
@@ -537,7 +558,23 @@ export default function BuyerOrderWorkspacePage() {
   const allWorkflowColumns = useMemo(() => {
     const stt = systemColumns[0];
     const otherSystem = systemColumns.slice(1);
-    const columns = [stt];
+    // Optional inspection columns replace the previous permanently visible
+    // combined 'Carton / RFID / Weight' column. None is in the default list.
+    // Keep each progress bar and its original PASS/FAILED calculation.
+    const inspectionColumns = [
+      { key: 'progress:cartons', label: 'Cartons', group: 'System', minWidth: 120,
+        sortValue: (row) => Number(row.completedCartons ?? 0),
+        render: (row) => <PoInspectionProgressCell row={row} metric="cartons" /> },
+      { key: 'progress:rfid', label: 'RFID', group: 'System', minWidth: 120,
+        sortValue: (row) => Number(row.inspectionProgress?.rfidPassedCartons ?? 0),
+        render: (row) => <PoInspectionProgressCell row={row} metric="rfid" /> },
+      { key: 'progress:weight', label: 'Weight', group: 'System', minWidth: 120,
+        sortValue: (row) => Number(row.inspectionProgress?.weightPassedCartons ?? 0),
+        render: (row) => <PoInspectionProgressCell row={row} metric="weight" /> }
+    ];
+    // Keep the optional metrics at the original inspection column's position,
+    // immediately before STT when selected in Customize Columns.
+    const columns = [...inspectionColumns, stt];
 
     // Place Factory next to PO/Master PO, then put operational fields at the end.
     sourceColumns.forEach((column) => {
@@ -555,7 +592,7 @@ export default function BuyerOrderWorkspacePage() {
   useEffect(() => {
     if (!isSsccWorkflowBuyer(buyer) || !allWorkflowColumns.length) return;
     setVisibleColumnKeys((current) => {
-      const defaults = WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key));
+      const defaults = PO_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key));
       if (!Array.isArray(current)) return defaults;
       const valid = current.filter((key) => availableColumnKeys.has(key));
       const next = valid.length ? [...valid] : [...defaults];
@@ -616,7 +653,7 @@ export default function BuyerOrderWorkspacePage() {
 
   const tableColumns = (() => {
     if (!isSsccWorkflowBuyer(buyer)) return fixedColumns;
-    const selected = new Set(Array.isArray(currentPoColumnKeys) ? currentPoColumnKeys : WORKSPACE_DEFAULT_COLUMN_KEYS);
+    const selected = new Set(Array.isArray(currentPoColumnKeys) ? currentPoColumnKeys : PO_DEFAULT_COLUMN_KEYS);
     const dataColumns = allWorkflowColumns.filter((column) => selected.has(column.key));
     const weightSelectColumn = false ? [{
       key: '__sendWeight',
@@ -642,16 +679,11 @@ export default function BuyerOrderWorkspacePage() {
         ? <Chip size="small" color="primary" variant="outlined" label={row.plannedShippingDate} />
         : <Typography variant="caption" color="text.secondary">Not scheduled</Typography>
     };
-    // Fixed operational column, visible in ALL three LULULEMON PO tabs regardless of
-    // per-user ALL_BP column preferences. Never infer carton completion by adding
-    // separate RFID and Weight totals: both PASS must refer to the SAME carton.
-    const inspectionColumn = {
-      key: '__inspection', label: 'Carton / RFID / Weight', minWidth: 228,
-      render: (row) => <PoInspectionProgressCell row={row} />
-    };
-    if (!writable) return [inspectionColumn, ...weightSelectColumn, ...dataColumns, planningDateColumn];
+    // Inspection progress is no longer forced into every PO row: Cartons,
+    // RFID, and Weight are independent, default-hidden column choices.
+    if (!writable) return [...weightSelectColumn, ...dataColumns, planningDateColumn];
 
-    return [inspectionColumn, ...weightSelectColumn, ...dataColumns, planningDateColumn, {
+    return [...weightSelectColumn, ...dataColumns, planningDateColumn, {
       key: '__actions',
       label: 'Actions',
       minWidth: 105,
@@ -702,7 +734,7 @@ export default function BuyerOrderWorkspacePage() {
       return;
     }
     updatePoColumns((current) => {
-      const selected = new Set(Array.isArray(current) ? current : WORKSPACE_DEFAULT_COLUMN_KEYS);
+      const selected = new Set(Array.isArray(current) ? current : PO_DEFAULT_COLUMN_KEYS);
       if (selected.has(key)) {
         if (selected.size === 1) return Array.from(selected);
         selected.delete(key);
@@ -717,7 +749,7 @@ export default function BuyerOrderWorkspacePage() {
     if (poTab === 'scheduled') {
       setScheduleColumnKeys(SCHEDULE_COLUMNS.map((column) => column.key));
     } else {
-      updatePoColumns(WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key)));
+      updatePoColumns(PO_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key)));
     }
   };
   const showAllColumns = () => {
@@ -830,6 +862,10 @@ export default function BuyerOrderWorkspacePage() {
               {/* Place existing shipping, Excel and column actions beside the three PO tabs. */}
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"
                 sx={{ justifyContent: { xs: 'flex-start', lg: 'flex-end' }, flexShrink: 0 }}>
+                {poTab === 'all' && writable && buyerCode === BUYER_CODE.LULULEMON ? (
+                  <LululemonExcelActions orderId={orderId} buyer={buyerCode} onMessage={setNotice}
+                    onApplied={async () => { await loadOrder(); await loadPos(0, posPaginationRef.current.size); }} />
+                ) : null}
                 <Button
                   size="small"
                   variant="outlined"
@@ -840,7 +876,7 @@ export default function BuyerOrderWorkspacePage() {
                   aria-expanded={Boolean(columnMenuAnchor)}
                   sx={{ textTransform: 'none', fontWeight: 700, minHeight: 36, whiteSpace: 'nowrap' }}
                 >
-                  {poTab === 'scheduled' ? `Columns ${scheduleVisibleColumnCount}/${SCHEDULE_COLUMNS.length}` : `Columns ${(currentPoColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).filter((key) => availableColumnKeys.has(key)).length}/${allWorkflowColumns.length}`}
+                  {poTab === 'scheduled' ? `Columns ${scheduleVisibleColumnCount}/${SCHEDULE_COLUMNS.length}` : `Columns ${(currentPoColumnKeys || PO_DEFAULT_COLUMN_KEYS).filter((key) => availableColumnKeys.has(key)).length}/${allWorkflowColumns.length}`}
                 </Button>
                 {canScheduleShipping ? (
                   <Button
@@ -854,10 +890,6 @@ export default function BuyerOrderWorkspacePage() {
                   >
                     New Schedule
                   </Button>
-                ) : null}
-                {writable && buyerCode === BUYER_CODE.LULULEMON ? (
-                  <LululemonExcelActions orderId={orderId} buyer={buyerCode} onMessage={setNotice}
-                    onApplied={async () => { await loadOrder(); await loadPos(0, posPaginationRef.current.size); }} />
                 ) : null}
                 {!writable ? <Chip size="small" label="View only" /> : null}
               </Stack>
@@ -898,7 +930,7 @@ export default function BuyerOrderWorkspacePage() {
                   </MenuItem>
                 ))
                 : allWorkflowColumns.map((column) => {
-                  const checked = (currentPoColumnKeys || WORKSPACE_DEFAULT_COLUMN_KEYS).includes(column.key);
+                  const checked = (currentPoColumnKeys || PO_DEFAULT_COLUMN_KEYS).includes(column.key);
                   return (
                     <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
                       <Checkbox size="small" checked={checked} />

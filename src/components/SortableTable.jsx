@@ -185,7 +185,11 @@ const transformBody = (body, sortIndex, direction, rowNumberStart, explicitIndex
     const sorted = [...sortable].sort((a, b) => {
       const aCell = directCells(a)[sortIndex];
       const bCell = directCells(b)[sortIndex];
-      const result = compare(extractText(aCell), extractText(bCell), direction);
+      // An explicit numeric sort key is useful for progress bars: React's
+      // component wrapper has no text children until rendered in the browser.
+      const aValue = aCell?.props?.['data-sort-value'] ?? extractText(aCell);
+      const bValue = bCell?.props?.['data-sort-value'] ?? extractText(bCell);
+      const result = compare(aValue, bValue, direction);
       return result || positions.get(a) - positions.get(b);
     });
 
