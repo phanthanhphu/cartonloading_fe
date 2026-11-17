@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../../../i18n/LanguageProvider';
 import { useEffect, useRef, useState } from 'react';
 import { alpha } from '@mui/material/styles';
 import {
@@ -48,6 +50,9 @@ function PermissionSection({ title, children }) {
 }
 
 export default function Profile() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const anchorRef = useRef(null);
   const storedAvatarUrl = useRef(null);
   const avatarVersionRef = useRef(0);
@@ -120,12 +125,13 @@ export default function Profile() {
   const submitPassword = async (event) => {
     event.preventDefault();
     if (saving) return;
-    if (!passwords.currentPassword) { setError('Enter your current password.'); return; }
+    if (!passwords.currentPassword) { setError(trUi("Enter your current password.")); return; }
     if (passwords.newPassword.length < 8 || passwords.newPassword.length > 200) {
-      setError('New password must be between 8 and 200 characters.'); return;
+      setError(trUi("New password must be between 8 and 200 characters.")); return;
     }
-    if (passwords.newPassword !== passwords.confirmPassword) { setError('New passwords do not match.'); return; }
-    if (passwords.newPassword === passwords.currentPassword) { setError('Choose a different new password.'); return; }
+    if (passwords.newPassword !== passwords.confirmPassword) { setError(trUi("New passwords do not match.")); return; }
+    if (passwords.newPassword === passwords.currentPassword) { setError(trUi("Choose a different new password.")); return; }
+    if (!await confirmAction({ kind: 'update', entity: 'Password', name: user.username || '' })) return;
     setSaving(true);
     setError('');
     try {
@@ -151,7 +157,7 @@ export default function Profile() {
 
   return (
     <Box sx={{ flexShrink: 0, ml: 0.75 }}>
-      <ButtonBase ref={anchorRef} aria-label="open user menu" aria-haspopup="true" aria-expanded={open}
+      <ButtonBase ref={anchorRef} aria-label={trUi("open user menu")} aria-haspopup="true" aria-expanded={open}
         onClick={() => setOpen(value => !value)} sx={{ width: 46, height: 46, p: 0.4, borderRadius: '50%', '&:hover': { bgcolor: alpha('#3B82F6', 0.07) } }}>
         <Box sx={{ borderRadius: '50%', border: `2px solid ${alpha('#3B82F6', 0.78)}`, overflow: 'hidden' }}>
           {avatarDisplay(avatarUrl)}
@@ -169,71 +175,71 @@ export default function Profile() {
             </Stack>
             <Divider />
             <MenuItem onClick={() => openDialog('profile')} sx={{ py: 1.2 }}>
-              <ListItemIcon><SecurityOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon><ListItemText primary="My Profile & Permissions" />
+              <ListItemIcon><SecurityOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon><ListItemText primary={trUi("My Profile & Permissions")} />
             </MenuItem>
             <MenuItem onClick={() => openDialog('password')} sx={{ py: 1.2 }}>
-              <ListItemIcon><LockOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon><ListItemText primary="Change Password" />
+              <ListItemIcon><LockOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon><ListItemText primary={trUi("Change Password")} />
             </MenuItem>
             <Divider />
-            <MenuItem onClick={logout} sx={{ py: 1.2 }}><ListItemIcon><LogoutOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon><ListItemText primary="Logout" /></MenuItem>
+            <MenuItem onClick={logout} sx={{ py: 1.2 }}><ListItemIcon><LogoutOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon><ListItemText primary={trUi("Logout")} /></MenuItem>
           </Paper>
         </ClickAwayListener>
       </Popper>
 
       <Dialog open={dialog === 'profile'} onClose={closeDialog} fullWidth maxWidth="sm" aria-labelledby="my-account-title">
-        <DialogTitle id="my-account-title" sx={{ fontWeight: 850 }}>My Profile & Permissions</DialogTitle>
+        <DialogTitle id="my-account-title" sx={{ fontWeight: 850 }}>{trUi("My Profile & Permissions")}</DialogTitle>
         <DialogContent dividers sx={{ display: 'grid', gap: 1.5, maxHeight: '65vh' }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          {loading && <Stack direction="row" gap={1} alignItems="center"><CircularProgress size={18} /><Typography>Loading permissions...</Typography></Stack>}
+          {error && <Alert severity="error">{trSystem(error)}</Alert>}
+          {loading && <Stack direction="row" gap={1} alignItems="center"><CircularProgress size={18} /><Typography>{trUi("Loading permissions...")}</Typography></Stack>}
           {account && <>
-            <PermissionSection title="Account">
+            <PermissionSection title={trUi("Account")}>
               <Stack direction="row" gap={1.5} alignItems="center" sx={{ mb: 1.2 }}>
                 {avatarDisplay(avatarUrl, 56)}
                 <Box>
                   <Typography><b>{account.username || 'User'}</b> · {account.email}</Typography>
-                  <Typography variant="caption" color="text.secondary">Photo managed by Admin in User Management</Typography>
+                  <Typography variant="caption" color="text.secondary">{trUi("Photo managed by Admin in User Management")}</Typography>
                 </Box>
               </Stack>
-              <Typography variant="body2" color="text.secondary">Role: {account.role} · {account.enabled ? 'Active' : 'Disabled'}</Typography>
-              {account.departmentId && <Typography variant="body2" color="text.secondary">Department: {account.departmentId}</Typography>}
+              <Typography variant="body2" color="text.secondary">{trUi("Role: ")}{account.role} · {account.enabled ? 'Active' : 'Disabled'}</Typography>
+              {account.departmentId && <Typography variant="body2" color="text.secondary">{trUi("Department: ")}{account.departmentId}</Typography>}
             </PermissionSection>
-            <PermissionSection title="Current Login Context">
+            <PermissionSection title={trUi("Current Login Context")}>
               <GrantList values={[`Buyer: ${profile.selectedBuyer}`, `Type: ${profile.selectedType}`]} />
             </PermissionSection>
-            <PermissionSection title="Operation Permissions">
-              <GrantList values={labels} emptyText="View only / no additional operation permissions" />
-              {admin && <Typography variant="caption" color="text.secondary">Administrator has additional administrative access.</Typography>}
+            <PermissionSection title={trUi("Operation Permissions")}>
+              <GrantList values={labels} emptyText={trUi("View only / no additional operation permissions")} />
+              {admin && <Typography variant="caption" color="text.secondary">{trUi("Administrator has additional administrative access.")}</Typography>}
             </PermissionSection>
-            <PermissionSection title="Accessible Buyers">
-              {admin ? <Typography variant="body2">All active Buyers (Admin)</Typography> : <GrantList values={account.buyerPermissions} />}
+            <PermissionSection title={trUi("Accessible Buyers")}>
+              {admin ? <Typography variant="body2">{trUi("All active Buyers (Admin)")}</Typography> : <GrantList values={account.buyerPermissions} />}
             </PermissionSection>
-            <PermissionSection title="Buyer / System Type Permissions">
-              {admin ? <Typography variant="body2">All active Buyers and their supported Types (Admin)</Typography> :
+            <PermissionSection title={trUi("Buyer / System Type Permissions")}>
+              {admin ? <Typography variant="body2">{trUi("All active Buyers and their supported Types (Admin)")}</Typography> :
                 <Stack gap={0.7}>{(account.buyerTypePermissions || []).length ? account.buyerTypePermissions.map(grant => (
                   <Stack key={grant.buyerCode} direction="row" flexWrap="wrap" gap={0.6} alignItems="center">
                     <Typography fontSize={12} fontWeight={800}>{grant.buyerCode}:</Typography>
-                    <GrantList values={grant.types} emptyText="No Type access" />
+                    <GrantList values={grant.types} emptyText={trUi("No Type access")} />
                   </Stack>
-                )) : <Typography variant="body2" color="text.secondary">Not assigned</Typography>}</Stack>}
+                )) : <Typography variant="body2" color="text.secondary">{trUi("Not assigned")}</Typography>}</Stack>}
             </PermissionSection>
-            <PermissionSection title="Factory Permissions">
-              {admin ? <Typography variant="body2">All active Factories (Admin)</Typography> : <GrantList values={account.factoryPermissions} />}
+            <PermissionSection title={trUi("Factory Permissions")}>
+              {admin ? <Typography variant="body2">{trUi("All active Factories (Admin)")}</Typography> : <GrantList values={account.factoryPermissions} />}
             </PermissionSection>
-            <PermissionSection title="Weighing Factory Permissions">
-              {admin ? <Typography variant="body2">All eligible Factories (Admin)</Typography> : <GrantList values={account.weighingFactoryPermissions} />}
+            <PermissionSection title={trUi("Weighing Factory Permissions")}>
+              {admin ? <Typography variant="body2">{trUi("All eligible Factories (Admin)")}</Typography> : <GrantList values={account.weighingFactoryPermissions} />}
             </PermissionSection>
           </>}
         </DialogContent>
-        <DialogActions><Button onClick={closeDialog}>Close</Button></DialogActions>
+        <DialogActions><Button onClick={closeDialog}>{trUi("Close")}</Button></DialogActions>
       </Dialog>
 
       <Dialog open={dialog === 'password'} onClose={closeDialog} fullWidth maxWidth="xs" aria-labelledby="change-password-title">
         <Box component="form" onSubmit={submitPassword}>
-          <DialogTitle id="change-password-title" sx={{ fontWeight: 850 }}>Change Password</DialogTitle>
+          <DialogTitle id="change-password-title" sx={{ fontWeight: 850 }}>{trUi("Change Password")}</DialogTitle>
           <DialogContent dividers>
             <Stack gap={2} sx={{ pt: 1 }}>
-              <Typography color="text.secondary" variant="body2">Enter your current password and a new password. After saving, you must sign in again.</Typography>
-              {error && <Alert severity="error">{error}</Alert>}
+              <Typography color="text.secondary" variant="body2">{trUi("Enter your current password and a new password. After saving, you must sign in again.")}</Typography>
+              {error && <Alert severity="error">{trSystem(error)}</Alert>}
               {[
                 ['currentPassword', 'Current Password'],
                 ['newPassword', 'New Password'],
@@ -244,14 +250,14 @@ export default function Profile() {
                 onChange={event => setPasswords(previous => ({ ...previous, [key]: event.target.value }))}
                 inputProps={{ minLength: key === 'currentPassword' ? undefined : 8, maxLength: 200 }}
                 InputProps={{ endAdornment: key === 'newPassword' ? <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPasswords(value => !value)} edge="end" aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}>
+                  <IconButton onClick={() => setShowPasswords(value => !value)} edge="end" aria-label={showPasswords ? trUi("Hide passwords") : trUi("Show passwords")}>
                     {showPasswords ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
                   </IconButton></InputAdornment> : undefined }} />)}
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, py: 1.5 }}>
-            <Button onClick={closeDialog} disabled={saving}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={saving} startIcon={saving ? <CircularProgress size={16} /> : <LockOutlinedIcon />}>Update Password</Button>
+            <Button onClick={closeDialog} disabled={saving}>{trUi("Cancel")}</Button>
+            <Button type="submit" variant="contained" disabled={saving} startIcon={saving ? <CircularProgress size={16} /> : <LockOutlinedIcon />}>{trUi("Update Password")}</Button>
           </DialogActions>
         </Box>
       </Dialog>

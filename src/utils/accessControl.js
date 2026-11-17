@@ -84,8 +84,26 @@ export const canWeightCheck = () => isAdmin() || (isLululemonWorkspace()
 export const isViewOnly = () => !isAdmin() && (isLululemonWorkspace()
   ? getLululemonPermissions().length === 1 && getLululemonPermissions()[0] === ACCESS_PERMISSION.LULU_VIEW_ONLY
   : getAccessPermissions().length === 1 && getAccessPermissions()[0] === ACCESS_PERMISSION.VIEW_SYSTEM);
+/** Management Report permissions never inherit ADMIN's generic full-access shortcut.
+ * The active/switch Factory also never changes this report authorization.
+ */
+export const getManagementReportScope = () => {
+  const grants = readStoredUser().buyerAccessPermissions?.[BUYER_CODE.LULULEMON] || [];
+  if (grants.includes(ACCESS_PERMISSION.LULU_MANAGEMENT_REPORT_ALL)) return 'ALL';
+  if (grants.includes(ACCESS_PERMISSION.LULU_MANAGEMENT_REPORT_ASSIGNED)) return 'ASSIGNED';
+  return 'NONE';
+};
+export const canViewManagementReports = () => isLululemonWorkspace()
+  && (getManagementReportScope() === 'ALL'
+    || (getManagementReportScope() === 'ASSIGNED' && getFactoryPermissions().length > 0));
+export const canExportManagementReports = () => canViewManagementReports();
 export const canUseBuyerWorkspace = () => isAdmin() || (isLululemonWorkspace()
-  ? getLululemonPermissions().length > 0 : canManageSales() || isViewOnly());
+  ? getLululemonPermissions().some((permission) => ![
+      ACCESS_PERMISSION.LULU_MANAGEMENT_REPORT_VIEW,
+      ACCESS_PERMISSION.LULU_MANAGEMENT_REPORT_EXPORT,
+      ACCESS_PERMISSION.LULU_MANAGEMENT_REPORT_ALL,
+      ACCESS_PERMISSION.LULU_MANAGEMENT_REPORT_ASSIGNED
+    ].includes(permission)) : canManageSales() || isViewOnly());
 
 export const getFactoryPermissions = () => {
   const user = readStoredUser();

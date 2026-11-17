@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -82,6 +83,8 @@ function MetricTile({ icon, label, value, note, color, rate }) {
 
 // SVG donut: every segment is derived from the selected Order/Factory, no mock values.
 function Donut({ title, segments, total, centerLabel }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const radius = 61;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
@@ -107,7 +110,7 @@ function Donut({ title, segments, total, centerLabel }) {
           </g>
           <text x="115" y="88" textAnchor="middle" fontSize="30" fill={C.navy} fontWeight="900">{percent(segments[0]?.value, total)}%</text>
           <text x="115" y="109" textAnchor="middle" fontSize="12" fill={C.muted}>{centerLabel}</text>
-          <text x="115" y="176" textAnchor="middle" fontSize="11" fill={C.muted}>{fmt(total)} planned/recorded</text>
+          <text x="115" y="176" textAnchor="middle" fontSize="11" fill={C.muted}>{fmt(total)}{trUi(" planned/recorded")}</text>
         </svg>
       </Box>
       <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={0.75} mt={-1}>
@@ -142,7 +145,8 @@ function ProcessLane({ label, done, total, color, description, onClick }) {
 
 // Real SVG grouped vertical bar chart; bars support a click-through to the filtered table.
 function ComparisonChart({ rows, series, getLabel, onSelect, emptyText }) {
-  if (!rows.length) return <Typography variant="body2" color="text.secondary">{emptyText || 'No data for this selection'}</Typography>;
+  const trUi = useT();
+  if (!rows.length) return <Typography variant="body2" color="text.secondary">{emptyText || trUi("No data for this selection")}</Typography>;
   const width = 760;
   const height = 290;
   const margin = { left: 50, right: 15, top: 22, bottom: 62 };
@@ -159,10 +163,10 @@ function ComparisonChart({ rows, series, getLabel, onSelect, emptyText }) {
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 0.75 }}>
         {series.map(item => <Stack direction="row" alignItems="center" gap={0.5} key={item.key}>
           <Box sx={{ width: 10, height: 10, bgcolor: item.color, borderRadius: '4px' }} />
-          <Typography sx={{ fontSize: 11, color: C.muted }}>{item.label}</Typography>
+          <Typography sx={{ fontSize: 11, color: C.muted }}>{trUi(item.label)}</Typography>
         </Stack>)}
       </Box>
-      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Comparison chart: ${series.map(s => s.label).join(', ')}`}>
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={trUi("Comparison chart: {0}", series.map(s => s.label).join(', '))}>
         {Array.from({ length: 5 }, (_, index) => {
           const tick = top * index / 4;
           const y = margin.top + chartH - (tick / top) * chartH;
@@ -181,13 +185,13 @@ function ComparisonChart({ rows, series, getLabel, onSelect, emptyText }) {
               const barH = Math.min(chartH, (value / top) * chartH);
               return <rect key={metric.key} x={baseX + sIndex * (barW + 3)} y={margin.top + chartH - barH}
                 width={barW} height={barH} rx="2" fill={metric.color}>
-                <title>{label} · {metric.label}: {fmt(value)}</title>
+                <title>{label} · {trUi(metric.label)}: {fmt(value)}</title>
               </rect>;
             })}
             <text x={margin.left + index * band + band / 2} y={margin.top + chartH + 18}
               textAnchor="middle" fontSize="11" fill={C.navy} fontWeight="700">{short(label, Math.max(6, Math.floor(band / 8)))}</text>
             <text x={margin.left + index * band + band / 2} y={margin.top + chartH + 34}
-              textAnchor="middle" fontSize="10" fill={C.muted}>{onSelect ? 'View details' : ''}</text>
+              textAnchor="middle" fontSize="10" fill={C.muted}>{onSelect ? trUi("View details") : ''}</text>
           </g>;
         })}
       </svg>
@@ -197,6 +201,8 @@ function ComparisonChart({ rows, series, getLabel, onSelect, emptyText }) {
 
 // Keep the page stationary; large datasets scroll inside the table, not the browser window.
 function DataTable({ columns, rows, emptyText = 'No matching data', pageSize = 20 }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [limit, setLimit] = useState(pageSize);
   useEffect(() => { setLimit(pageSize); }, [rows, pageSize]);
   return (
@@ -205,19 +211,19 @@ function DataTable({ columns, rows, emptyText = 'No matching data', pageSize = 2
         maxHeight: { xs: 440, md: 'none' }, overflow: 'auto', bgcolor: 'white' }}>
         <Table stickyHeader size="small" sx={{ ...borderedTable, '& th': { fontSize: 11.5, fontWeight: 800, color: C.navy, bgcolor: '#f4f8fb', py: 0.85 },
           '& td': { fontSize: 12, py: 0.8 }, '& .MuiTableRow-root:hover td': { bgcolor: '#f3fafc' } }}>
-          <TableHead><TableRow><TableCell>STT</TableCell>{columns.map(c => <TableCell key={c.key}>{c.label}</TableCell>)}</TableRow></TableHead>
+          <TableHead><TableRow><TableCell>{trUi("STT")}</TableCell>{columns.map(c => <TableCell key={c.key}>{trUi(c.label)}</TableCell>)}</TableRow></TableHead>
           <TableBody>
             {rows.slice(0, limit).map((row, index) => <TableRow hover key={`${row.orderId || ''}-${row.poNumber || ''}-${row.cartonNo || ''}-${index}`}>
               <TableCell>{index + 1}</TableCell>
-              {columns.map(c => <TableCell key={c.key}>{c.render ? c.render(row) : row[c.key] ?? '—'}</TableCell>)}
+              {columns.map(c => <TableCell key={c.key}>{c.render ? c.render(row, trUi) : row[c.key] ?? '—'}</TableCell>)}
             </TableRow>)}
-            {!rows.length && <TableRow><TableCell align="center" colSpan={columns.length + 1}>{emptyText}</TableCell></TableRow>}
+            {!rows.length && <TableRow><TableCell align="center" colSpan={columns.length + 1}>{trUi(emptyText)}</TableCell></TableRow>}
           </TableBody>
         </Table>
       </TableContainer>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0, minHeight: 29, pt: 0.5 }}>
-        <Typography sx={{ fontSize: 11, color: C.muted }}>Showing {Math.min(limit, rows.length)} / {rows.length}</Typography>
-        {limit < rows.length && <Button size="small" onClick={() => setLimit(v => v + pageSize)} sx={{ py: 0, minHeight: 25 }}>Show more</Button>}
+        <Typography sx={{ fontSize: 11, color: C.muted }}>{trUi("Showing ")}{Math.min(limit, rows.length)} / {rows.length}</Typography>
+        {limit < rows.length && <Button size="small" onClick={() => setLimit(v => v + pageSize)} sx={{ py: 0, minHeight: 25 }}>{trUi("Show more")}</Button>}
       </Stack>
     </Box>
   );
@@ -243,7 +249,7 @@ const factoryColumns = [
 ];
 const poColumns = [
   { key: 'orderName', label: 'Order' }, { key: 'poNumber', label: 'PO Number' },
-  { key: 'factoryCode', label: 'Factory', render: r => r.factoryCode || 'Unassigned' },
+  { key: 'factoryCode', label: 'Factory', render: (r, t) => r.factoryCode || t('Unassigned') },
   { key: 'pickStatus', label: 'Pick', render: r => <Status value={r.pickStatus} /> },
   { key: 'pickedBy', label: 'Picked By' }, { key: 'sourceRows', label: 'ALL_BP Lines' },
   { key: 'plannedCartons', label: 'Planned Cartons' }, { key: 'createdCartons', label: 'Created Cartons' },
@@ -257,11 +263,13 @@ const cartonColumns = [
   { key: 'cartonNo', label: 'Carton No' }, { key: 'sscc18', label: 'SSCC' },
   { key: 'plannedQty', label: 'Qty' }, { key: 'weightStatus', label: 'Weight', render: r => <Status value={r.weightStatus} /> },
   { key: 'rfidStatus', label: 'RFID', render: r => <Status value={r.rfidStatus} /> },
-  { key: 'rfidAttempted', label: 'Scan Attempted', render: r => r.rfidAttempted ? 'Yes' : 'No' },
+  { key: 'rfidAttempted', label: 'Scan Attempted', render: (r, t) => t(r.rfidAttempted ? 'Yes' : 'No') },
   { key: 'finalCheckStatus', label: 'Final', render: r => <Status value={r.finalCheckStatus} /> }
 ];
 
 export default function OperationsDashboard() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -328,51 +336,47 @@ export default function OperationsDashboard() {
         justifyContent="space-between" gap={1} sx={{ flexShrink: 0, px: { xs: 0.25, md: 0.5 }, py: 0.25 }}>
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" alignItems="center" gap={0.75}>
-            <Typography sx={{ color: C.navy, fontWeight: 900, fontSize: { xs: 18, md: 21 }, lineHeight: 1.25 }}>Operations Dashboard</Typography>
+            <Typography sx={{ color: C.navy, fontWeight: 900, fontSize: { xs: 18, md: 21 }, lineHeight: 1.25 }}>{trUi("Operations Dashboard")}</Typography>
             <Tooltip title={helpText} arrow><InfoOutlined sx={{ color: C.muted, fontSize: 18, cursor: 'help' }} /></Tooltip>
           </Stack>
-          <Typography sx={{ fontSize: 11, color: C.muted }}>
-            Lululemon · {selectedFactory || 'Select a factory'} · {fmt(totals.orders)} Orders · {fmt(totals.pos)} unique PO
-            {lastSync ? ` · Updated ${lastSync.toLocaleTimeString()}` : ''}
+          <Typography sx={{ fontSize: 11, color: C.muted }}>{trUi("\n            Lululemon · ")}{selectedFactory || trUi("Select a factory")} · {fmt(totals.orders)}{trUi(" Orders · ")}{fmt(totals.pos)}{trUi(" unique PO\n            ")}{lastSync ? ` · Updated ${lastSync.toLocaleTimeString()}` : ''}
           </Typography>
         </Box>
         <Button size="small" variant="outlined" onClick={reload} disabled={busy || factoryLoading}
-          startIcon={busy ? <CircularProgress size={14} /> : <Refresh />} sx={{ fontWeight: 800, minHeight: 32, alignSelf: { xs: 'flex-start', sm: 'center' } }}>
-          Refresh
-        </Button>
+          startIcon={busy ? <CircularProgress size={14} /> : <Refresh />} sx={{ fontWeight: 800, minHeight: 32, alignSelf: { xs: 'flex-start', sm: 'center' } }}>{trUi("\n          Refresh\n        ")}</Button>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ flexShrink: 0, py: 0 }}>{error}</Alert>}
-      {!factoryLoading && !selectedFactory && !error && <Alert severity="info" sx={{ flexShrink: 0, py: 0 }}>Choose a Factory in the main header to view its data.</Alert>}
+      {error && <Alert severity="error" sx={{ flexShrink: 0, py: 0 }}>{trSystem(error)}</Alert>}
+      {!factoryLoading && !selectedFactory && !error && <Alert severity="info" sx={{ flexShrink: 0, py: 0 }}>{trUi("Choose a Factory in the main header to view its data.")}</Alert>}
 
       {/* The three selectors share one line on desktop; avoid additional filter cards. */}
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems="center" sx={{ flexShrink: 0 }}>
-        <FormControl size="small" fullWidth sx={{ flex: 1.5, minWidth: 0 }}><InputLabel>Order</InputLabel>
-          <Select label="Order" value={orderFilter} onChange={event => setOrderFilter(event.target.value)}>
-            <MenuItem value="ALL">All Orders</MenuItem>
+        <FormControl size="small" fullWidth sx={{ flex: 1.5, minWidth: 0 }}><InputLabel>{trUi("Order")}</InputLabel>
+          <Select label={trUi("Order")} value={orderFilter} onChange={event => setOrderFilter(event.target.value)}>
+            <MenuItem value="ALL">{trUi("All Orders")}</MenuItem>
             {(data?.orders || []).map(o => <MenuItem key={o.orderId} value={o.orderId}>{o.orderName || o.orderId}</MenuItem>)}
           </Select>
         </FormControl>
-        <FormControl size="small" fullWidth sx={{ flex: 1, minWidth: 0 }}><InputLabel>Factory</InputLabel>
-          <Select label="Factory" value={selectedFactory || ''} disabled>
+        <FormControl size="small" fullWidth sx={{ flex: 1, minWidth: 0 }}><InputLabel>{trUi("Factory")}</InputLabel>
+          <Select label={trUi("Factory")} value={selectedFactory || ''} disabled>
             {selectedFactory && <MenuItem value={selectedFactory}>{selectedFactory}</MenuItem>}
           </Select>
         </FormControl>
-        <FormControl size="small" fullWidth sx={{ flex: 1, minWidth: 0 }}><InputLabel>PO Picking</InputLabel>
-          <Select label="PO Picking" value={pickFilter} onChange={event => { setPickFilter(event.target.value); setExceptionFilter('ALL'); }}>
-            <MenuItem value="ALL">All PO</MenuItem><MenuItem value="PICKED">Picked</MenuItem><MenuItem value="NOT_PICKED">Not Picked</MenuItem>
+        <FormControl size="small" fullWidth sx={{ flex: 1, minWidth: 0 }}><InputLabel>{trUi("PO Picking")}</InputLabel>
+          <Select label={trUi("PO Picking")} value={pickFilter} onChange={event => { setPickFilter(event.target.value); setExceptionFilter('ALL'); }}>
+            <MenuItem value="ALL">{trUi("All PO")}</MenuItem><MenuItem value="PICKED">{trUi("Picked")}</MenuItem><MenuItem value="NOT_PICKED">{trUi("Not Picked")}</MenuItem>
           </Select>
         </FormControl>
         <Button size="small" variant="outlined" startIcon={<FilterAltOffOutlined />} onClick={clearFilters}
-          sx={{ whiteSpace: 'nowrap', height: 40, flexShrink: 0 }}>Clear</Button>
+          sx={{ whiteSpace: 'nowrap', height: 40, flexShrink: 0 }}>{trUi("Clear")}</Button>
       </Stack>
 
       <Box sx={{ display: 'grid', flexShrink: 0, gap: 1, gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(3, minmax(0,1fr))', lg: 'repeat(5, minmax(0,1fr))' } }}>
-        <MetricTile icon={<AccountTreeOutlined />} label="Total Unique PO" value={totals.pos} note={`${fmt(totals.notPickedPos)} PO not picked`} rate={percent(totals.pickedPos, totals.pos)} color={C.tealDark} />
-        <MetricTile icon={<Inventory2Outlined />} label="Planned Cartons" value={totals.plannedCartons} note={`${fmt(totals.createdCartons)} cartons generated`} rate={percent(totals.createdCartons, totals.plannedCartons)} color={C.cyan} />
-        <MetricTile icon={<FactCheckOutlined />} label="Weight PASS" value={totals.weightPass} note={`${fmt(totals.weightFailed)} FAILED · ${fmt(weightPending)} waiting`} rate={percent(totals.weightPass, chartBase)} color={C.blue} />
-        <MetricTile icon={<QrCodeScannerOutlined />} label="RFID PASS" value={totals.rfidPass} note={`${fmt(totals.rfidFailed)} FAILED · ${fmt(totals.rfidNotScanned)} not scanned`} rate={percent(totals.rfidPass, chartBase)} color={C.violet} />
-        <MetricTile icon={<TaskAltOutlined />} label="Final PASS" value={totals.finalPass} note="Both weight and RFID passed" rate={percent(totals.finalPass, chartBase)} color={C.teal} />
+        <MetricTile icon={<AccountTreeOutlined />} label={trUi("Total Unique PO")} value={totals.pos} note={trUi("{0} PO not picked", fmt(totals.notPickedPos))} rate={percent(totals.pickedPos, totals.pos)} color={C.tealDark} />
+        <MetricTile icon={<Inventory2Outlined />} label={trUi("Planned Cartons")} value={totals.plannedCartons} color={C.cyan} />
+        <MetricTile icon={<FactCheckOutlined />} label={trUi("Weight PASS")} value={totals.weightPass} note={trUi("{0} FAILED · {1} waiting", fmt(totals.weightFailed), fmt(weightPending))} rate={percent(totals.weightPass, chartBase)} color={C.blue} />
+        <MetricTile icon={<QrCodeScannerOutlined />} label={trUi("RFID PASS")} value={totals.rfidPass} note={trUi("{0} FAILED · {1} not scanned", fmt(totals.rfidFailed), fmt(totals.rfidNotScanned))} rate={percent(totals.rfidPass, chartBase)} color={C.violet} />
+        <MetricTile icon={<TaskAltOutlined />} label={trUi("Final PASS")} value={totals.finalPass} note={trUi("Both weight and RFID passed")} rate={percent(totals.finalPass, chartBase)} color={C.teal} />
       </Box>
 
       {/* Chart-first one-page dashboard: keep KPI + charts, remove detail tables. */}
@@ -381,62 +385,59 @@ export default function OperationsDashboard() {
         <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }}
           justifyContent="space-between" gap={0.6} sx={{ px: 1.5, pt: 1.1, pb: 0.6, flexShrink: 0 }}>
           <Box>
-            <Typography sx={{ color: C.navy, fontSize: 15, fontWeight: 900 }}>Operations Insights</Typography>
-            <Typography sx={{ color: C.muted, fontSize: 10.5 }}>Visual summary by Order and Factory</Typography>
+            <Typography sx={{ color: C.navy, fontSize: 15, fontWeight: 900 }}>{trUi("Operations Insights")}</Typography>
+            <Typography sx={{ color: C.muted, fontSize: 10.5 }}>{trUi("Visual summary by Order and Factory")}</Typography>
           </Box>
-          {exceptionFilter !== 'ALL' && <Button size="small" variant="outlined" onClick={() => setExceptionFilter('ALL')}>
-            Clear {exceptionFilter.replaceAll('_', ' ').toLowerCase()} filter
-          </Button>}
+          {exceptionFilter !== 'ALL' && <Button size="small" variant="outlined" onClick={() => setExceptionFilter('ALL')}>{trUi("\n            Clear ")}{exceptionFilter.replaceAll('_', ' ').toLowerCase()}{trUi(" filter\n          ")}</Button>}
         </Stack>
-        {exceptionFilter !== 'ALL' && <Alert severity="info" sx={{ mx: 1.5, mb: 0.8, py: 0, flexShrink: 0, '& .MuiAlert-message': { py: 0.5 } }}>
-          Metrics and charts are filtered by {exceptionFilter.replaceAll('_', ' ').toLowerCase()}.
+        {exceptionFilter !== 'ALL' && <Alert severity="info" sx={{ mx: 1.5, mb: 0.8, py: 0, flexShrink: 0, '& .MuiAlert-message': { py: 0.5 } }}>{trUi("\n          Metrics and charts are filtered by ")}{exceptionFilter.replaceAll('_', ' ').toLowerCase()}.
         </Alert>}
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', px: 1.25, pb: 0.8 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr' }, gap: 1.1, mb: 1.1 }}>
-            <DashboardPanel title="Carton Quality Breakdown" subtitle="Actual PASS / FAILED / pending distributions">
+            <DashboardPanel title={trUi("Carton Quality Breakdown")} subtitle={trUi("Actual PASS / FAILED / pending distributions")}>
               <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
-                <Donut title="Weight Check" total={chartBase} centerLabel="Weight PASS" segments={[
-                  { label: 'PASS', value: n(totals.weightPass), color: C.teal },
-                  { label: 'FAILED / HOLD', value: n(totals.weightFailed), color: C.coral },
-                  { label: 'Waiting', value: weightOther, color: '#dfe7ed' }
+                <Donut title={trUi("Weight Check")} total={chartBase} centerLabel={trUi("Weight PASS")} segments={[
+                  { label: trUi("PASS"), value: n(totals.weightPass), color: C.teal },
+                  { label: trUi("FAILED / HOLD"), value: n(totals.weightFailed), color: C.coral },
+                  { label: trUi("Waiting"), value: weightOther, color: '#dfe7ed' }
                 ]}/>
-                <Donut title="RFID Verification" total={chartBase} centerLabel="RFID PASS" segments={[
-                  { label: 'PASS', value: n(totals.rfidPass), color: C.teal },
-                  { label: 'FAILED', value: n(totals.rfidFailed), color: C.coral },
-                  { label: 'Not scanned', value: n(totals.rfidNotScanned), color: C.gold },
-                  { label: 'Other / in progress', value: rfidOther, color: '#dfe7ed' }
+                <Donut title={trUi("RFID Verification")} total={chartBase} centerLabel={trUi("RFID PASS")} segments={[
+                  { label: trUi("PASS"), value: n(totals.rfidPass), color: C.teal },
+                  { label: trUi("FAILED"), value: n(totals.rfidFailed), color: C.coral },
+                  { label: trUi("Not scanned"), value: n(totals.rfidNotScanned), color: C.gold },
+                  { label: trUi("Other / in progress"), value: rfidOther, color: '#dfe7ed' }
                 ]}/>
               </Stack>
             </DashboardPanel>
-            <DashboardPanel title="Operations Flow" subtitle="PO count for Picking; carton count for subsequent steps">
+            <DashboardPanel title={trUi("Operations Flow")} subtitle={trUi("PO count for Picking; carton count for subsequent steps")}>
               <Stack gap={1.35} py={0.25}>
-                <ProcessLane label="1 · PO Picking" done={totals.pickedPos} total={totals.pos} color={C.tealDark}
-                  description={`${fmt(totals.notPickedPos)} PO waiting for Factory pickup`} onClick={() => jumpTo('UNPICKED')} />
-                <ProcessLane label="2 · Carton Identified" done={scopePos.reduce((s, p) => s + n(p.identifiedCartons), 0)} total={chartBase} color={C.cyan}
-                  description="Assigned SSCC (planned carton denominator)" />
-                <ProcessLane label="3 · Weight PASS" done={totals.weightPass} total={chartBase} color={C.blue}
-                  description={`${fmt(totals.weightFailed)} FAILED / HOLD`} onClick={() => jumpTo('WEIGHT_FAILED')} />
-                <ProcessLane label="4 · RFID PASS" done={totals.rfidPass} total={chartBase} color={C.violet}
-                  description={`${fmt(totals.rfidNotScanned)} not scanned`} onClick={() => jumpTo('NOT_SCANNED')} />
-                <ProcessLane label="5 · Final PASS" done={totals.finalPass} total={chartBase} color={C.teal}
-                  description="All required checks passed" />
+                <ProcessLane label={trUi("1 · PO Picking")} done={totals.pickedPos} total={totals.pos} color={C.tealDark}
+                  description={trUi("{0} PO waiting for Factory pickup", fmt(totals.notPickedPos))} onClick={() => jumpTo('UNPICKED')} />
+                <ProcessLane label={trUi("2 · Carton Identified")} done={scopePos.reduce((s, p) => s + n(p.identifiedCartons), 0)} total={chartBase} color={C.cyan}
+                  description={trUi("Assigned SSCC (planned carton denominator)")} />
+                <ProcessLane label={trUi("3 · Weight PASS")} done={totals.weightPass} total={chartBase} color={C.blue}
+                  description={trUi("{0} FAILED / HOLD", fmt(totals.weightFailed))} onClick={() => jumpTo('WEIGHT_FAILED')} />
+                <ProcessLane label={trUi("4 · RFID PASS")} done={totals.rfidPass} total={chartBase} color={C.violet}
+                  description={trUi("{0} not scanned", fmt(totals.rfidNotScanned))} onClick={() => jumpTo('NOT_SCANNED')} />
+                <ProcessLane label={trUi("5 · Final PASS")} done={totals.finalPass} total={chartBase} color={C.teal}
+                  description={trUi("All required checks passed")} />
               </Stack>
             </DashboardPanel>
           </Box>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr' }, gap: 1.1 }}>
-            <DashboardPanel title="Factory Comparison" subtitle="Weight / RFID / Final PASS by active Factory">
+            <DashboardPanel title={trUi("Factory Comparison")} subtitle={trUi("Weight / RFID / Final PASS by active Factory")}>
               <ComparisonChart rows={factoryChartRows} getLabel={row => row.factoryCode}
-                series={[{ key: 'weightPass', label: 'Weight PASS', color: C.cyan },
-                  { key: 'rfidPass', label: 'RFID PASS', color: C.blue },
-                  { key: 'finalPass', label: 'Final PASS', color: C.tealDark }]}
-                emptyText="No picked PO in your assigned factories" />
+                series={[{ key: 'weightPass', label: trUi("Weight PASS"), color: C.cyan },
+                  { key: 'rfidPass', label: trUi("RFID PASS"), color: C.blue },
+                  { key: 'finalPass', label: trUi("Final PASS"), color: C.tealDark }]}
+                emptyText={trUi("No picked PO in your assigned factories")} />
             </DashboardPanel>
-            <DashboardPanel title="Top Orders" subtitle="Planned cartons versus Weight / Final PASS">
+            <DashboardPanel title={trUi("Top Orders")} subtitle={trUi("Planned cartons versus Weight / Final PASS")}>
               <ComparisonChart rows={topOrders} getLabel={row => row.orderName || row.orderId}
-                series={[{ key: 'plannedCartons', label: 'Planned', color: C.cyan },
-                  { key: 'weightPass', label: 'Weight PASS', color: C.blue },
-                  { key: 'finalPass', label: 'Final PASS', color: C.coral }]}
-                emptyText="No Orders for the selected scope" />
+                series={[{ key: 'plannedCartons', label: trUi("Planned"), color: C.cyan },
+                  { key: 'weightPass', label: trUi("Weight PASS"), color: C.blue },
+                  { key: 'finalPass', label: trUi("Final PASS"), color: C.coral }]}
+                emptyText={trUi("No Orders for the selected scope")} />
             </DashboardPanel>
           </Box>
         </Box>

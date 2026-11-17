@@ -1,3 +1,4 @@
+import * as orderWorkspaceAdapter from '../features/orders/workspaceAdapter';
 import {
   AssignmentOutlined,
   Inventory2Outlined,
@@ -30,6 +31,7 @@ const moduleConfig = {
   buyerCodes: [BUYER_CODE.ENGELBERT_STRAUSS],
   key: BUYER_MODULE_KEY.BARCODE_PACKING,
   landingChild: 'orders',
+  orderWorkspace: { mode: 'barcode', ...orderWorkspaceAdapter },
   capabilities: {
     orders: true,
     allocation: true,

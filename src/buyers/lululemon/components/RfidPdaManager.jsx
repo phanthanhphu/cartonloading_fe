@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { isFactoryCode } from '../../../common/factory/factoryCodes';
 import { getRawInventoryPreviewRows } from '../utils/trueVueEpc';
@@ -16,6 +17,8 @@ const EXPORT_ATTEMPTS = 12;
 const EXPORT_RETRY_MS = 1500;
 /** Capture controls only: calibration and default reader assignment belong on RFID Devices page. */
 export default function RfidPdaManager({ orderId, poId, sscc, stationCode, factoryCode, session, onImport, onCaptureActiveChange, onSessionRenewed, onCaptureImported, compact = false }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const factory = String(factoryCode || '').toUpperCase().trim();
   const [devices, setDevices] = useState([]);
   const [serial, setSerial] = useState('');
@@ -70,7 +73,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
       await onSessionRenewed?.(started.sessionId);
     }
     await refresh();
-    setNotice('New scan started. Previous EPCs were archived; this capture has an empty EPC list.');
+    setNotice(trUi("New scan started. Previous EPCs were archived; this capture has an empty EPC list."));
   });
   // STOP is a single user operation: stop the PDA, wait for its new export,
   // validate that the file belongs to this capture, submit all EPC batches,
@@ -79,7 +82,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
   const loadStoppedCapture = async () => {
     let data;
     for (let attempt = 0; attempt < EXPORT_ATTEMPTS; attempt += 1) {
-      setNotice(`Waiting for new PDA XLSX (${attempt + 1}/${EXPORT_ATTEMPTS})...`);
+      setNotice(trUi("Waiting for new PDA XLSX ({0}/{1})...", attempt + 1, EXPORT_ATTEMPTS));
       try {
         data = await previewRfidPdaExport(orderId, poId, serial, payload);
         break;
@@ -112,7 +115,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
     // Excel TOTAL READ COUNT while unique EPC quantity remains deduplicated.
     const incoming = Array.isArray(data.reads) && data.reads.length
       ? data.reads : [...data.epcs, ...(data.rejectedEpcs || [])];
-    setNotice(`Importing ${incoming.length} Excel read event(s) from ${data.filename}, including repeat reads and unsupported tags...`);
+    setNotice(trUi("Importing {0} Excel read event(s) from {1}, including repeat reads and unsupported tags...", incoming.length, data.filename));
     const importedSession = await onImport(incoming);
     // Release the PDA FIRST. The carton can only finalize after capture is
     // fully stopped and all the accepted reads have persisted on the server.
@@ -137,7 +140,7 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
     if (!confirmDiscard) { setConfirmDiscard(true); return; }
     operation(async () => {
       await releaseRfidPda(orderId, poId, serial, payload);
-      setPhase('IDLE'); setPreview(null); setConfirmDiscard(false); setNotice('Capture discarded.');
+      setPhase('IDLE'); setPreview(null); setConfirmDiscard(false); setNotice(trUi("Capture discarded."));
     });
   };
   const ready = selected?.configured && selected?.online && selected?.state === 'device';
@@ -147,68 +150,58 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
   return (
     <Box sx={{ mt: compact ? 0.3 : 1, mb: compact ? 0.3 : 1, p: compact ? 0.55 : 1.2, borderRadius: '4px', border: '1px solid', borderColor: 'divider' }}>
       {(!compact || showTechnical) && <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-        <Stack direction="row" gap={0.75} alignItems="center"><Cable fontSize="small"/><Typography fontWeight={800} fontSize={13}>RFID · {factory || 'Factory unknown'}</Typography>
-          <Chip size="small" variant="outlined" label={stationCode || 'Scale station'} /></Stack>
-        <Button size="small" startIcon={<Refresh />} disabled={busy || phase !== 'IDLE'} onClick={() => operation(refresh)}>Refresh</Button>
+        <Stack direction="row" gap={0.75} alignItems="center"><Cable fontSize="small"/><Typography fontWeight={800} fontSize={13}>{trUi("RFID · ")}{factory || trUi("Factory unknown")}</Typography>
+          <Chip size="small" variant="outlined" label={stationCode || trUi("Scale station")} /></Stack>
+        <Button size="small" startIcon={<Refresh />} disabled={busy || phase !== 'IDLE'} onClick={() => operation(refresh)}>{trUi("Refresh")}</Button>
       </Stack>}
-      {!isFactoryCode(factory) ? <Alert severity="warning" sx={{ mt: 1 }}>Cannot identify Carton Factory. Select the assigned Factory before scanning.</Alert> : null}
+      {!isFactoryCode(factory) ? <Alert severity="warning" sx={{ mt: 1 }}>{trUi("Cannot identify Carton Factory. Select the assigned Factory before scanning.")}</Alert> : null}
       <Stack direction="row" gap={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: compact ? 0.2 : 0.9 }}>
         <Cable fontSize="small" color={ready ? 'success' : 'disabled'} />
         <Typography sx={{ fontSize: 13, fontWeight: 750, flex: 1 }}>
-          {selected ? `RFID Reader · ${selected.label || selected.serial}` : readerNeedsDefault ? 'RFID Reader · Default not assigned' : 'RFID Reader · Not assigned'}
+          {selected ? trUi("RFID Reader · {0}", selected.label || selected.serial) : readerNeedsDefault ? trUi("RFID Reader · Default not assigned") : trUi("RFID Reader · Not assigned")}
         </Typography>
         <Chip size="small" color={usedByOther ? 'warning' : readerStatus.color}
-          label={usedByOther ? 'IN USE BY ANOTHER CARTON' : readerStatus.label} />
+          label={usedByOther ? trUi("IN USE BY ANOTHER CARTON") : readerStatus.label} />
       </Stack>
-      {readerNeedsDefault ? <Alert severity="warning" sx={{ mt: 0.5, py: 0 }}>
-        Multiple readers are assigned to this Factory. Ask Admin to set the default Reader before scanning.
-      </Alert> : null}
+      {readerNeedsDefault ? <Alert severity="warning" sx={{ mt: 0.5, py: 0 }}>{trUi("\n        Multiple readers are assigned to this Factory. Ask Admin to set the default Reader before scanning.\n      ")}</Alert> : null}
       <Stack direction="row" gap={compact ? 0.4 : 0.7} flexWrap="wrap" alignItems="center" sx={{ mt: compact ? 0.35 : 1 }}>
         <Button size="small" variant="contained" color="success" startIcon={<PlayArrow />}
-          disabled={busy || !active || !ready || usedByOther || phase !== 'IDLE'} onClick={start}>START PDA</Button>
+          disabled={busy || !active || !ready || usedByOther || phase !== 'IDLE'} onClick={start}>{trUi("START PDA")}</Button>
         <Button size="small" variant="outlined" color="warning" startIcon={<Stop />}
-          disabled={busy || !active || phase !== 'STARTED'} onClick={stop}>STOP PDA</Button>
+          disabled={busy || !active || phase !== 'STARTED'} onClick={stop}>{trUi("STOP PDA")}</Button>
         <Button size="small" variant="outlined" startIcon={<Download />}
-          disabled={busy || !active || !['STOPPED', 'PREVIEW'].includes(phase)} onClick={retryLoad}>Retry Load XLSX</Button>
-        {(!compact || showTechnical) && <Chip size="small" variant="outlined" label={`Tap control: ${phase} (not hardware verified)`} />}
-        {['STOPPED', 'PREVIEW'].includes(phase) ? <Button size="small" color="error" onClick={discard} disabled={busy}>{confirmDiscard ? 'Confirm Discard' : 'Discard'}</Button> : null}
-        {confirmDiscard && <Button size="small" onClick={() => setConfirmDiscard(false)} disabled={busy}>Keep Capture</Button>}
+          disabled={busy || !active || !['STOPPED', 'PREVIEW'].includes(phase)} onClick={retryLoad}>{trUi("Retry Load XLSX")}</Button>
+        {(!compact || showTechnical) && <Chip size="small" variant="outlined" label={trUi("Tap control: {0} (not hardware verified)", phase)} />}
+        {['STOPPED', 'PREVIEW'].includes(phase) ? <Button size="small" color="error" onClick={discard} disabled={busy}>{confirmDiscard ? trUi("Confirm Discard") : 'Discard'}</Button> : null}
+        {confirmDiscard && <Button size="small" onClick={() => setConfirmDiscard(false)} disabled={busy}>{trUi("Keep Capture")}</Button>}
       </Stack>
       {compact && <Button size="small" variant="text" color="inherit" sx={{ mt: 0.25, py: 0.1, minHeight: 22, fontSize: 11 }}
         endIcon={showTechnical ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
-        onClick={() => setShowTechnical((value) => !value)}>{showTechnical ? 'Hide details' : 'Reader details'}</Button>}
+        onClick={() => setShowTechnical((value) => !value)}>{showTechnical ? trUi("Hide details") : trUi("Reader details")}</Button>}
       {(!compact || showTechnical) && (preview ? <Stack spacing={0.55} sx={{ mt: 1 }}>
-        <Typography variant="body2" fontWeight={750}>{preview.filename} · {preview.excelRawUniqueEpcCount ?? '—'} raw tags · {preview.uniqueCount} valid TrueVUE</Typography>
-        <Typography variant="caption" color="text.secondary">
-          Excel reports {preview.excelUniqueTagCount < 0 ? '—' : preview.excelUniqueTagCount} unique / {preview.excelTotalReadCount < 0 ? '—' : preview.excelTotalReadCount} reads · {preview.rejectedEpcCells ?? 0} invalid TrueVUE · {(preview.skippedFiles || []).length} earlier candidate exports skipped
-        </Typography>
+        <Typography variant="body2" fontWeight={750}>{preview.filename} · {preview.excelRawUniqueEpcCount ?? '—'}{trUi(" raw tags · ")}{preview.uniqueCount}{trUi(" valid TrueVUE")}</Typography>
+        <Typography variant="caption" color="text.secondary">{trUi("\n          Excel reports ")}{preview.excelUniqueTagCount < 0 ? '—' : preview.excelUniqueTagCount}{trUi(" unique / ")}{preview.excelTotalReadCount < 0 ? '—' : preview.excelTotalReadCount}{trUi(" reads · ")}{preview.rejectedEpcCells ?? 0}{trUi(" invalid TrueVUE · ")}{(preview.skippedFiles || []).length}{trUi(" earlier candidate exports skipped\n        ")}</Typography>
         <Stack direction="row" gap={1} flexWrap="wrap">
-          <Button size="small" variant="outlined" onClick={() => setPreviewOpen(true)}>Review all {preview.excelRawUniqueEpcCount ?? preview.uniqueCount} raw tags</Button>
+          <Button size="small" variant="outlined" onClick={() => setPreviewOpen(true)}>{trUi("Review all ")}{preview.excelRawUniqueEpcCount ?? preview.uniqueCount}{trUi(" raw tags")}</Button>
         </Stack>
       </Stack> : null)}
       {previewOpen && preview && <Paper variant="outlined" sx={{ mt: 1, p: 1.5, borderRadius: '4px' }}>
-        <Typography variant="subtitle1" fontWeight={800}>RFID Export — Review EPCs for SSCC {sscc}</Typography>
-          <Typography variant="body2" sx={{ mb: 1 }}>This is a PDA export preview, NOT a verified RFID PASS. Verify the file belongs to this carton before importing.</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            Capture START on PDA: {preview?.captureStartedAtEpochSecond ? new Date(preview.captureStartedAtEpochSecond * 1000).toLocaleString() : '—'}.
-            Excel reports unique tags {preview?.excelUniqueTagCount < 0 ? '—' : preview?.excelUniqueTagCount}, total reads {preview?.excelTotalReadCount < 0 ? '—' : preview?.excelTotalReadCount}.
-            Parsed raw unique tags {preview?.excelRawUniqueEpcCount ?? '—'}; valid TrueVUE {preview?.uniqueCount ?? '—'}; invalid {preview?.rejectedEpcCells ?? '—'}.
+        <Typography variant="subtitle1" fontWeight={800}>{trUi("RFID Export — Review EPCs for SSCC ")}{sscc}</Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>{trUi("This is a PDA export preview, NOT a verified RFID PASS. Verify the file belongs to this carton before importing.")}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{trUi("\n            Capture START on PDA: ")}{preview?.captureStartedAtEpochSecond ? new Date(preview.captureStartedAtEpochSecond * 1000).toLocaleString() : '—'}{trUi(".\n            Excel reports unique tags ")}{preview?.excelUniqueTagCount < 0 ? '—' : preview?.excelUniqueTagCount}{trUi(", total reads ")}{preview?.excelTotalReadCount < 0 ? '—' : preview?.excelTotalReadCount}{trUi(".\n            Parsed raw unique tags ")}{preview?.excelRawUniqueEpcCount ?? '—'}{trUi("; valid TrueVUE ")}{preview?.uniqueCount ?? '—'}{trUi("; invalid ")}{preview?.rejectedEpcCells ?? '—'}.
           </Typography>
           {(preview?.sourceFiles || []).map((f) => (
-            <Typography key={f.filename} variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere' }}>
-              XLSX: {f.filename} · PDA modified {new Date(f.modifiedAtEpochSecond * 1000).toLocaleString()} · EPC-shaped {f.candidateCells} · valid {f.validCells} · duplicate {f.duplicateCells} · invalid {f.rejectedEpcCells}
+            <Typography key={f.filename} variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere' }}>{trUi("\n              XLSX: ")}{f.filename}{trUi(" · PDA modified ")}{new Date(f.modifiedAtEpochSecond * 1000).toLocaleString()}{trUi(" · EPC-shaped ")}{f.candidateCells}{trUi(" · valid ")}{f.validCells}{trUi(" · duplicate ")}{f.duplicateCells}{trUi(" · invalid ")}{f.rejectedEpcCells}
             </Typography>
           ))}
-          {!!(preview?.skippedFiles || []).length && <Alert severity="warning" sx={{ mb: 1 }}>
-            Older XLSX snapshots not merged: {(preview?.skippedFiles || []).join(', ')}
+          {!!(preview?.skippedFiles || []).length && <Alert severity="warning" sx={{ mb: 1 }}>{trUi("\n            Older XLSX snapshots not merged: ")}{(preview?.skippedFiles || []).join(', ')}
           </Alert>}
-          {!!(preview?.rejectedEpcs || []).length && <Alert severity="warning" sx={{ mb: 1 }}>
-            Unsupported/non-TrueVUE raw EPCs (recorded as invalid, not silently discarded): {(preview?.rejectedEpcs || []).join(', ')}
+          {!!(preview?.rejectedEpcs || []).length && <Alert severity="warning" sx={{ mb: 1 }}>{trUi("\n            Unsupported/non-TrueVUE raw EPCs (recorded as invalid, not silently discarded): ")}{(preview?.rejectedEpcs || []).join(', ')}
           </Alert>}
-          <TextField size="small" fullWidth label="Search EPC" value={epcFilter} onChange={(event) => setEpcFilter(event.target.value)} sx={{ mb: 1 }}/>
+          <TextField size="small" fullWidth label={trUi("Search EPC")} value={epcFilter} onChange={(event) => setEpcFilter(event.target.value)} sx={{ mb: 1 }}/>
           <TableContainer sx={{ maxHeight: 380, border: '1px solid', borderColor: 'divider', borderRadius: '4px' }}>
-            <Table size="small" stickyHeader aria-label="RFID PDA export EPC list">
-              <TableHead><TableRow><TableCell sx={{ width: 65 }}>STT</TableCell><TableCell>Raw EPC (Excel)</TableCell><TableCell>COUNT</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
+            <Table size="small" stickyHeader aria-label={trUi("RFID PDA export EPC list")}>
+              <TableHead><TableRow><TableCell sx={{ width: 65 }}>{trUi("STT")}</TableCell><TableCell>{trUi("Raw EPC (Excel)")}</TableCell><TableCell>{trUi("COUNT")}</TableCell><TableCell>{trUi("Status")}</TableCell></TableRow></TableHead>
               <TableBody>
                 {previewRows.filter((item) => item.epc.toLowerCase().includes(epcFilter.trim().toLowerCase())).map((item, idx) => (
                   <TableRow key={item.epc} hover>
@@ -223,9 +216,9 @@ export default function RfidPdaManager({ orderId, poId, sscc, stationCode, facto
               </TableBody>
             </Table>
           </TableContainer>
-        <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}><Button onClick={() => setPreviewOpen(false)}>Close Details</Button></Stack>
+        <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}><Button onClick={() => setPreviewOpen(false)}>{trUi("Close Details")}</Button></Stack>
       </Paper>}
-      {error ? <Alert severity="error" sx={{ mt: 1, py: 0 }}>{error}</Alert> : null}
+      {error ? <Alert severity="error" sx={{ mt: 1, py: 0 }}>{trSystem(error)}</Alert> : null}
       {notice && (!compact || showTechnical || busy || phase !== 'IDLE') ? <Alert severity="info" sx={{ mt: 0.4, py: 0 }}>{notice}</Alert> : null}
     </Box>
   );

@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import { BARCODE_CARTON_STATUS, FACTORY_BARCODE_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, SCALE_WEIGHT_STATUS, LARGE_TABLE_PAGE_SIZE, OPERATION_ROUTE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
@@ -46,7 +48,7 @@ import BuildCircleOutlinedIcon from '@mui/icons-material/BuildCircleOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { APP_MESSAGES, createBarcodeAssignedMessage, createBarcodeUnassignedMessage, createCartonMasterGeneratedMessage, createFactoryBarcodeAvailableForCartonMessage, createOrderItemsImportSummary, createPackingListGenerationSummary, createPackingListImportCompletedMessage, createUnassignFactoryBarcodeConfirmMessage, createWeightResetMessage } from '../../../../constants/appMessages';
+import { APP_MESSAGES, createBarcodeAssignedMessage, createBarcodeUnassignedMessage, createCartonMasterGeneratedMessage, createFactoryBarcodeAvailableForCartonMessage, createOrderItemsImportSummary, createPackingListGenerationSummary, createPackingListImportCompletedMessage, createWeightResetMessage } from '../../../../constants/appMessages';
 
 import { canAssignBarcode as canAssignBarcodeAccess, canManageSales, isAdmin } from 'utils/accessControl';
 import { getBuyerBySlug } from 'utils/buyerAccess';
@@ -97,6 +99,9 @@ const summaryCard = (label, value) => (
 );
 
 export default function PackingAllocationPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -238,6 +243,7 @@ export default function PackingAllocationPage() {
       : cartonItemAssignedCount > 0 ? PROGRESS_STATUS.IN_PROGRESS : PROGRESS_STATUS.NOT_STARTED;
 
   const saveMaster = async (payload) => {
+    if (!await confirmAction({ kind: masterFormRecord?.id ? 'update' : 'create', entity: 'Master Data', name: payload?.poNumber || '' })) return;
     if (!canWrite || !buyer?.code) return;
     setMasterSaving(true);
     try {
@@ -297,6 +303,7 @@ export default function PackingAllocationPage() {
   };
 
   const savePacking = async (payload) => {
+    if (!await confirmAction({ kind: packingFormRecord?.id ? 'update' : 'create', entity: 'Packing List', name: payload?.poNumber || '' })) return;
     if (!canWrite || !buyer?.code) return;
     setPackingSaving(true);
     try {
@@ -437,6 +444,7 @@ export default function PackingAllocationPage() {
       setCartonAssignError(APP_MESSAGES.POSITIVE_CARTON_QTY_MATCH_REQUIRED);
       return;
     }
+    if (!await confirmAction({ kind: 'assign', entity: 'Barcode', name: cartonCheckedBarcode.barcode })) return;
     setCartonAssigningId(cartonAssignTarget.id);
     setCartonAssignError('');
     try {
@@ -466,7 +474,7 @@ export default function PackingAllocationPage() {
 
   const unassignCartonBarcode = async (carton) => {
     if (!buyer?.code || !carton?.id || !carton.factoryBarcode || carton.status !== BARCODE_CARTON_STATUS.PLANNED || cartonAssigningId) return;
-    if (!window.confirm(createUnassignFactoryBarcodeConfirmMessage(carton.factoryBarcode, `Carton #${carton.cartonSequence || '—'}`))) return;
+    if (!await confirmAction({ kind: 'unassign', entity: 'Barcode', name: `${carton.factoryBarcode} · Carton #${carton.cartonSequence || '—'}` })) return;
     setCartonAssigningId(carton.id);
     try {
       await unassignFactoryBarcodeFromCarton(buyer.code, orderId, carton.id);
@@ -546,7 +554,7 @@ export default function PackingAllocationPage() {
         <Box>
           <Stack direction="row" spacing={1} alignItems="center">
             <Button component={RouterLink} to={assignmentWorkspace ? OPERATION_ROUTE.ASSIGN_BARCODE : `/buyers/${buyer.slug}/orders`} size="small" startIcon={<ArrowBackOutlinedIcon />} sx={{ textTransform: 'none' }}>
-              {assignmentWorkspace ? 'Back to Assign Barcode' : 'Back to Orders'}
+              {assignmentWorkspace ? trUi("Back to Assign Barcode") : trUi("Back to Orders")}
             </Button>
             <Chip label={buyer.label} color="primary" size="small" />
           </Stack>
@@ -563,7 +571,7 @@ export default function PackingAllocationPage() {
             sx={{ fontWeight: 750 }}
           />
           {canWrite && (
-            <Tooltip title={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'Create a Sales Shipment Plan from assigned cartons' : 'Assign a Factory Barcode to every physical carton before Sales can create a Shipment Plan'}>
+            <Tooltip title={order?.assignmentStatus === PROGRESS_STATUS.COMPLETED ? trUi("Create a Sales Shipment Plan from assigned cartons") : trUi("Assign a Factory Barcode to every physical carton before Sales can create a Shipment Plan")}>
               <span>
                 <Button
                   variant="contained"
@@ -571,9 +579,7 @@ export default function PackingAllocationPage() {
                   disabled={order?.assignmentStatus !== PROGRESS_STATUS.COMPLETED}
                   onClick={() => navigate(`/sales/shipment-planning?orderId=${encodeURIComponent(orderId)}`)}
                   sx={{ textTransform: 'none', bgcolor: '#103B5C' }}
-                >
-                  Sales Shipment Planning
-                </Button>
+                >{trUi("\n                  Sales Shipment Planning\n                ")}</Button>
               </span>
             </Tooltip>
           )}
@@ -588,8 +594,8 @@ export default function PackingAllocationPage() {
       {!assignmentWorkspace && (
         <Paper elevation={0} sx={{ mb: 1.4, border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
           <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
-            <Tab label={`Order Items (${Number(order?.masterLineCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)})`} />
-            <Tab label={`Packing List (${Number(order?.packingLineCount || 0).toLocaleString()})`} />
+            <Tab label={trUi("Order Items ({0})", Number(order?.masterLineCount || 0).toLocaleString(FORMAT_LOCALE.EN_US))} />
+            <Tab label={trUi("Packing List ({0})", Number(order?.packingLineCount || 0).toLocaleString())} />
           </Tabs>
         </Paper>
       )}
@@ -598,23 +604,23 @@ export default function PackingAllocationPage() {
         <>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 1.2 }}>
             <Box>
-              <Typography sx={{ fontWeight: 750, color: '#103B5C', fontSize: '1.06rem' }}>{assignmentWorkspace ? `Assign Barcode – ${buyer.label}` : `Sales · Master Data – ${buyer.label}`}</Typography>
-              {!assignmentWorkspace && <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>Upload the ALLOCATION sheet. The downloadable edit file includes ACTION values CREATE, UPDATE, DELETE and a KEY column for batch editing.</Typography>}
+              <Typography sx={{ fontWeight: 750, color: '#103B5C', fontSize: '1.06rem' }}>{assignmentWorkspace ? trUi("Assign Barcode – {0}", buyer.label) : trUi("Sales · Master Data – {0}", buyer.label)}</Typography>
+              {!assignmentWorkspace && <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>{trUi("Upload the ALLOCATION sheet. The downloadable edit file includes ACTION values CREATE, UPDATE, DELETE and a KEY column for batch editing.")}</Typography>}
             </Box>
             {!assignmentWorkspace && (
               <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-                <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={exportMaster} sx={{ textTransform: 'none' }}>Download Edit File</Button>
-                <Tooltip title={canWrite ? '' : 'SALES permission is required'}><span>
-                  <Button disabled={!canWrite} variant="outlined" startIcon={<UploadFileOutlinedIcon />} onClick={() => { setMasterImportResult(null); setMasterImportOpen(true); }} sx={{ textTransform: 'none' }}>Upload Excel</Button>
+                <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={exportMaster} sx={{ textTransform: 'none' }}>{trUi("Download Edit File")}</Button>
+                <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}><span>
+                  <Button disabled={!canWrite} variant="outlined" startIcon={<UploadFileOutlinedIcon />} onClick={() => { setMasterImportResult(null); setMasterImportOpen(true); }} sx={{ textTransform: 'none' }}>{trUi("Upload Excel")}</Button>
                 </span></Tooltip>
-                <Tooltip title={canWrite ? '' : 'SALES permission is required'}><span>
-                  <Button disabled={!canWrite} variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => { setMasterFormRecord(null); setMasterFormOpen(true); }} sx={{ textTransform: 'none' }}>Add Row</Button>
+                <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}><span>
+                  <Button disabled={!canWrite} variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => { setMasterFormRecord(null); setMasterFormOpen(true); }} sx={{ textTransform: 'none' }}>{trUi("Add Row")}</Button>
                 </span></Tooltip>
-                <Tooltip title={canWrite ? '' : 'SALES permission is required'}><span>
-                  <Button disabled={!canWrite} color="secondary" variant="contained" startIcon={<PlaylistAddCheckOutlinedIcon />} onClick={() => setGenerateOpen(true)} sx={{ textTransform: 'none' }}>Generate Packing List</Button>
+                <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}><span>
+                  <Button disabled={!canWrite} color="secondary" variant="contained" startIcon={<PlaylistAddCheckOutlinedIcon />} onClick={() => setGenerateOpen(true)} sx={{ textTransform: 'none' }}>{trUi("Generate Packing List")}</Button>
                 </span></Tooltip>
-                <Tooltip title={canWrite ? 'Generate one Carton Master row for each physical carton defined by Master Total ctns' : 'SALES permission is required'}><span>
-                  <Button disabled={!canWrite} color="success" variant="contained" startIcon={<Inventory2OutlinedIcon />} onClick={() => setCartonGenerateOpen(true)} sx={{ textTransform: 'none' }}>Generate Carton Master</Button>
+                <Tooltip title={canWrite ? trUi("Generate one Carton Master row for each physical carton defined by Master Total ctns") : trUi("SALES permission is required")}><span>
+                  <Button disabled={!canWrite} color="success" variant="contained" startIcon={<Inventory2OutlinedIcon />} onClick={() => setCartonGenerateOpen(true)} sx={{ textTransform: 'none' }}>{trUi("Generate Carton Master")}</Button>
                 </span></Tooltip>
               </Stack>
             )}
@@ -623,18 +629,18 @@ export default function PackingAllocationPage() {
           <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden' }}>
             <Box sx={{ p: 1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E5E7EB' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
-              <TextField size="small" label="General keyword" value={masterFilters.keyword} onChange={(event) => setMasterFilters((current) => ({ ...current, keyword: event.target.value }))} />
-              <TextField size="small" label="e.s. PO #" value={masterFilters.poNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, poNumber: event.target.value }))} />
-              <TextField size="small" label="e.s. Article #" value={masterFilters.articleNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, articleNumber: event.target.value }))} />
-              <TextField size="small" label="STYLE# or STYLE" value={masterFilters.styleNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, styleNumber: event.target.value }))} />
-              <TextField size="small" label="Color" value={masterFilters.color} onChange={(event) => setMasterFilters((current) => ({ ...current, color: event.target.value }))} />
-              <TextField size="small" label="Size" value={masterFilters.sizeValue} onChange={(event) => setMasterFilters((current) => ({ ...current, sizeValue: event.target.value }))} />
-              <TextField size="small" label="Mode of shipment" value={masterFilters.shipmentMode} onChange={(event) => setMasterFilters((current) => ({ ...current, shipmentMode: event.target.value }))} />
-              <TextField size="small" label="STATUS" value={masterFilters.status} onChange={(event) => setMasterFilters((current) => ({ ...current, status: event.target.value }))} />
+              <TextField size="small" label={trUi("General keyword")} value={masterFilters.keyword} onChange={(event) => setMasterFilters((current) => ({ ...current, keyword: event.target.value }))} />
+              <TextField size="small" label={trUi('e.g. PO #')} value={masterFilters.poNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, poNumber: event.target.value }))} />
+              <TextField size="small" label={trUi('e.g. Article #')} value={masterFilters.articleNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, articleNumber: event.target.value }))} />
+              <TextField size="small" label={trUi("STYLE# or STYLE")} value={masterFilters.styleNumber} onChange={(event) => setMasterFilters((current) => ({ ...current, styleNumber: event.target.value }))} />
+              <TextField size="small" label={trUi("Color")} value={masterFilters.color} onChange={(event) => setMasterFilters((current) => ({ ...current, color: event.target.value }))} />
+              <TextField size="small" label={trUi("Size")} value={masterFilters.sizeValue} onChange={(event) => setMasterFilters((current) => ({ ...current, sizeValue: event.target.value }))} />
+              <TextField size="small" label={trUi("Mode of shipment")} value={masterFilters.shipmentMode} onChange={(event) => setMasterFilters((current) => ({ ...current, shipmentMode: event.target.value }))} />
+              <TextField size="small" label={trUi("STATUS")} value={masterFilters.status} onChange={(event) => setMasterFilters((current) => ({ ...current, status: event.target.value }))} />
             </Box>
             <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.2 }}>
-              <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={() => { setMasterApplied(masterFilters); setMasterPage(0); }} sx={{ textTransform: 'none' }}>Search</Button>
-              <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={() => { setMasterFilters(emptyMasterFilters); setMasterApplied(emptyMasterFilters); setMasterPage(0); }} sx={{ textTransform: 'none' }}>Reset</Button>
+              <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={() => { setMasterApplied(masterFilters); setMasterPage(0); }} sx={{ textTransform: 'none' }}>{trUi("Search")}</Button>
+              <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={() => { setMasterFilters(emptyMasterFilters); setMasterApplied(emptyMasterFilters); setMasterPage(0); }} sx={{ textTransform: 'none' }}>{trUi("Reset")}</Button>
             </Stack>
           </Box>
 
@@ -649,13 +655,13 @@ export default function PackingAllocationPage() {
             <StandardTableViewport paginate sx={{ maxHeight: 'calc(100vh - 470px)', minHeight: 300, border: 0, borderRadius: 0 }}>
               <SortableTable stickyHeader size="small" sx={{ minWidth: 3600 }}>
                 <TableHead><TableRow>
-                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 70 }}>No.</TableCell>
-                  {PACKING_ALLOCATION_FIELDS.map((field) => <TableCell key={field.name} sx={{ bgcolor: '#eaf1f6', fontWeight: 750, minWidth: field.width, whiteSpace: 'nowrap' }}>{field.label}</TableCell>)}
-                  <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 100 }}>Actions</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 70 }}>{trUi("No.")}</TableCell>
+                  {PACKING_ALLOCATION_FIELDS.map((field) => <TableCell key={field.name} sx={{ bgcolor: '#eaf1f6', fontWeight: 750, minWidth: field.width, whiteSpace: 'nowrap' }}>{trUi(field.label)}</TableCell>)}
+                  <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 100 }}>{trUi("Actions")}</TableCell>
                 </TableRow></TableHead>
                 <TableBody>
-                  {masterLoading && <TableRow><TableCell colSpan={PACKING_ALLOCATION_FIELDS.length + 2} align="center" sx={{ py: 4 }}>Loading Order Items...</TableCell></TableRow>}
-                  {!masterLoading && masterRows.length === 0 && <TableRow><TableCell colSpan={PACKING_ALLOCATION_FIELDS.length + 2} align="center" sx={{ py: 4, color: 'text.secondary' }}>No matching Order Items.</TableCell></TableRow>}
+                  {masterLoading && <TableRow><TableCell colSpan={PACKING_ALLOCATION_FIELDS.length + 2} align="center" sx={{ py: 4 }}>{trUi("Loading Order Items...")}</TableCell></TableRow>}
+                  {!masterLoading && masterRows.length === 0 && <TableRow><TableCell colSpan={PACKING_ALLOCATION_FIELDS.length + 2} align="center" sx={{ py: 4, color: 'text.secondary' }}>{trUi("No matching Order Items.")}</TableCell></TableRow>}
                   {!masterLoading && masterRows.map((row, index) => <TableRow
                     key={row.id}
                     hover
@@ -663,10 +669,10 @@ export default function PackingAllocationPage() {
                     <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, bgcolor: 'background.paper', fontWeight: 700 }}>{masterPage * 50 + index + 1}</TableCell>
                     {PACKING_ALLOCATION_FIELDS.map((field) => <TableCell key={field.name} sx={{ minWidth: field.width, maxWidth: field.name === 'style' ? 340 : field.width + 80, whiteSpace: ['style', 'remarks'].includes(field.name) ? 'normal' : 'nowrap' }}>{formatPackingValue(row[field.name], field.type)}</TableCell>)}
                     <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 2, bgcolor: 'background.paper', whiteSpace: 'nowrap' }}>
-                      <Tooltip title={`View physical cartons for this Master row`}><span><IconButton color="primary" onClick={(event) => { event.stopPropagation(); openCartonItem(row); }}><Inventory2OutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                      <Tooltip title={trUi("View physical cartons for this Master row")}><span><IconButton color="primary" onClick={(event) => { event.stopPropagation(); openCartonItem(row); }}><Inventory2OutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
                       {!assignmentWorkspace && <>
-                        <Tooltip title={canWrite ? 'Edit row' : 'SALES permission is required'}><span><IconButton disabled={!canWrite} onClick={(event) => { event.stopPropagation(); setMasterFormRecord(row); setMasterFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
-                        <Tooltip title={canWrite ? 'Delete row' : 'SALES permission is required'}><span><IconButton disabled={!canWrite} color="error" onClick={(event) => { event.stopPropagation(); setMasterDeleteTarget(row); }}><DeleteOutlineOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                        <Tooltip title={canWrite ? trUi("Edit row") : trUi("SALES permission is required")}><span><IconButton disabled={!canWrite} onClick={(event) => { event.stopPropagation(); setMasterFormRecord(row); setMasterFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                        <Tooltip title={canWrite ? trUi("Delete row") : trUi("SALES permission is required")}><span><IconButton disabled={!canWrite} color="error" onClick={(event) => { event.stopPropagation(); setMasterDeleteTarget(row); }}><DeleteOutlineOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
                       </>}
                     </TableCell>
                   </TableRow>)}
@@ -675,7 +681,7 @@ export default function PackingAllocationPage() {
             </StandardTableViewport>
           </Box>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1, borderTop: '1px solid #E5E7EB' }}>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>Total: {masterTotal} rows</Typography>
+            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>{trUi("Total: ")}{masterTotal}{trUi(" rows")}</Typography>
             <Pagination page={masterPage + 1} count={masterPages} onChange={(_, value) => setMasterPage(value - 1)} />
           </Stack>
           </Paper>
@@ -684,18 +690,18 @@ export default function PackingAllocationPage() {
         <>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 1.2 }}>
             <Box>
-              <Typography sx={{ fontWeight: 750, color: '#103B5C', fontSize: '1.06rem' }}>Packing List</Typography>
+              <Typography sx={{ fontWeight: 750, color: '#103B5C', fontSize: '1.06rem' }}>{trUi("Packing List")}</Typography>
             </Box>
             <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-              <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={exportPacking} sx={{ textTransform: 'none' }}>Download</Button>
-              <Tooltip title={canWrite ? '' : 'SALES permission is required'}><span>
-                <Button disabled={!canWrite} variant="outlined" startIcon={<UploadFileOutlinedIcon />} onClick={() => { setPackingImportResult(null); setPackingImportOpen(true); }} sx={{ textTransform: 'none' }}>Upload PKL</Button>
+              <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={exportPacking} sx={{ textTransform: 'none' }}>{trUi("Download")}</Button>
+              <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}><span>
+                <Button disabled={!canWrite} variant="outlined" startIcon={<UploadFileOutlinedIcon />} onClick={() => { setPackingImportResult(null); setPackingImportOpen(true); }} sx={{ textTransform: 'none' }}>{trUi("Upload PKL")}</Button>
               </span></Tooltip>
-              <Tooltip title={canWrite ? '' : 'SALES permission is required'}><span>
-                <Button disabled={!canWrite} variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => { setPackingFormRecord(null); setPackingFormOpen(true); }} sx={{ textTransform: 'none' }}>Add Row</Button>
+              <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}><span>
+                <Button disabled={!canWrite} variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => { setPackingFormRecord(null); setPackingFormOpen(true); }} sx={{ textTransform: 'none' }}>{trUi("Add Row")}</Button>
               </span></Tooltip>
-              <Tooltip title={canWrite ? '' : 'SALES permission is required'}><span>
-                <Button disabled={!canWrite} color="secondary" variant="contained" startIcon={<PlaylistAddCheckOutlinedIcon />} onClick={() => setGenerateOpen(true)} sx={{ textTransform: 'none' }}>Regenerate from Master</Button>
+              <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}><span>
+                <Button disabled={!canWrite} color="secondary" variant="contained" startIcon={<PlaylistAddCheckOutlinedIcon />} onClick={() => setGenerateOpen(true)} sx={{ textTransform: 'none' }}>{trUi("Regenerate from Master")}</Button>
               </span></Tooltip>
             </Stack>
           </Stack>
@@ -703,16 +709,16 @@ export default function PackingAllocationPage() {
           <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden' }}>
             <Box sx={{ p: 1, bgcolor: '#FBFCFE', borderBottom: '1px solid #E5E7EB' }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
-              <TextField size="small" label="General keyword" value={packingFilters.keyword} onChange={(event) => setPackingFilters((current) => ({ ...current, keyword: event.target.value }))} />
-              <TextField size="small" label="P.O. #" value={packingFilters.poNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, poNumber: event.target.value }))} />
-              <TextField size="small" label="Art.no." value={packingFilters.articleNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, articleNumber: event.target.value }))} />
-              <TextField size="small" label="Style # or Style" value={packingFilters.styleNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, styleNumber: event.target.value }))} />
-              <TextField size="small" label="Color" value={packingFilters.color} onChange={(event) => setPackingFilters((current) => ({ ...current, color: event.target.value }))} />
-              <TextField size="small" label="Size" value={packingFilters.sizeValue} onChange={(event) => setPackingFilters((current) => ({ ...current, sizeValue: event.target.value }))} />
+              <TextField size="small" label={trUi("General keyword")} value={packingFilters.keyword} onChange={(event) => setPackingFilters((current) => ({ ...current, keyword: event.target.value }))} />
+              <TextField size="small" label={trUi("P.O. #")} value={packingFilters.poNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, poNumber: event.target.value }))} />
+              <TextField size="small" label={trUi("Art.no.")} value={packingFilters.articleNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, articleNumber: event.target.value }))} />
+              <TextField size="small" label={trUi("Style # or Style")} value={packingFilters.styleNumber} onChange={(event) => setPackingFilters((current) => ({ ...current, styleNumber: event.target.value }))} />
+              <TextField size="small" label={trUi("Color")} value={packingFilters.color} onChange={(event) => setPackingFilters((current) => ({ ...current, color: event.target.value }))} />
+              <TextField size="small" label={trUi("Size")} value={packingFilters.sizeValue} onChange={(event) => setPackingFilters((current) => ({ ...current, sizeValue: event.target.value }))} />
             </Box>
             <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.2 }}>
-              <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={() => { setPackingApplied(packingFilters); setPackingPage(0); }} sx={{ textTransform: 'none' }}>Search</Button>
-              <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={() => { setPackingFilters(emptyPackingFilters); setPackingApplied(emptyPackingFilters); setPackingPage(0); }} sx={{ textTransform: 'none' }}>Reset</Button>
+              <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={() => { setPackingApplied(packingFilters); setPackingPage(0); }} sx={{ textTransform: 'none' }}>{trUi("Search")}</Button>
+              <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={() => { setPackingFilters(emptyPackingFilters); setPackingApplied(emptyPackingFilters); setPackingPage(0); }} sx={{ textTransform: 'none' }}>{trUi("Reset")}</Button>
             </Stack>
           </Box>
 
@@ -727,19 +733,19 @@ export default function PackingAllocationPage() {
             <StandardTableViewport paginate sx={{ maxHeight: 'calc(100vh - 470px)', minHeight: 300, border: 0, borderRadius: 0 }}>
               <SortableTable stickyHeader size="small" sx={{ minWidth: 2350 }}>
                 <TableHead><TableRow>
-                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 70 }}>No.</TableCell>
-                  {PACKING_LIST_FIELDS.map((field) => <TableCell key={field.name} sx={{ bgcolor: '#eaf1f6', fontWeight: 750, minWidth: field.width, whiteSpace: 'nowrap' }}>{field.label}</TableCell>)}
-                  <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 100 }}>Actions</TableCell>
+                  <TableCell sx={{ position: 'sticky', left: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 70 }}>{trUi("No.")}</TableCell>
+                  {PACKING_LIST_FIELDS.map((field) => <TableCell key={field.name} sx={{ bgcolor: '#eaf1f6', fontWeight: 750, minWidth: field.width, whiteSpace: 'nowrap' }}>{trUi(field.label)}</TableCell>)}
+                  <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 5, bgcolor: '#eaf1f6', fontWeight: 750, minWidth: 100 }}>{trUi("Actions")}</TableCell>
                 </TableRow></TableHead>
                 <TableBody>
-                  {packingLoading && <TableRow><TableCell colSpan={PACKING_LIST_FIELDS.length + 2} align="center" sx={{ py: 4 }}>Loading Packing List...</TableCell></TableRow>}
-                  {!packingLoading && packingRows.length === 0 && <TableRow><TableCell colSpan={PACKING_LIST_FIELDS.length + 2} align="center" sx={{ py: 4, color: 'text.secondary' }}>No matching Packing List rows.</TableCell></TableRow>}
+                  {packingLoading && <TableRow><TableCell colSpan={PACKING_LIST_FIELDS.length + 2} align="center" sx={{ py: 4 }}>{trUi("Loading Packing List...")}</TableCell></TableRow>}
+                  {!packingLoading && packingRows.length === 0 && <TableRow><TableCell colSpan={PACKING_LIST_FIELDS.length + 2} align="center" sx={{ py: 4, color: 'text.secondary' }}>{trUi("No matching Packing List rows.")}</TableCell></TableRow>}
                   {!packingLoading && packingRows.map((row, index) => <TableRow key={row.id} hover>
                     <TableCell sx={{ position: 'sticky', left: 0, zIndex: 2, bgcolor: 'background.paper', fontWeight: 700 }}>{packingPage * 50 + index + 1}</TableCell>
                     {PACKING_LIST_FIELDS.map((field) => <TableCell key={field.name} sx={{ minWidth: field.width, maxWidth: field.name === 'style' ? 340 : field.width + 80, whiteSpace: ['style', 'remarks'].includes(field.name) ? 'normal' : 'nowrap' }}>{formatPackingValue(row[field.name], field.type)}</TableCell>)}
                     <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 2, bgcolor: 'background.paper', whiteSpace: 'nowrap' }}>
-                      <Tooltip title={canWrite ? 'Edit row' : 'SALES permission is required'}><span><IconButton disabled={!canWrite} onClick={() => { setPackingFormRecord(row); setPackingFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
-                      <Tooltip title={canWrite ? 'Delete row' : 'SALES permission is required'}><span><IconButton disabled={!canWrite} color="error" onClick={() => setPackingDeleteTarget(row)}><DeleteOutlineOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                      <Tooltip title={canWrite ? trUi("Edit row") : trUi("SALES permission is required")}><span><IconButton disabled={!canWrite} onClick={() => { setPackingFormRecord(row); setPackingFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                      <Tooltip title={canWrite ? trUi("Delete row") : trUi("SALES permission is required")}><span><IconButton disabled={!canWrite} color="error" onClick={() => setPackingDeleteTarget(row)}><DeleteOutlineOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
                     </TableCell>
                   </TableRow>)}
                 </TableBody>
@@ -747,7 +753,7 @@ export default function PackingAllocationPage() {
             </StandardTableViewport>
           </Box>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1, borderTop: '1px solid #E5E7EB' }}>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>Total: {packingTotal} rows</Typography>
+            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>{trUi("Total: ")}{packingTotal}{trUi(" rows")}</Typography>
             <Pagination page={packingPage + 1} count={packingPages} onChange={(_, value) => setPackingPage(value - 1)} />
           </Stack>
           </Paper>
@@ -765,8 +771,7 @@ export default function PackingAllocationPage() {
         fullWidth
         maxWidth="lg"
       >
-        <DialogTitle sx={{ fontWeight: 750, pb: 1 }}>
-          Physical Cartons · Article {cartonItemRow?.articleNumber || '—'}
+        <DialogTitle sx={{ fontWeight: 750, pb: 1 }}>{trUi("\n          Physical Cartons · Article ")}{cartonItemRow?.articleNumber || '—'}
         </DialogTitle>
         <DialogContent dividers sx={{ p: 1.5 }}>
           <Stack spacing={1.25}>
@@ -774,13 +779,13 @@ export default function PackingAllocationPage() {
               <Chip size="small" label={`PO: ${cartonItemRow?.poNumber || '—'}`} />
               <Chip size="small" label={`Size: ${cartonItemRow?.size || '—'}`} />
               <Chip size="small" label={`Color: ${cartonItemRow?.color || '—'}`} />
-              <Chip size="small" label={`Qty Per Ctn: ${cartonItemRow?.qtyPerCarton ?? '—'}`} />
-              <Chip size="small" color="primary" label={`Total ctns: ${cartonItemExpectedCount.toLocaleString(FORMAT_LOCALE.EN_US)}`} sx={{ fontWeight: 750 }} />
+              <Chip size="small" label={trUi("Qty Per Ctn: {0}", cartonItemRow?.qtyPerCarton ?? '—')} />
+              <Chip size="small" color="primary" label={trUi("Total ctns: {0}", cartonItemExpectedCount.toLocaleString(FORMAT_LOCALE.EN_US))} sx={{ fontWeight: 750 }} />
               <Chip
                 size="small"
                 color={cartonItemCountMatches ? 'success' : 'warning'}
                 variant="outlined"
-                label={`Generated: ${cartonItemGeneratedCount.toLocaleString(FORMAT_LOCALE.EN_US)} physical cartons`}
+                label={trUi("Generated: {0} physical cartons", cartonItemGeneratedCount.toLocaleString(FORMAT_LOCALE.EN_US))}
               />
               <Chip
                 size="small"
@@ -791,14 +796,10 @@ export default function PackingAllocationPage() {
               />
             </Stack>
 
-            <Alert severity="info" sx={{ py: 0.35 }}>
-              Total ctns is the source of truth for the number of physical cartons. Qty Per Ctn is only the planned quantity inside each carton. Assign exactly one Factory Barcode to each physical carton.
-            </Alert>
+            <Alert severity="info" sx={{ py: 0.35 }}>{trUi("\n              Total ctns is the source of truth for the number of physical cartons. Qty Per Ctn is only the planned quantity inside each carton. Assign exactly one Factory Barcode to each physical carton.\n            ")}</Alert>
 
             {!cartonItemLoading && cartonItemExpectedCount > 0 && !cartonItemCountMatches && (
-              <Alert severity="warning" sx={{ py: 0.35 }}>
-                This Master row expects {cartonItemExpectedCount.toLocaleString(FORMAT_LOCALE.EN_US)} physical cartons from Total ctns, but {cartonItemGeneratedCount.toLocaleString(FORMAT_LOCALE.EN_US)} are currently generated. Regenerate Carton Master before assigning barcodes.
-              </Alert>
+              <Alert severity="warning" sx={{ py: 0.35 }}>{trUi("\n                This Master row expects ")}{cartonItemExpectedCount.toLocaleString(FORMAT_LOCALE.EN_US)}{trUi(" physical cartons from Total ctns, but ")}{cartonItemGeneratedCount.toLocaleString(FORMAT_LOCALE.EN_US)}{trUi(" are currently generated. Regenerate Carton Master before assigning barcodes.\n              ")}</Alert>
             )}
 
             {cartonItemLoading ? (
@@ -837,7 +838,7 @@ export default function PackingAllocationPage() {
                             <TableCell>
                               <Chip
                                 size="small"
-                                label={carton.factoryBarcode ? FACTORY_BARCODE_STATUS.ASSIGNED : 'NOT ASSIGNED'}
+                                label={carton.factoryBarcode ? FACTORY_BARCODE_STATUS.ASSIGNED : trUi("NOT ASSIGNED")}
                                 color={carton.factoryBarcode ? 'success' : 'default'}
                                 variant={carton.factoryBarcode ? 'filled' : 'outlined'}
                                 sx={{ fontWeight: 700 }}
@@ -876,9 +877,7 @@ export default function PackingAllocationPage() {
                                   onClick={() => { setCartonCorrectionTarget(carton); setCartonCorrectionReason(''); }}
                                   disabled={Boolean(cartonAssigningId)}
                                   sx={{ textTransform: 'none', fontWeight: 700 }}
-                                >
-                                  Reset Weight
-                                </Button>
+                                >{trUi("\n                                  Reset Weight\n                                ")}</Button>
                               ) : canAssign ? (
                                 <Button
                                   size="small"
@@ -887,9 +886,7 @@ export default function PackingAllocationPage() {
                                   onClick={() => startCartonAssignment(carton)}
                                   disabled={Boolean(cartonAssigningId)}
                                   sx={{ textTransform: 'none', fontWeight: 700 }}
-                                >
-                                  Assign Barcode
-                                </Button>
+                                >{trUi("\n                                  Assign Barcode\n                                ")}</Button>
                               ) : canUnassign ? (
                                 <Button
                                   size="small"
@@ -899,12 +896,10 @@ export default function PackingAllocationPage() {
                                   onClick={() => unassignCartonBarcode(carton)}
                                   disabled={Boolean(cartonAssigningId)}
                                   sx={{ textTransform: 'none' }}
-                                >
-                                  Unassign
-                                </Button>
+                                >{trUi("\n                                  Unassign\n                                ")}</Button>
                               ) : (
                                 <Typography variant="caption" color="text.secondary">
-                                  {weightStarted ? 'Barcode locked for this weighed carton' : carton.factoryBarcode ? 'Assigned' : 'Not assignable'}
+                                  {weightStarted ? trUi("Barcode locked for this weighed carton") : carton.factoryBarcode ? 'Assigned' : trUi("Not assignable")}
                                 </Typography>
                               )}
                             </TableCell>
@@ -916,50 +911,45 @@ export default function PackingAllocationPage() {
                 </StandardTableViewport>
               </Paper>
             ) : (
-              <Alert severity="warning">
-                No physical cartons are available for this Master row. Generate Carton Master from Master Total ctns first.
-              </Alert>
+              <Alert severity="warning">{trUi("\n                No physical cartons are available for this Master row. Generate Carton Master from Master Total ctns first.\n              ")}</Alert>
             )}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 1.5, py: 1 }}>
-          <Button onClick={() => setCartonItemOpen(false)} disabled={Boolean(cartonAssigningId)} sx={{ textTransform: 'none' }}>Close</Button>
+          <Button onClick={() => setCartonItemOpen(false)} disabled={Boolean(cartonAssigningId)} sx={{ textTransform: 'none' }}>{trUi("Close")}</Button>
           <Button
             variant="outlined"
             startIcon={<QrCodeScannerOutlinedIcon />}
             onClick={() => cartonItemRow?.id && navigate(`/buyers/${buyer.slug}/orders/${orderId}/items/${cartonItemRow.id}`)}
             sx={{ textTransform: 'none' }}
-          >
-            Open Item Page
-          </Button>
+          >{trUi("\n            Open Item Page\n          ")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(cartonAssignTarget)} onClose={closeCartonAssignment} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 750 }}>Assign Factory Barcode</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 750 }}>{trUi("Assign Factory Barcode")}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.25}>
             <Paper elevation={0} sx={{ p: 1.2, border: '1px solid #DCE4EC', borderRadius: '4px', bgcolor: '#F8FAFC' }}>
-              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 650 }}>Selected physical carton</Typography>
+              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 650 }}>{trUi("Selected physical carton")}</Typography>
               <Typography sx={{ mt: 0.3, fontSize: '1rem', color: '#103B5C', fontWeight: 800 }}>
                 {cartonAssignTarget?.cartonCode || `Carton #${cartonAssignTarget?.cartonSequence || '—'}`}
               </Typography>
-              <Typography sx={{ mt: 0.35, fontSize: '0.75rem', color: 'text.secondary' }}>
-                Article {cartonItemRow?.articleNumber || '—'} · Size {cartonItemRow?.size || '—'} · Qty Per Ctn {cartonAssignTarget?.cartonPcs ?? cartonAssignTarget?.qtyPerCarton ?? cartonItemRow?.qtyPerCarton ?? '—'}
+              <Typography sx={{ mt: 0.35, fontSize: '0.75rem', color: 'text.secondary' }}>{trUi("\n                Article ")}{cartonItemRow?.articleNumber || '—'}{trUi(" · Size ")}{cartonItemRow?.size || '—'}{trUi(" · Qty Per Ctn ")}{cartonAssignTarget?.cartonPcs ?? cartonAssignTarget?.qtyPerCarton ?? cartonItemRow?.qtyPerCarton ?? '—'}
               </Typography>
             </Paper>
 
             {cartonAssignError && <Alert severity="error">{cartonAssignError}</Alert>}
             {cartonAssignNotice && <Alert severity="success">{cartonAssignNotice}</Alert>}
 
-            <TextField label="Production line (optional)" value={productionLine} onChange={(event) => setProductionLine(event.target.value)} disabled={Boolean(cartonAssigningId)} fullWidth />
-            <TextField label="Actual quantity in carton" type="number" value={assignedQuantity} onChange={(event) => setAssignedQuantity(event.target.value)} disabled={Boolean(cartonAssigningId)} inputProps={{ min: 1, step: 1 }} helperText={APP_MESSAGES.CARTON_QUANTITY_CORRECTION_HELPER} fullWidth required />
+            <TextField label={trUi("Production line (optional)")} value={productionLine} onChange={(event) => setProductionLine(event.target.value)} disabled={Boolean(cartonAssigningId)} fullWidth />
+            <TextField label={trUi("Actual quantity in carton")} type="number" value={assignedQuantity} onChange={(event) => setAssignedQuantity(event.target.value)} disabled={Boolean(cartonAssigningId)} inputProps={{ min: 1, step: 1 }} helperText={APP_MESSAGES.CARTON_QUANTITY_CORRECTION_HELPER} fullWidth required />
 
             <TextField
               inputRef={cartonBarcodeInputRef}
               autoFocus
               fullWidth
-              label="Scan Factory Barcode"
+              label={trUi("Scan Factory Barcode")}
               value={cartonBarcode}
               onChange={(event) => {
                 setCartonBarcode(event.target.value);
@@ -982,7 +972,7 @@ export default function PackingAllocationPage() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 1.5, py: 1 }}>
-          <Button onClick={closeCartonAssignment} disabled={cartonBarcodeChecking || Boolean(cartonAssigningId)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={closeCartonAssignment} disabled={cartonBarcodeChecking || Boolean(cartonAssigningId)} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button>
           {!cartonCheckedBarcode ? (
             <Button
               variant="outlined"
@@ -990,9 +980,7 @@ export default function PackingAllocationPage() {
               onClick={checkCartonBarcode}
               disabled={!cartonBarcode.trim() || cartonBarcodeChecking || Boolean(cartonAssigningId)}
               sx={{ textTransform: 'none', fontWeight: 700 }}
-            >
-              Verify Barcode
-            </Button>
+            >{trUi("\n              Verify Barcode\n            ")}</Button>
           ) : (
             <Button
               variant="contained"
@@ -1000,82 +988,74 @@ export default function PackingAllocationPage() {
               onClick={assignBarcodeToSelectedCarton}
               disabled={Boolean(cartonAssigningId)}
               sx={{ textTransform: 'none', fontWeight: 750 }}
-            >
-              Assign Barcode
-            </Button>
+            >{trUi("\n              Assign Barcode\n            ")}</Button>
           )}
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(cartonCorrectionTarget)} onClose={cartonCorrectionSaving ? undefined : () => setCartonCorrectionTarget(null)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 750 }}>Reset Weight Check for this carton?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 750 }}>{trUi("Reset Weight Check for this carton?")}</DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mb: 1.4 }}>
-            Admin correction affects only this physical carton. Other cartons in the Order remain unchanged. The assigned Factory Barcode is kept until you explicitly Unassign it.
-          </Alert>
+          <Alert severity="warning" sx={{ mb: 1.4 }}>{trUi("\n            Admin correction affects only this physical carton. Other cartons in the Order remain unchanged. The assigned Factory Barcode is kept until you explicitly Unassign it.\n          ")}</Alert>
           <Typography sx={{ mb: 1.2, fontSize: '0.82rem', color: '#41566E' }}>
-            {cartonCorrectionTarget?.cartonCode || `Carton #${cartonCorrectionTarget?.cartonSequence || '—'}`} · Barcode {cartonCorrectionTarget?.factoryBarcode || '—'} · Current weight {cartonCorrectionTarget?.weightKg != null ? `${cartonCorrectionTarget.weightKg} kg` : 'waiting'}
+            {cartonCorrectionTarget?.cartonCode || `Carton #${cartonCorrectionTarget?.cartonSequence || '—'}`}{trUi(" · Barcode ")}{cartonCorrectionTarget?.factoryBarcode || '—'}{trUi(" · Current weight ")}{cartonCorrectionTarget?.weightKg != null ? `${cartonCorrectionTarget.weightKg} kg` : 'waiting'}
           </Typography>
           <TextField
             autoFocus
             fullWidth
             required
-            label="Correction reason"
+            label={trUi("Correction reason")}
             value={cartonCorrectionReason}
             onChange={(event) => setCartonCorrectionReason(event.target.value)}
-            placeholder="Example: Wrong barcode/carton mapping, recheck required"
+            placeholder={trUi("Example: Wrong barcode/carton mapping, recheck required")}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCartonCorrectionTarget(null)} disabled={cartonCorrectionSaving} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={() => setCartonCorrectionTarget(null)} disabled={cartonCorrectionSaving} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button>
           <Button color="warning" variant="contained" onClick={correctWeightedCarton} disabled={cartonCorrectionSaving || !cartonCorrectionReason.trim()} sx={{ textTransform: 'none', fontWeight: 750 }}>
-            {cartonCorrectionSaving ? 'Resetting...' : 'Reset Weight'}
+            {cartonCorrectionSaving ? 'Resetting...' : trUi("Reset Weight")}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(masterDeleteTarget)} onClose={() => setMasterDeleteTarget(null)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 700 }}>Delete Order Item?</DialogTitle>
-        <DialogContent><Typography>Delete Article <strong>{masterDeleteTarget?.articleNumber}</strong>, Size <strong>{masterDeleteTarget?.size}</strong> from this Order?</Typography></DialogContent>
-        <DialogActions><Button onClick={() => setMasterDeleteTarget(null)} sx={{ textTransform: 'none' }}>Cancel</Button><Button color="error" variant="contained" onClick={removeMaster} sx={{ textTransform: 'none' }}>Delete</Button></DialogActions>
+        <DialogTitle sx={{ fontWeight: 700 }}>{trUi("Delete Order Item?")}</DialogTitle>
+        <DialogContent><Typography>{trUi("Delete Article ")}<strong>{masterDeleteTarget?.articleNumber}</strong>{trUi(", Size ")}<strong>{masterDeleteTarget?.size}</strong>{trUi(" from this Order?")}</Typography></DialogContent>
+        <DialogActions><Button onClick={() => setMasterDeleteTarget(null)} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button><Button color="error" variant="contained" onClick={removeMaster} sx={{ textTransform: 'none' }}>{trUi("Delete")}</Button></DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(packingDeleteTarget)} onClose={() => setPackingDeleteTarget(null)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 700 }}>Delete Packing List Row?</DialogTitle>
-        <DialogContent><Typography>Delete carton range <strong>{formatPackingValue(packingDeleteTarget?.cartonFrom, 'number')}–{formatPackingValue(packingDeleteTarget?.cartonTo, 'number')}</strong>, Article <strong>{packingDeleteTarget?.articleNumber}</strong>?</Typography></DialogContent>
-        <DialogActions><Button onClick={() => setPackingDeleteTarget(null)} sx={{ textTransform: 'none' }}>Cancel</Button><Button color="error" variant="contained" onClick={removePacking} sx={{ textTransform: 'none' }}>Delete</Button></DialogActions>
+        <DialogTitle sx={{ fontWeight: 700 }}>{trUi("Delete Packing List Row?")}</DialogTitle>
+        <DialogContent><Typography>{trUi("Delete carton range ")}<strong>{formatPackingValue(packingDeleteTarget?.cartonFrom, 'number')}–{formatPackingValue(packingDeleteTarget?.cartonTo, 'number')}</strong>{trUi(", Article ")}<strong>{packingDeleteTarget?.articleNumber}</strong>?</Typography></DialogContent>
+        <DialogActions><Button onClick={() => setPackingDeleteTarget(null)} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button><Button color="error" variant="contained" onClick={removePacking} sx={{ textTransform: 'none' }}>{trUi("Delete")}</Button></DialogActions>
       </Dialog>
 
       <Dialog open={generateOpen} onClose={generating ? undefined : () => setGenerateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 700 }}>Generate Packing List from Order Items?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{trUi("Generate Packing List from Order Items?")}</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 1.4 }}>{APP_MESSAGES.PACKING_LIST_REPLACE_WARNING}</Alert>
-          <Typography>
-            The Packing List will use Master Total ctns and Total pcs. Carton measurement and weight fields can be edited after generation.
-          </Typography>
+          <Typography>{trUi("\n            The Packing List will use Master Total ctns and Total pcs. Carton measurement and weight fields can be edited after generation.\n          ")}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setGenerateOpen(false)} disabled={generating} sx={{ textTransform: 'none' }}>Cancel</Button>
-          <Button onClick={runGenerate} disabled={generating} variant="contained" color="secondary" sx={{ textTransform: 'none' }}>{generating ? 'Generating...' : 'Generate Packing List'}</Button>
+          <Button onClick={() => setGenerateOpen(false)} disabled={generating} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button>
+          <Button onClick={runGenerate} disabled={generating} variant="contained" color="secondary" sx={{ textTransform: 'none' }}>{generating ? 'Generating...' : trUi("Generate Packing List")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={cartonGenerateOpen} onClose={cartonGenerating ? undefined : () => setCartonGenerateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 700 }}>Generate physical cartons from Master Total ctns?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{trUi("Generate physical cartons from Master Total ctns?")}</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 1.4 }}>{APP_MESSAGES.CARTON_MASTER_PHYSICAL_ROW_INFO}</Alert>
-          <Typography>
-            The existing Carton Master will be regenerated only when barcode assignment, scanning, or weighing has not started. After generation, use View Physical Cartons on the correct Master row. Barcode assignment is performed only inside that row's physical-carton list.
-          </Typography>
+          <Typography>{trUi("\n            The existing Carton Master will be regenerated only when barcode assignment, scanning, or weighing has not started. After generation, use View Physical Cartons on the correct Master row. Barcode assignment is performed only inside that row's physical-carton list.\n          ")}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCartonGenerateOpen(false)} disabled={cartonGenerating}>Cancel</Button>
-          <Button onClick={runGenerateCartons} disabled={cartonGenerating} variant="contained" color="success">{cartonGenerating ? 'Generating...' : 'Generate Carton Master'}</Button>
+          <Button onClick={() => setCartonGenerateOpen(false)} disabled={cartonGenerating}>{trUi("Cancel")}</Button>
+          <Button onClick={runGenerateCartons} disabled={cartonGenerating} variant="contained" color="success">{cartonGenerating ? 'Generating...' : trUi("Generate Carton Master")}</Button>
         </DialogActions>
       </Dialog>
 
       <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))}>
-        <Alert severity={notice.severity} variant="filled">{notice.message}</Alert>
+        <Alert severity={notice.severity} variant="filled">{trSystem(notice.message)}</Alert>
       </Snackbar>
     </Box>
   );

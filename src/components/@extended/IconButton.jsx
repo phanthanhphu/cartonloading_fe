@@ -38,7 +38,6 @@ function getColorStyle({ variant, theme, color }) {
         '&:hover': {
           backgroundColor: dark
         },
-        ...(color === 'secondary'),
         ...commonShadow
       };
     case 'light':

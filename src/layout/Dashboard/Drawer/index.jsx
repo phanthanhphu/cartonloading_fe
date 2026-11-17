@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import PropTypes from 'prop-types';
 import { useMemo } from 'react';
 
@@ -17,6 +18,7 @@ const BORDER = '#E6EDF4';
 const TEXT = '#24364B';
 
 export default function MainDrawer({ window }) {
+  const trUi = useT();
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
@@ -42,7 +44,7 @@ export default function MainDrawer({ window }) {
   );
 
   return (
-    <Box component="nav" aria-label="application navigation" sx={{ flexShrink: { md: 0 }, zIndex: 1200 }}>
+    <Box component="nav" aria-label={trUi("application navigation")} sx={{ flexShrink: { md: 0 }, zIndex: 1200 }}>
       {!downLG ? (
         <MiniDrawerStyled variant="permanent" open={drawerOpen} sx={{ '& .MuiDrawer-paper': paperBase }}>
           {drawerBody}

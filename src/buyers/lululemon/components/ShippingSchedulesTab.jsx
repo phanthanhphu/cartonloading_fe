@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { managementPanelSx, managementStackSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import { tableScrollbarSx } from 'components/TableScrollbarStyles';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
@@ -18,6 +20,9 @@ const todayInVietnam = () => new Intl.DateTimeFormat('sv-SE', {
 
 /** Tab 2 is ONLY the Shipping Date list. View opens a dedicated PO table page. */
 export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoading, creating, onCloseCreating, visibleColumns, fillAvailableHeight = false }) {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const writable = canManageShipping();
   const canCreate = canCreateShippingSchedule();
   const canReopen = canReopenShippingSchedule();
@@ -72,7 +77,7 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
 
   const deleteDay = async (day) => {
     if (!writable || deleting || changingStatus || !day || days.find((item) => item.shippingDate === day)?.submitted) return;
-    if (!window.confirm(`Delete Shipping Schedule ${displayDate(day)}? This only removes its PO memberships; original POs and cartons are kept.`)) return;
+    if (!await confirmAction({ kind: 'delete', entity: 'Shipping Schedule', name: displayDate(day), warning: 'The original PO and its cartons will not be deleted.' })) return;
     setDeleting(day); setError(''); setSuccess('');
     try {
       await deletePoShippingDay(orderId, day, factoryCode);
@@ -88,9 +93,7 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
     if (changingStatus || deleting || !entry || (action === 'unsubmit' ? !canReopen : !writable)) return;
     if (action === 'submit' ? entry.submitted : !entry.submitted) return;
     const verb = action === 'submit' ? 'Submit' : 'Unsubmit';
-    if (!window.confirm(`${verb} Shipping Schedule ${displayDate(entry.shippingDate)}? ${action === 'submit'
-      ? 'After submission, PO assignments will be locked until an authorized user Unsubmits.'
-      : 'This will unlock PO assignments until it is submitted again.'}`)) return;
+    if (!await confirmAction({ kind: action === 'submit' ? 'submit' : 'update', entity: 'Shipping Schedule', name: `${verb} ${displayDate(entry.shippingDate)}`, warning: action === 'submit' ? 'PO assignments will be locked until an authorized user reopens the schedule.' : 'PO assignments will be unlocked until it is submitted again.' })) return;
     setChangingStatus(entry.shippingDate); setError(''); setSuccess('');
     try {
       if (action === 'submit') await submitPoShippingDay(orderId, entry.shippingDate, factoryCode);
@@ -111,25 +114,25 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
   return <Box sx={{ p: { xs: 0.5, md: 0.75 }, ...(fillAvailableHeight ? managementPanelSx : {}) }}><Stack spacing={1} sx={fillAvailableHeight ? managementStackSx : undefined}>
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
       <Stack direction="row" alignItems="center" gap={1}>
-        <Typography variant="subtitle1" fontWeight={800}>Shipping Schedules</Typography>
+        <Typography variant="subtitle1" fontWeight={800}>{trUi("Shipping Schedules")}</Typography>
         <Chip size="small" variant="outlined" label={loading ? 'Loading…' : `${days.length} Schedule${days.length === 1 ? '' : 's'}`} />
       </Stack>
-      <Tooltip title="Refresh Shipping Schedules"><span>
+      <Tooltip title={trUi("Refresh Shipping Schedules")}><span>
         <IconButton size="small" disabled={loading || !factoryCode || factoryLoading} onClick={loadDays}>
           {loading ? <CircularProgress size={18} /> : <Refresh fontSize="small" />}
         </IconButton>
       </span></Tooltip>
     </Stack>
-    {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
-    {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
+    {error && <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert>}
+    {success && <Alert severity="success" onClose={() => setSuccess('')}>{trSystem(success)}</Alert>}
     <TableContainer sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: '4px',
       ...(fillAvailableHeight ? { overflowX: 'auto', ...managementTableViewportSx, ...tableScrollbarSx } : {}) }}>
       <Table size="small" stickyHeader={fillAvailableHeight}><TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
-        {columnsToShow.has('stt') && <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>}
-        <TableCell sx={{ fontWeight: 800 }}>Shipping Date</TableCell>
-        {columnsToShow.has('poCount') && <TableCell sx={{ fontWeight: 800 }}>Total POs</TableCell>}
-        {columnsToShow.has('status') && <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>}
-        <TableCell align="right" sx={{ fontWeight: 800 }}>Action</TableCell>
+        {columnsToShow.has('stt') && <TableCell sx={{ fontWeight: 800 }}>{trUi("STT")}</TableCell>}
+        <TableCell sx={{ fontWeight: 800 }}>{trUi("Shipping Date")}</TableCell>
+        {columnsToShow.has('poCount') && <TableCell sx={{ fontWeight: 800 }}>{trUi("Total POs")}</TableCell>}
+        {columnsToShow.has('status') && <TableCell sx={{ fontWeight: 800 }}>{trUi("Status")}</TableCell>}
+        <TableCell align="right" sx={{ fontWeight: 800 }}>{trUi("Action")}</TableCell>
       </TableRow></TableHead><TableBody>
         {days.map((entry, index) => (
           <TableRow key={`${entry.factoryCode}-${entry.shippingDate}`} hover>
@@ -141,11 +144,11 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
             {columnsToShow.has('poCount') && <TableCell>{entry.poCount} PO{entry.poCount === 1 ? '' : 's'}</TableCell>}
             {columnsToShow.has('status') && <TableCell><Chip size="small" color={entry.submitted ? 'success' : 'default'}
               variant={entry.submitted ? 'filled' : 'outlined'}
-              label={entry.submitted ? (entry.autoSubmitted ? 'Submitted (Auto)' : 'Submitted')
+              label={entry.submitted ? (entry.autoSubmitted ? trUi("Submitted (Auto)") : 'Submitted')
                 : (entry.reopened ? 'Unsubmitted' : 'Draft')} /></TableCell>}
             <TableCell align="right"><Stack direction="row" justifyContent="flex-end" spacing={0.5}>
-              <Tooltip title="Open full PO table for this Shipping Schedule"><span>
-                <Button size="small" startIcon={<VisibilityOutlined />} onClick={() => viewDay(entry.shippingDate)}>View</Button>
+              <Tooltip title={trUi("Open full PO table for this Shipping Schedule")}><span>
+                <Button size="small" startIcon={<VisibilityOutlined />} onClick={() => viewDay(entry.shippingDate)}>{trUi("View")}</Button>
               </span></Tooltip>
               {writable && !entry.submitted && <Button size="small" variant="outlined" startIcon={<TaskAltOutlined />}
                 disabled={Boolean(changingStatus || deleting)} onClick={() => changeStatus(entry, 'submit')}>
@@ -156,18 +159,16 @@ export default function ShippingSchedulesTab({ orderId, factoryCode, factoryLoad
                 onClick={() => changeStatus(entry, 'unsubmit')}>
                 {changingStatus === entry.shippingDate ? 'Working…' : 'Unsubmit'}
               </Button>}
-              {writable && <Tooltip title={entry.submitted ? 'Unsubmit first to unlock.' : 'Delete this Schedule only; keep source POs'}><span>
+              {writable && <Tooltip title={entry.submitted ? trUi("Unsubmit first to unlock.") : trUi("Delete this Schedule only; keep source POs")}><span>
                 <IconButton size="small" color="error" disabled={entry.submitted || Boolean(deleting || changingStatus)}
-                  onClick={() => deleteDay(entry.shippingDate)} aria-label={`Delete Shipping Schedule ${displayDate(entry.shippingDate)}`}>
+                  onClick={() => deleteDay(entry.shippingDate)} aria-label={trUi("Delete Shipping Schedule {0}", displayDate(entry.shippingDate))}>
                   {deleting === entry.shippingDate ? <CircularProgress size={18} /> : <DeleteOutline fontSize="small" />}
                 </IconButton>
               </span></Tooltip>}
             </Stack></TableCell>
           </TableRow>
         ))}
-        {!loading && !days.length && <TableRow><TableCell align="center" colSpan={visibleColumnCount} sx={{ py: 4 }}>
-          No Shipping Schedules yet. Choose New Schedule to select a Shipping Date and POs.
-        </TableCell></TableRow>}
+        {!loading && !days.length && <TableRow><TableCell align="center" colSpan={visibleColumnCount} sx={{ py: 4 }}>{trUi("\n          No Shipping Schedules yet. Choose New Schedule to select a Shipping Date and POs.\n        ")}</TableCell></TableRow>}
         {loading && <TableRow><TableCell align="center" colSpan={visibleColumnCount}><CircularProgress size={22} /></TableCell></TableRow>}
       </TableBody></Table>
     </TableContainer>

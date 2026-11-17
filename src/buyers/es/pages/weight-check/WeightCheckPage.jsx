@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
@@ -39,6 +40,8 @@ const statusChipSx = (value) => {
 const progressText = (done, total) => `${Number(done || 0).toLocaleString(FORMAT_LOCALE.EN_US)} / ${Number(total || 0).toLocaleString(FORMAT_LOCALE.EN_US)}`;
 
 export default function WeightCheckPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const navigate = useNavigate();
   const buyers = useMemo(() => getAccessibleBuyers(readStoredUser()), []);
   const selectedBuyer = readSelectedBuyer();
@@ -126,31 +129,31 @@ export default function WeightCheckPage() {
 
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
-      {error ? <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> : null}
+      {error ? <Alert severity="error" sx={{ mb: 1 }}>{trSystem(error)}</Alert> : null}
 
       <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={0.8} alignItems={{ lg: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
-          <TextField select size="small" label="Buyer" value={buyerCode} onChange={(event) => changeBuyer(event.target.value)} sx={{ minWidth: { lg: 190 } }}>
+          <TextField select size="small" label={trUi("Buyer")} value={buyerCode} onChange={(event) => changeBuyer(event.target.value)} sx={{ minWidth: { lg: 190 } }}>
             {buyers.map((item) => <MenuItem key={item.code} value={item.code}>{item.label}</MenuItem>)}
           </TextField>
           <TextField
             size="small"
-            label="Search Order"
+            label={trUi("Search Order")}
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && applySearch()}
-            placeholder="Order name, status, user..."
+            placeholder={trUi("Order name, status, user...")}
             sx={{ flex: 1, minWidth: { lg: 260 } }}
           />
-          <TextField select size="small" label="Assignment Status" value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 175 } }}>
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value={PROGRESS_STATUS.COMPLETED}>Completed</MenuItem>
-            <MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>In Progress</MenuItem>
-            <MenuItem value={PROGRESS_STATUS.NOT_STARTED}>Not Started</MenuItem>
+          <TextField select size="small" label={trUi("Assignment Status")} value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 175 } }}>
+            <MenuItem value="">{trUi("All")}</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.COMPLETED}>{trUi("Completed")}</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>{trUi("In Progress")}</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.NOT_STARTED}>{trUi("Not Started")}</MenuItem>
           </TextField>
-          <Button variant="contained" startIcon={<SearchOutlined />} onClick={applySearch} disabled={loading}>Search</Button>
-          <Button variant="outlined" startIcon={<RestartAltOutlined />} onClick={resetSearch} disabled={loading}>Reset</Button>
-          <Tooltip title="Refresh current data"><span><Button variant="outlined" startIcon={<RefreshOutlined />} onClick={load} disabled={loading}>Refresh</Button></span></Tooltip>
+          <Button variant="contained" startIcon={<SearchOutlined />} onClick={applySearch} disabled={loading}>{trUi("Search")}</Button>
+          <Button variant="outlined" startIcon={<RestartAltOutlined />} onClick={resetSearch} disabled={loading}>{trUi("Reset")}</Button>
+          <Tooltip title={trUi("Refresh current data")}><span><Button variant="outlined" startIcon={<RefreshOutlined />} onClick={load} disabled={loading}>{trUi("Refresh")}</Button></span></Tooltip>
         </Stack>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 0.75, p: 0.85, borderBottom: '1px solid #E7EDF3', bgcolor: '#F8FAFC' }}>
@@ -183,7 +186,7 @@ export default function WeightCheckPage() {
               {loading ? (
                 <TableRow><TableCell colSpan={10} align="center" sx={{ py: 5 }}><CircularProgress size={24} /></TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={10} align="center" sx={{ py: 5, color: 'text.secondary' }}>No Orders match the selected Weight Check filter.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} align="center" sx={{ py: 5, color: 'text.secondary' }}>{trUi("No Orders match the selected Weight Check filter.")}</TableCell></TableRow>
               ) : rows.map((row, index) => {
                 const planned = Number(row.plannedCartonCount || 0);
                 const assignmentReady = row.assignmentStatus === PROGRESS_STATUS.COMPLETED && planned > 0;
@@ -209,7 +212,7 @@ export default function WeightCheckPage() {
                       <Typography component="span" sx={{ color: '#C73A3A', fontWeight: 800, fontSize: '0.76rem' }}>{Number(row.failWeightCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</Typography>
                     </TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Tooltip title={weightAvailable ? (assignmentReady ? 'Open Weight Check for this Order' : 'Weight Check is already in progress; continue assigned cartons while carton-level correction is completed') : 'Complete barcode assignment for all physical cartons before starting Weight Check'}>
+                      <Tooltip title={weightAvailable ? (assignmentReady ? trUi("Open Weight Check for this Order") : trUi("Weight Check is already in progress; continue assigned cartons while carton-level correction is completed")) : trUi("Complete barcode assignment for all physical cartons before starting Weight Check")}>
                         <span>
                           <Button
                             size="small"
@@ -219,7 +222,7 @@ export default function WeightCheckPage() {
                             onClick={() => openWeightCheck(row)}
                             sx={{ minWidth: 132, textTransform: 'none', fontWeight: 750 }}
                           >
-                            {row.weightStatus === PROGRESS_STATUS.NOT_STARTED ? 'Start Weight' : row.weightStatus === PROGRESS_STATUS.COMPLETED ? 'View Weight' : 'Continue'}
+                            {row.weightStatus === PROGRESS_STATUS.NOT_STARTED ? trUi("Start Weight") : row.weightStatus === PROGRESS_STATUS.COMPLETED ? trUi("View Weight") : 'Continue'}
                           </Button>
                         </span>
                       </Tooltip>
@@ -233,8 +236,8 @@ export default function WeightCheckPage() {
 
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1} sx={{ px: 1, py: 0.75, borderTop: '1px solid #DCE4EC' }}>
           <Stack direction="row" spacing={1.2} alignItems="center">
-            <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Showing {from}-{to} of {total}</Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>Rows</Typography>
+            <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{trUi("Showing ")}{from}-{to} of {total}</Typography>
+            <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>{trUi("Rows")}</Typography>
             <Select size="small" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} sx={{ height: 30, minWidth: 72 }}>
               {COMMON_PAGE_SIZE_OPTIONS.map((size) => <MenuItem key={size} value={size}>{size}</MenuItem>)}
             </Select>

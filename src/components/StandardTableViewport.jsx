@@ -1,5 +1,6 @@
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from 'react';
-import { Box, TableBody, TableContainer, TablePagination } from '@mui/material';
+import { Box, TableBody, TableContainer } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import { tableScrollbarSx } from 'components/TableScrollbarStyles';
 import { PAGE_TABLE_HEIGHT } from 'components/TableViewportHeights';
 import SortableTable, { compare, directCells, extractText } from 'components/SortableTable';

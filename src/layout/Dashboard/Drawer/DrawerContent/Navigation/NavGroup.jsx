@@ -1,3 +1,4 @@
+import { useT } from '../../../../../i18n/LanguageProvider';
 import PropTypes from 'prop-types';
 import { useEffect, useState } from 'react';
 import { matchPath } from 'react-router-dom';
@@ -50,6 +51,7 @@ const isItemSelected = (menuItem, pathname, activeMenuItemId) => {
 };
 
 function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
+  const trUi = useT();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
   const [open, setOpen] = useState(false);
@@ -90,8 +92,8 @@ function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
       <ListItemButton
         selected={false}
         onClick={handleCollapseClick}
-        aria-label={!drawerOpen ? item.title : undefined}
-        title={!drawerOpen ? item.title : undefined}
+        aria-label={!drawerOpen ? trUi(item.title) : undefined}
+        title={!drawerOpen ? trUi(item.title) : undefined}
         sx={{
           position: 'relative',
           minHeight: 40,
@@ -150,7 +152,7 @@ function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
                     lineHeight: 1.1
                   }}
                 >
-                  {item.title}
+                  {trUi(item.title)}
                 </Typography>
               }
             />
@@ -175,9 +177,7 @@ function NavCollapse({ item, level = 1, pathname, activeMenuItemId }) {
             }
 
             return (
-              <Typography key={child.id || child.title} variant="h6" color="error" align="center">
-                Fix - Group Collapse or Items
-              </Typography>
+              <Typography key={child.id || child.title} variant="h6" color="error" align="center">{trUi("\n                Fix - Group Collapse or Items\n              ")}</Typography>
             );
           })}
         </List>
@@ -194,6 +194,7 @@ NavCollapse.propTypes = {
 };
 
 export default function NavGroup({ item, lastItem, remItems, lastItemId, setSelectedID, pathname, activeMenuItemId }) {
+  const trUi = useT();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
@@ -253,9 +254,7 @@ export default function NavGroup({ item, lastItem, remItems, lastItemId, setSele
     }
 
     return (
-      <Typography key={index} variant="h6" color="error" align="center">
-        Fix - Group Collapse or Items
-      </Typography>
+      <Typography key={index} variant="h6" color="error" align="center">{trUi("\n        Fix - Group Collapse or Items\n      ")}</Typography>
     );
   });
 
@@ -267,7 +266,7 @@ export default function NavGroup({ item, lastItem, remItems, lastItemId, setSele
             <Box sx={{ px: 1.35, pt: 1.25, pb: 0.5 }}>
               <Typography
                 sx={{
-                  textTransform: 'uppercase',
+                  textTransform: 'none',
                   fontSize: '0.61rem',
                   lineHeight: 1,
                   letterSpacing: 0.9,
@@ -275,7 +274,7 @@ export default function NavGroup({ item, lastItem, remItems, lastItemId, setSele
                   color: '#6F8298'
                 }}
               >
-                {currentItem.title}
+                {currentItem.title?.includes(' · ') ? `${currentItem.title.split(' · ')[0]} · ${trUi(currentItem.title.split(' · ').slice(1).join(' · '))}` : trUi(currentItem.title)}
               </Typography>
               {currentItem.caption && (
                 <Typography sx={{ mt: 0.45, fontSize: '0.66rem', lineHeight: 1.2, color: '#9AA9B8' }}>

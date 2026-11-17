@@ -1,3 +1,4 @@
+import { useT } from '../../../../i18n/LanguageProvider';
 import { useEffect, useState } from 'react';
 import {
   Button,
@@ -16,6 +17,7 @@ const emptyForm = () => PACKING_ORDER_FIELDS.reduce((result, field) => ({
 }), {});
 
 export default function PackingOrderFormDialog({ open, record, saving, onClose, onSave }) {
+  const trUi = useT();
   const [form, setForm] = useState(emptyForm());
   const [errors, setErrors] = useState({});
 
@@ -50,14 +52,14 @@ export default function PackingOrderFormDialog({ open, record, saving, onClose, 
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 950 }}>{record?.id ? 'Edit Order' : 'Add Order'}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 950 }}>{record?.id ? trUi("Edit Order") : trUi("Add Order")}</DialogTitle>
       <DialogContent sx={{ pt: '12px !important' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
           {PACKING_ORDER_FIELDS.map((field) => (
             <TextField
               key={field.name}
               type={field.type === 'date' ? 'date' : 'text'}
-              label={field.label}
+              label={trUi(field.label)}
               value={form[field.name] ?? ''}
               onChange={(event) => update(field.name, event.target.value)}
               error={Boolean(errors[field.name])}
@@ -71,9 +73,9 @@ export default function PackingOrderFormDialog({ open, record, saving, onClose, 
         </div>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
-        <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none' }}>Cancel</Button>
+        <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button>
         <Button onClick={submit} disabled={saving} variant="contained" sx={{ textTransform: 'none' }}>
-          {saving ? 'Saving...' : 'Save Order'}
+          {saving ? 'Saving...' : trUi("Save Order")}
         </Button>
       </DialogActions>
     </Dialog>

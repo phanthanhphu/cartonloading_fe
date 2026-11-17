@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { KEYBOARD_KEY } from '../../../constants/appConstants';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -41,6 +42,8 @@ const statCircleSx = (mode) => ({
  * Reader Bridge later POSTs the same /reads API; the backend is the authority on dedupe / PASS.
  */
 export default function CartonRfidPanel({ orderId, poId, carton, stationCode, factoryCode, onSessionChange, admin = false, deferStart = false, compact = false }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [session, setSession] = useState(null);
   const [singleEpc, setSingleEpc] = useState('');
   const [batchEpcs, setBatchEpcs] = useState('');
@@ -225,7 +228,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
   };
 
   const reopen = async () => {
-    const reason = window.prompt('Supervisor reason for reopening RFID inspection:');
+    const reason = window.prompt(trUi("Supervisor reason for reopening RFID inspection:"));
     if (!reason?.trim()) return;
     setBusy(true); setError('');
     try {
@@ -250,7 +253,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
   return (
     <Box sx={{ px: 0.1, py: 0.3 }}>
       {!compact && <Stack direction="row" alignItems="center" justifyContent="flex-end" gap={0.6}>
-        <Chip size="small" color={statusColor(session?.status)} icon={<Sensors />} label={session?.status || (deferStart ? 'READY TO START' : 'CONNECTING')} sx={{ height: 22 }} />
+        <Chip size="small" color={statusColor(session?.status)} icon={<Sensors />} label={session?.status || (deferStart ? trUi("READY TO START") : 'CONNECTING')} sx={{ height: 22 }} />
       </Stack>}
 
       <Box sx={{ mt: compact ? 0.15 : 0.65, p: compact ? 0.45 : 0.9, borderRadius: compact ? '2px' : '4px', bgcolor: compact ? '#FFFFFF' : 'action.hover', border: compact ? '1px solid #E2E8F0' : 'none' }}>
@@ -267,9 +270,9 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
 
           <Stack direction="row" spacing={compact ? 0.5 : 1.4} flexWrap="wrap" useFlexGap>
             {[
-              { label: 'Expected', value: expectedQty || 0, mode: 'dark' },
-              { label: 'Matched', value: matched, mode: 'success' },
-              { label: 'Wrong SKU', value: wrong, mode: 'error' }
+              { label: trUi("Expected"), value: expectedQty || 0, mode: 'dark' },
+              { label: trUi("Matched"), value: matched, mode: 'success' },
+              { label: trUi("Wrong SKU"), value: wrong, mode: 'error' }
             ].map((item) => (
               <Stack key={item.label} spacing={compact ? 0.1 : 0.45} alignItems="center" sx={{ minWidth: compact ? 55 : 74 }}>
                 <Box sx={compact ? {
@@ -286,19 +289,16 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
           </Stack>
 
           {missing > 0 ? <Chip label={`${missing} missing`} color="warning" size="small" variant="outlined" /> : null}
-          {invalidUnique > 0 && <Typography variant="caption" color="error.main" fontWeight={700}>
-            Wrong SKU includes {invalidUnique} unsupported tag(s) · {invalidReadEvents} read(s)
-          </Typography>}
+          {invalidUnique > 0 && <Typography variant="caption" color="error.main" fontWeight={700}>{trUi("\n            Wrong SKU includes ")}{invalidUnique}{trUi(" unsupported tag(s) · ")}{invalidReadEvents}{trUi(" read(s)\n          ")}</Typography>}
           {matched > expectedQty && expectedQty > 0 ? (
             <Typography variant="caption" color="warning.dark" fontWeight={800}>
-              {matched - expectedQty} extra matching EPC(s)
-            </Typography>
+              {matched - expectedQty}{trUi(" extra matching EPC(s)\n            ")}</Typography>
           ) : null}
         </Stack>
       </Box>
 
       {(!session?.id || session?.status === 'REOPENED') && deferStart && <Button fullWidth size="small" variant="contained" color="primary"
-        sx={{ my: 0.65 }} disabled={busy || !stationCode} onClick={restart}>Start RFID Scan</Button>}
+        sx={{ my: 0.65 }} disabled={busy || !stationCode} onClick={restart}>{trUi("Start RFID Scan")}</Button>}
       {session?.id && session?.status !== 'REOPENED' && <RfidPdaManager orderId={orderId} poId={poId} sscc={sscc}
         stationCode={stationCode} factoryCode={factoryCode} session={session} onImport={importPdaReads}
         onCaptureActiveChange={setDeviceCapturing} onSessionRenewed={renewPdaSession}
@@ -319,28 +319,26 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
               sx={{ flex: 1, minWidth: 0, '& input': { fontFamily: 'monospace', fontSize: 13 } }} />
             <Stack direction="row" gap={0.5} sx={{ flexShrink: 0 }}>
               <Button size="small" variant="outlined" startIcon={<QrCodeScannerOutlined />} disabled={busy || !singleEpc.trim()}
-                onClick={() => submitReads(singleEpc, () => setSingleEpc(''))}>Add EPC</Button>
-              <Button size="small" variant="contained" onClick={finish} disabled={busy || deviceCapturing}>Finish / Review</Button>
+                onClick={() => submitReads(singleEpc, () => setSingleEpc(''))}>{trUi("Add EPC")}</Button>
+              <Button size="small" variant="contained" onClick={finish} disabled={busy || deviceCapturing}>{trUi("Finish / Review")}</Button>
             </Stack>
           </Stack>
           {singlePreview && (
             <Typography variant="caption" color={singlePreview.error ? 'warning.main' : 'text.secondary'} sx={{ display: 'block', mt: 0.35 }}>
-              {singlePreview.error ? singlePreview.error : `Preview: SKU ${singlePreview.productCode.padStart(12, '0')} · Serial ${singlePreview.serialNumber} (press Enter to submit)`}
+              {singlePreview.error ? singlePreview.error : trUi("Preview: SKU {0} · Serial {1} (press Enter to submit)", singlePreview.productCode.padStart(12, '0'), singlePreview.serialNumber)}
             </Typography>
           )}
           {import.meta.env.DEV && detailsOpen ? <Button size="small" color="inherit" onClick={() => setBatchOpen((x) => !x)}
-            endIcon={batchOpen ? <ExpandLess /> : <ExpandMore />} sx={{ textTransform: 'none', px: 0.5, mt: 0.3, fontSize: 12 }}>
-            Test EPC batch
-          </Button> : null}
+            endIcon={batchOpen ? <ExpandLess /> : <ExpandMore />} sx={{ textTransform: 'none', px: 0.5, mt: 0.3, fontSize: 12 }}>{trUi("\n            Test EPC batch\n          ")}</Button> : null}
           {import.meta.env.DEV && detailsOpen ? <Collapse in={batchOpen} unmountOnExit>
             <Stack spacing={0.6} sx={{ mt: 0.4 }}>
               <TextField multiline rows={3} fullWidth size="small" value={batchEpcs}
                 onChange={(event) => setBatchEpcs(event.target.value)}
-                placeholder="One EPC per line (24 HEX or 28 HEX with PC)"
+                placeholder={trUi("One EPC per line (24 HEX or 28 HEX with PC)")}
                 inputProps={{ spellCheck: false }} sx={{ '& textarea': { fontFamily: 'monospace', fontSize: 12 } }} />
               <Box>
                 <Button size="small" variant="outlined" disabled={busy || !batchEpcs.trim()}
-                  onClick={() => submitReads(batchEpcs, () => setBatchEpcs(''))}>Add All EPCs</Button>
+                  onClick={() => submitReads(batchEpcs, () => setBatchEpcs(''))}>{trUi("Add All EPCs")}</Button>
               </Box>
             </Stack>
           </Collapse> : null}
@@ -349,23 +347,21 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
 
       {session?.status === 'FAILED' && (
         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 0.8 }}>
-          <Button size="small" startIcon={<Refresh />} variant="outlined" onClick={restart} disabled={busy}>Rescan Carton</Button>
+          <Button size="small" startIcon={<Refresh />} variant="outlined" onClick={restart} disabled={busy}>{trUi("Rescan Carton")}</Button>
         </Stack>
       )}
       {!compact && session?.status === 'PASS' && (
-        <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.6 }}>
-          RFID PASS · {matched}/{expectedQty} matching item(s).
-        </Typography>
+        <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.6 }}>{trUi("\n          RFID PASS · ")}{matched}/{expectedQty}{trUi(" matching item(s).\n        ")}</Typography>
       )}
       {admin && session?.status === 'PASS' && (
-        <Button size="small" color="warning" onClick={reopen} disabled={busy}>Supervisor: reopen RFID</Button>
+        <Button size="small" color="warning" onClick={reopen} disabled={busy}>{trUi("Supervisor: reopen RFID")}</Button>
       )}
       {session?.status !== 'FAILED' && (invalid > 0 || cross > 0) && (
         <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.4 }}>
-          {invalid ? `${invalidUnique} unsupported tag(s) counted in Wrong SKU (${invalid} read events). ` : ''}{cross ? `${cross} EPC(s) already verified in another carton.` : ''}
+          {invalid ? trUi("{0} unsupported tag(s) counted in Wrong SKU ({1} read events). ", invalidUnique, invalid) : ''}{cross ? trUi("{0} EPC(s) already verified in another carton.", cross) : ''}
         </Typography>
       )}
-      {error && <Alert severity="error" sx={{ mt: 0.6, py: 0 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mt: 0.6, py: 0 }}>{trSystem(error)}</Alert>}
       {note && (/partial|error|failed|retry/i.test(note) || detailsOpen) &&
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.4 }}>{note}</Typography>}
 
@@ -375,7 +371,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
             <Button size="small" color="inherit" onClick={() => setDetailsOpen((x) => !x)}
               endIcon={detailsOpen ? <ExpandLess /> : <ExpandMore />}
               sx={{ fontSize: 11, textTransform: 'none', minWidth: 0, px: 0.5 }}>
-              {detailsOpen ? 'Hide EPC details' : 'EPC details'}
+              {detailsOpen ? trUi("Hide EPC details") : trUi("EPC details")}
             </Button>
           </Stack>
           <Collapse in={detailsOpen} unmountOnExit>
@@ -384,27 +380,27 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
               <Chip size="small" variant="outlined" label={`Matched ${matched}/${expectedQty}`} />
               {missing > 0 && <Chip size="small" color="error" variant="outlined" label={`Missing ${missing}`} />}
               {matched > expectedQty && <Chip size="small" color="error" variant="outlined" label={`Excess ${matched - expectedQty}`} />}
-              {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={`Wrong SKU ${wrong}`} />}
-              {cross > 0 && <Chip size="small" color="error" variant="outlined" label={`Cross-carton ${cross}`} />}
-              {invalid > 0 && <Chip size="small" color="error" variant="outlined" label={`Invalid reads ${invalid}`} />}
+              {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={trUi("Wrong SKU {0}", wrong)} />}
+              {cross > 0 && <Chip size="small" color="error" variant="outlined" label={trUi("Cross-carton {0}", cross)} />}
+              {invalid > 0 && <Chip size="small" color="error" variant="outlined" label={trUi("Invalid reads {0}", invalid)} />}
             </Stack>
             {session?.status === 'FAILED' && <Alert severity="error" sx={{ mt: 0.5, py: 0 }}>
-              <b>RFID FAILED.</b> {session.reason || 'Quantity, SKU or EPC mismatch.'}
+              <b>{trUi("RFID FAILED.")}</b> {session.reason || trUi("Quantity, SKU or EPC mismatch.")}
             </Alert>}
             <Stack direction="row" gap={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.55, mb: 0.35 }}>
               {groups.map(({ sku, qty, wrong: issues }) => (
                 <Chip key={sku} size="small" variant="outlined" color={issues ? 'error' : 'success'} label={`${sku}: ${qty}`} sx={{ height: 21, fontSize: 11 }} />
               ))}
               {invalidUnique > 0 && <Chip size="small" variant="outlined" color="error"
-                label={`${invalidUnique} unsupported unique · ${invalidReadEvents} read(s)`} sx={{ height: 21, fontSize: 11 }} />}
+                label={trUi("{0} unsupported unique · {1} read(s)", invalidUnique, invalidReadEvents)} sx={{ height: 21, fontSize: 11 }} />}
             </Stack>
             <TableContainer sx={{ mt: 0.45, maxHeight: 220, border: '1px solid', borderColor: 'divider', borderRadius: '2px' }}>
-              <Table size="small" stickyHeader aria-label="RFID EPC scan results">
+              <Table size="small" stickyHeader aria-label={trUi("RFID EPC scan results")}>
                 <TableHead><TableRow>
-                  <TableCell sx={{ width: 54 }}>STT</TableCell>
-                  <TableCell>EPC / Raw tag</TableCell>
-                  <TableCell>Decoded SKU</TableCell>
-                  <TableCell>Result</TableCell>
+                  <TableCell sx={{ width: 54 }}>{trUi("STT")}</TableCell>
+                  <TableCell>{trUi("EPC / Raw tag")}</TableCell>
+                  <TableCell>{trUi("Decoded SKU")}</TableCell>
+                  <TableCell>{trUi("Result")}</TableCell>
                 </TableRow></TableHead>
                 <TableBody>
                   {displayRows.map((row, index) => (
@@ -417,7 +413,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
                         {row.sku || '—'}
                       </TableCell>
                       <TableCell sx={{ fontSize: 11, color: row.status === 'MATCH' ? 'success.main' : 'error.main' }}>
-                        {row.status === 'MATCH' ? 'Matched' : row.status === 'WRONG_SKU' ? 'Wrong SKU' : row.status === 'DUPLICATE_CARTON' ? 'Duplicate in Another Carton' : `Wrong SKU — Unsupported / Invalid (${row.readCount} read${row.readCount === 1 ? '' : 's'})`}
+                        {row.status === 'MATCH' ? 'Matched' : row.status === 'WRONG_SKU' ? trUi("Wrong SKU") : row.status === 'DUPLICATE_CARTON' ? trUi("Duplicate in Another Carton") : trUi("Wrong SKU — Unsupported / Invalid ({0} read{1})", row.readCount, row.readCount === 1 ? '' : 's')}
                       </TableCell>
                     </TableRow>
                   ))}

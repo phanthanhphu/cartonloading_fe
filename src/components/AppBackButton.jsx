@@ -1,3 +1,4 @@
+import { useT } from '../i18n/LanguageProvider';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
@@ -17,6 +18,7 @@ export function resolveBackPath(pathname = '/', search = '') {
 }
 
 export default function AppBackButton() {
+  const trUi = useT();
   const location = useLocation();
   const goBack = useSafeAppBack();
   // Track every dashboard route, including screens with their own local Back button.
@@ -25,14 +27,14 @@ export default function AppBackButton() {
   if (HOME_PATHS.has(location.pathname) || hasLocalBackButton(location.pathname)) return null;
 
   return (
-    <Tooltip title="Back to previous page">
+    <Tooltip title={trUi("Back to previous page")}>
       <Button
         type="button"
         size="small"
         variant="outlined"
         startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 18 }} />}
         onClick={goBack}
-        aria-label="Back"
+        aria-label={trUi("Back")}
         sx={{
           minWidth: 76,
           height: 34,
@@ -45,9 +47,7 @@ export default function AppBackButton() {
           bgcolor: '#FFFFFF',
           '&:hover': { borderColor: '#9BB8D7', bgcolor: '#F5F9FE' }
         }}
-      >
-        Back
-      </Button>
+      >{trUi("\n        Back\n      ")}</Button>
     </Tooltip>
   );
 }

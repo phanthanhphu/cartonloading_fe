@@ -1,40 +1,35 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
-import LululemonExcelActions from 'buyers/lululemon/components/LululemonExcelActions';
-import ShippingSchedulesTab from 'buyers/lululemon/components/ShippingSchedulesTab';
-import PoDuplicateConflictDialog from 'buyers/lululemon/components/PoDuplicateConflictDialog';
-import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
-import useActiveFactories from '../../../../common/factory/useActiveFactories';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
+import useActiveFactories from '../../../common/factory/useActiveFactories';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert, Box, Breadcrumbs, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, IconButton, InputLabel, LinearProgress, Link, ListItemText, Menu, MenuItem, Select, Stack, Tab, Tabs, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography
-} from '@mui/material';
+import { Alert, Box, Breadcrumbs, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, IconButton, InputLabel, LinearProgress, Link, ListItemText, Menu, MenuItem, Select, Stack, Tab, Tabs, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import {
   ArrowBack, CloudUploadOutlined, DeleteOutline, EditOutlined, FilterListOutlined, LocalShippingOutlined, MoveToInboxOutlined, QrCodeScannerOutlined, Refresh, ScaleOutlined, ViewColumnOutlined
 } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
-import { APP_MESSAGES, createAllBpImportedMessage, createGenerationReviewMessage, createMasterDataBuildSummary, createMasterDataImportedMessage, createPoDeletedMessage, createWorkflowNotConfiguredMessage, createDeleteImportedPoConfirmMessage } from '../../../../constants/appMessages';
+import { APP_MESSAGES, createAllBpImportedMessage, createGenerationReviewMessage, createMasterDataBuildSummary, createMasterDataImportedMessage, createPoDeletedMessage, createWorkflowNotConfiguredMessage } from '../../../constants/appMessages';
 
 import ManagementTable from 'components/ManagementTable';
-import PoScanProgressCell from 'buyers/lululemon/components/PoScanProgressCell';
-import PoInspectionProgressCell from 'buyers/lululemon/components/PoInspectionProgressCell';
 import StatusChip from 'components/StatusChip';
 import { CompactPageHeader, CompactStat, CompactToolbar } from 'components/CompactPageHeader';
 import TableFilterBar from 'components/TableFilterBar';
-import { BUYER_CODE, buyerOrderStorageKey, ALL_BP_KNOWN_HEADERS, ALL_BP_RETIRED_KEYS, ALL_BP_FORMULA_KEYS, ALL_BP_FORMULA_TEXT, ALL_BP_UI_LABELS, ALL_BP_SHARED_KEYS, ALL_BP_IMPORTANT_SOURCE_ORDER, DEFAULT_TABLE_ROWS_PER_PAGE, EXCEL_FILE_ACCEPT, IMPORT_MODE, DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY, WORKSPACE_SYSTEM_COLUMN_DEFINITIONS, WORKSPACE_DEFAULT_COLUMN_KEYS, PROGRESS_STATUS, PO_IMPORT_ERROR_CODE } from '../../../../constants/appConstants';
+import { BUYER_CODE, buyerOrderStorageKey, ALL_BP_KNOWN_HEADERS, ALL_BP_RETIRED_KEYS, ALL_BP_FORMULA_KEYS, ALL_BP_FORMULA_TEXT, ALL_BP_UI_LABELS, ALL_BP_SHARED_KEYS, ALL_BP_IMPORTANT_SOURCE_ORDER, DEFAULT_TABLE_ROWS_PER_PAGE, EXCEL_FILE_ACCEPT, IMPORT_MODE, DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY, WORKSPACE_SYSTEM_COLUMN_DEFINITIONS, WORKSPACE_DEFAULT_COLUMN_KEYS, PROGRESS_STATUS, PO_IMPORT_ERROR_CODE } from '../../../constants/appConstants';
 import { value, canonicalSourceKey, canonicalRowEntry, canonicalRowValue, calculatedCartonMetrics, fallbackAllBpValue, recalculateAllBpPreview, sourceValue } from 'buyers/lululemon/domain/allBpWorkspace';
 import { canAssignBarcode, canManageSales, canWeightCheck, canCreateShippingSchedule } from 'utils/accessControl';
 import { useSelectedFactory } from 'utils/factorySelection';
 import { getBuyerBySlug, saveSelectedBuyer } from 'utils/buyerAccess';
+import { getBuyerOrderWorkspace } from 'buyers/core/buyerModules';
+import { emptyPoFilters, allPoReturnKey, loadAllPoReturn } from '../workspace/orderNavigation';
+import { PO_DEFAULT_COLUMN_KEYS, UNSCHEDULED_COLUMN_STORAGE_KEY, SCHEDULE_COLUMN_STORAGE_KEY, SCHEDULE_COLUMNS, loadSavedColumns, loadUnscheduledColumns, loadScheduleColumns } from 'buyers/lululemon/config/poTablePreferences';
 import { getManagedOrder, listManagedPos } from 'services/managementService';
-import { createShippingSchedule, createWeighingOrder, deletePo, importAllBp, listShippingSchedules, updatePo } from 'buyers/lululemon/services/service';
-import { generatePackingList, importPackingAllocationLines } from 'buyers/es/services/packingListService';
-import { generateCartonPlanFromWsp } from 'buyers/es/services/cartonLoadingService';
 
-const emptyPoFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '', dcCode: '', masterPo: '', description: '', color: '', channel: '' });
 const pageState = () => ({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false });
-const isSsccWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.LULULEMON;
-const isBarcodeWorkflowBuyer = (buyer) => buyer?.code === BUYER_CODE.ENGELBERT_STRAUSS;
-const hasOperationalWorkflow = (buyer) => isSsccWorkflowBuyer(buyer) || isBarcodeWorkflowBuyer(buyer);
+const isSsccWorkflowBuyer = (buyer) => getBuyerOrderWorkspace(buyer)?.mode === 'sscc';
+const isBarcodeWorkflowBuyer = (buyer) => getBuyerOrderWorkspace(buyer)?.mode === 'barcode';
+const hasOperationalWorkflow = (buyer) => Boolean(getBuyerOrderWorkspace(buyer));
 
 const systemColumns = WORKSPACE_SYSTEM_COLUMN_DEFINITIONS.map((column) => ({
   ...column,
@@ -50,54 +45,10 @@ const systemColumns = WORKSPACE_SYSTEM_COLUMN_DEFINITIONS.map((column) => ({
 
 // Default-hidden PO columns remain individually selectable through Customize Columns.
 // Do not change WORKSPACE_DEFAULT_COLUMN_KEYS: ShippingScheduleDetailPage shares it.
-const PO_DEFAULT_COLUMN_KEYS = Object.freeze(
-  WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => key !== 'sys:factory' && key !== 'sys:sku')
-);
-const PO_DEFAULT_HIDDEN_KEYS = new Set(['sys:factory', 'sys:sku']);
-const UNSCHEDULED_COLUMN_STORAGE_KEY = `${DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY}.unscheduled`;
-const SCHEDULE_COLUMN_STORAGE_KEY = 'lululemon.shippingScheduleDays.columns.v1';
-// Shipping Schedules is a date list, not a PO table: customize its columns separately.
-// Shipping Date and Action stay visible so schedules can always be identified and opened.
-const SCHEDULE_COLUMNS = [
-  { key: 'stt', label: 'STT' },
-  { key: 'shippingDate', label: 'Shipping Date', required: true },
-  { key: 'poCount', label: 'Total POs' },
-  { key: 'status', label: 'Status' },
-  { key: 'action', label: 'Action', required: true }
-];
-const loadColumnPreference = (storageKey) => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey));
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-};
-// One-time migration: hide Factory and SKU from pre-existing saved table layouts.
-// After migration, an explicit user selection in Columns is preserved on reload.
-const loadPoColumnPreference = (storageKey) => {
-  const saved = loadColumnPreference(storageKey);
-  const migrationKey = `${storageKey}.factory-sku-default-hidden.v1`;
-  try {
-    if (localStorage.getItem(migrationKey) === '1') return saved;
-    const migrated = Array.isArray(saved) ? saved.filter((key) => !PO_DEFAULT_HIDDEN_KEYS.has(key)) : null;
-    if (migrated !== null) localStorage.setItem(storageKey, JSON.stringify(migrated));
-    localStorage.setItem(migrationKey, '1');
-    return migrated;
-  } catch {
-    return Array.isArray(saved) ? saved.filter((key) => !PO_DEFAULT_HIDDEN_KEYS.has(key)) : null;
-  }
-};
-const loadSavedColumns = () => loadPoColumnPreference(DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY);
-const loadUnscheduledColumns = () => loadPoColumnPreference(UNSCHEDULED_COLUMN_STORAGE_KEY);
-const loadScheduleColumns = () => {
-  const saved = loadColumnPreference(SCHEDULE_COLUMN_STORAGE_KEY);
-  if (!saved) return SCHEDULE_COLUMNS.map((column) => column.key);
-  return SCHEDULE_COLUMNS.filter((column) => column.required || saved.includes(column.key)).map((column) => column.key);
-};
-
-export default function BuyerOrderWorkspacePage() {
-  const { codes: factoryCodes } = useActiveFactories();
+export default function OrderWorkspacePage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId } = useParams();
   const navigate = useNavigate();
   // Keep the resolved buyer object stable for the lifetime of the route.
@@ -105,6 +56,17 @@ export default function BuyerOrderWorkspacePage() {
   // would otherwise create a new object reference each time.
   const buyer = useMemo(() => getBuyerBySlug(buyerSlug), [buyerSlug]);
   const buyerCode = buyer?.code || '';
+  const { codes: factoryCodes } = useActiveFactories({ enabled: isSsccWorkflowBuyer(buyer) });
+  const orderWorkspace = getBuyerOrderWorkspace(buyer);
+  // Buyer adapters own concrete services and components. A new Buyer registers its
+  // adapter without changing shared Order workspace imports or wire contracts.
+  const { LululemonExcelActions, ShippingSchedulesTab, PoDuplicateConflictDialog,
+    PoScanProgressCell, PoInspectionProgressCell } = orderWorkspace?.components || {};
+  const { createShippingSchedule, createWeighingOrder, deletePo, importAllBp,
+    listShippingSchedules, updatePo, generatePackingList,
+    importPackingAllocationLines, generateCartonPlanFromWsp } = orderWorkspace?.operations || {};
+  // Restore list filters and pagination only after returning from a selected PO.
+  const returnToAllPo = useMemo(() => loadAllPoReturn(buyerSlug, orderId), [buyerSlug, orderId]);
   const { factoryCode: selectedFactory, loading: factoryLoading } = useSelectedFactory(buyerCode);
   const writable = canManageSales();
   const canScheduleShipping = canCreateShippingSchedule();
@@ -113,8 +75,8 @@ export default function BuyerOrderWorkspacePage() {
   const fileRef = useRef(null);
 
   const [order, setOrder] = useState(null);
-  const [pos, setPos] = useState(pageState());
-  const [filters, setFilters] = useState(emptyPoFilters);
+  const [pos, setPos] = useState(() => ({ ...pageState(), page: returnToAllPo?.page ?? 0, size: returnToAllPo?.size ?? DEFAULT_TABLE_ROWS_PER_PAGE }));
+  const [filters, setFilters] = useState(() => returnToAllPo?.filters || emptyPoFilters());
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [importMode, setImportMode] = useState(IMPORT_MODE.UPSERT);
   const [importing, setImporting] = useState(false);
@@ -132,7 +94,8 @@ export default function BuyerOrderWorkspacePage() {
   const [poSaving, setPoSaving] = useState(false);
   const [poDeletingId, setPoDeletingId] = useState(null);
   const [shippingSchedules, setShippingSchedules] = useState([]);
-  const [poTab, setPoTab] = useState(() => new URLSearchParams(window.location.search).get('tab') === 'shipping-schedules' ? 'scheduled' : 'all');
+  const [poTab, setPoTab] = useState(() => new URLSearchParams(window.location.search).get('tab') === 'shipping-schedules'
+    ? 'scheduled' : returnToAllPo?.tab || 'all');
   const [creatingShippingSchedule, setCreatingShippingSchedule] = useState(false);
   const currentPoColumnKeys = poTab === 'unscheduled' ? unscheduledColumnKeys : visibleColumnKeys;
   const scheduleVisibleColumnCount = SCHEDULE_COLUMNS.filter((column) => scheduleColumnKeys.includes(column.key)).length;
@@ -141,7 +104,22 @@ export default function BuyerOrderWorkspacePage() {
   const [selectedWeightPoIds, setSelectedWeightPoIds] = useState([]);
   const [sendingToWeight, setSendingToWeight] = useState(false);
   const posRequestRef = useRef(0);
-  const posPaginationRef = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
+  const posPaginationRef = useRef({ page: returnToAllPo?.page ?? 0, size: returnToAllPo?.size ?? DEFAULT_TABLE_ROWS_PER_PAGE });
+  const restorePoPageRef = useRef(returnToAllPo?.page ?? null);
+
+  // The All PO table itself is read-only for navigation: only the PO hyperlink opens Cartons.
+  const rememberPoList = useCallback(() => {
+    if (!buyerSlug || !orderId) return;
+    try {
+      sessionStorage.setItem(allPoReturnKey(buyerSlug, orderId), JSON.stringify({
+        tab: poTab,
+        filters,
+        page: posPaginationRef.current.page,
+        size: posPaginationRef.current.size,
+        savedAt: Date.now()
+      }));
+    } catch { /* Session storage may be disabled; PO navigation still works. */ }
+  }, [buyerSlug, orderId, poTab, filters]);
 
   // Keep inputs interactive while typing; only query PO data after a short pause.
   useEffect(() => {
@@ -151,11 +129,11 @@ export default function BuyerOrderWorkspacePage() {
 
   useEffect(() => {
     if (buyer) saveSelectedBuyer(buyer);
-    if (buyer?.code === BUYER_CODE.LULULEMON && orderId) localStorage.setItem(buyerOrderStorageKey(buyer.code), orderId);
+    if (isSsccWorkflowBuyer(buyer) && orderId) localStorage.setItem(buyerOrderStorageKey(buyer.code), orderId);
   }, [buyer?.code, orderId]);
 
   const loadOrder = useCallback(async () => {
-    if (!buyerCode || !orderId || (buyerCode === BUYER_CODE.LULULEMON && (factoryLoading || !selectedFactory))) {
+    if (!buyerCode || !orderId || (isSsccWorkflowBuyer(buyer) && (factoryLoading || !selectedFactory))) {
       setOrder(null);
       return;
     }
@@ -176,15 +154,15 @@ export default function BuyerOrderWorkspacePage() {
   }, [buyer, buyerCode, orderId, selectedFactory, factoryLoading]);
 
   const loadPos = useCallback(async (page = posPaginationRef.current.page, size = posPaginationRef.current.size) => {
-    if (!buyerCode || !orderId || (buyerCode === BUYER_CODE.LULULEMON && (factoryLoading || !selectedFactory))) {
+    if (!buyerCode || !orderId || (isSsccWorkflowBuyer(buyer) && (factoryLoading || !selectedFactory))) {
       setPos((current) => ({ ...current, rows: [], count: 0, loading: false }));
       return;
     }
     // IMPORTANT: depend on the stable primitive buyerCode, not the buyer object.
     // The buyer catalog can return a newly allocated object, which used to recreate
     // loadPos and retrigger the effect indefinitely (GET /pos request loop).
-    const workflowEnabled = buyerCode === BUYER_CODE.LULULEMON
-      || buyerCode === BUYER_CODE.ENGELBERT_STRAUSS;
+    const workflowEnabled = isSsccWorkflowBuyer(buyer)
+      || isBarcodeWorkflowBuyer(buyer);
     if (!workflowEnabled) {
       setPos((current) => ({ ...current, page: 0, count: 0, rows: [], loading: false }));
       return;
@@ -198,9 +176,9 @@ export default function BuyerOrderWorkspacePage() {
 
     try {
       const result = await listManagedPos(buyerCode, orderId, { ...debouncedFilters,
-        factory: buyerCode === BUYER_CODE.LULULEMON ? selectedFactory : debouncedFilters.factory,
-        inspectionStatus: buyerCode === BUYER_CODE.LULULEMON ? debouncedFilters.inspectionStatus : undefined,
-        shippingScheduled: buyerCode === BUYER_CODE.LULULEMON && poTab !== 'all' ? poTab === 'scheduled' : undefined, page: nextPage, size: nextSize });
+        factory: isSsccWorkflowBuyer(buyer) ? selectedFactory : debouncedFilters.factory,
+        inspectionStatus: isSsccWorkflowBuyer(buyer) ? debouncedFilters.inspectionStatus : undefined,
+        shippingScheduled: isSsccWorkflowBuyer(buyer) && poTab !== 'all' ? poTab === 'scheduled' : undefined, page: nextPage, size: nextSize });
       if (requestId !== posRequestRef.current) return;
 
       const rows = (result?.content || []).map((row, index) => ({ ...row, __stt: nextPage * nextSize + index + 1 }));
@@ -222,15 +200,19 @@ export default function BuyerOrderWorkspacePage() {
 
   useEffect(() => {
     // Tab 2 lists Shipping Schedules, not individual POs.
-    if (buyerCode === BUYER_CODE.LULULEMON && poTab === 'scheduled') return;
-    loadPos(0, posPaginationRef.current.size);
-  }, [loadPos, buyerCode, poTab]);
+    if (isSsccWorkflowBuyer(buyer) && poTab === 'scheduled') return;
+    if (isSsccWorkflowBuyer(buyer) && (factoryLoading || !selectedFactory)) return;
+    const pageToLoad = restorePoPageRef.current ?? 0;
+    restorePoPageRef.current = null;
+    loadPos(pageToLoad, posPaginationRef.current.size);
+  }, [loadPos, buyerCode, poTab, factoryLoading, selectedFactory]);
 
 
   const uploadMasterData = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !buyer || !orderId) return;
+    if (!await confirmAction({ kind: importMode === IMPORT_MODE.REPLACE_ALL && isBarcodeWorkflowBuyer(buyer) ? 'replace' : 'create', entity: 'Import', name: file.name, warning: '' })) return;
     setDuplicatePos([]); setImporting(true); setImportProgress(0); setNotice(null); setError('');
     try {
       if (isSsccWorkflowBuyer(buyer)) {
@@ -351,6 +333,7 @@ export default function BuyerOrderWorkspacePage() {
       return Number.isFinite(parsed) ? parsed : null;
     };
 
+    if (!await confirmAction({ kind: 'update', entity: 'PO', name: poNumber })) return;
     setPoSaving(true);
     setNotice(null);
     try {
@@ -395,7 +378,7 @@ export default function BuyerOrderWorkspacePage() {
     if (!row || !isSsccWorkflowBuyer(buyer) || !writable) return;
     const poId = row.id || row.key;
     if (!poId) return;
-    const confirmed = window.confirm(createDeleteImportedPoConfirmMessage(row.poNumber));
+    const confirmed = await confirmAction({ kind: 'delete', entity: 'PO', name: row.poNumber });
     if (!confirmed) return;
 
     setPoDeletingId(poId);
@@ -447,7 +430,27 @@ export default function BuyerOrderWorkspacePage() {
           group: 'ALL_BP',
           sourceIndex: index,
           render: (row) => {
-            if (buyerCode === BUYER_CODE.LULULEMON && ['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(canonical)) {
+            if (isSsccWorkflowBuyer(buyer) && canonical === 'PO') {
+              const poKey = row.key || row.id;
+              const poLabel = sourceValue(row, canonical);
+              if (!poKey) return poLabel;
+              return (
+                <Tooltip title={`${trUi('Open PO cartons')}: ${row.poNumber || poLabel}`} arrow>
+                  <Link
+                    component={RouterLink}
+                    to={`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}`}
+                    onClick={(event) => { event.stopPropagation(); rememberPoList(); }}
+                    underline="hover"
+                    aria-label={`${trUi('Open PO cartons')}: ${row.poNumber || poLabel}`}
+                    sx={{ color: 'primary.main', fontWeight: 800, cursor: 'pointer', textUnderlineOffset: '3px',
+                      '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 } }}
+                  >
+                    {poLabel}
+                  </Link>
+                </Tooltip>
+              );
+            }
+            if (isSsccWorkflowBuyer(buyer) && ['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(canonical)) {
               const progress = <PoScanProgressCell row={row} canonical={canonical} metrics={calculatedCartonMetrics(row)} compact />;
               // Never fall back to ALL_BP raw numbers: those are planned, not completed.
               // The progress component explicitly marks missing old-API data as unavailable.
@@ -465,7 +468,7 @@ export default function BuyerOrderWorkspacePage() {
       const bp = priority.has(b.canonical) ? priority.get(b.canonical) : 1000 + b.sourceIndex;
       return ap - bp;
     });
-  }, [sourceHeaders, buyerCode]);
+  }, [sourceHeaders, buyerCode, buyer?.slug, orderId, rememberPoList, trUi]);
 
   const sendSelectedToCartonWeight = async () => {
     if (!orderId || !selectedWeightPoIds.length || sendingToWeight) return;
@@ -530,6 +533,7 @@ export default function BuyerOrderWorkspacePage() {
 
   const savePoReassignment = async () => {
     if (!orderId || !reassignDialog?.poId || !reassignDialog.factoryCode || !reassignDialog.exFtyDate || reassignSaving) return;
+    if (!await confirmAction({ kind: 'update', entity: 'PO', name: reassignDialog.poNumber || '' })) return;
     setReassignSaving(true);
     setNotice(null);
     setError('');
@@ -562,13 +566,13 @@ export default function BuyerOrderWorkspacePage() {
     // combined 'Carton / RFID / Weight' column. None is in the default list.
     // Keep each progress bar and its original PASS/FAILED calculation.
     const inspectionColumns = [
-      { key: 'progress:cartons', label: 'Cartons', group: 'System', minWidth: 120,
+      { key: 'progress:cartons', label: trUi("Cartons"), group: 'System', minWidth: 120,
         sortValue: (row) => Number(row.completedCartons ?? 0),
         render: (row) => <PoInspectionProgressCell row={row} metric="cartons" /> },
       { key: 'progress:rfid', label: 'RFID', group: 'System', minWidth: 120,
         sortValue: (row) => Number(row.inspectionProgress?.rfidPassedCartons ?? 0),
         render: (row) => <PoInspectionProgressCell row={row} metric="rfid" /> },
-      { key: 'progress:weight', label: 'Weight', group: 'System', minWidth: 120,
+      { key: 'progress:weight', label: trUi("Weight"), group: 'System', minWidth: 120,
         sortValue: (row) => Number(row.inspectionProgress?.weightPassedCartons ?? 0),
         render: (row) => <PoInspectionProgressCell row={row} metric="weight" /> }
     ];
@@ -627,28 +631,28 @@ export default function BuyerOrderWorkspacePage() {
   }, [buyerCode, scheduleColumnKeys]);
 
   const fixedColumns = [
-    { key: '__stt', label: 'STT', minWidth: 65 },
-    { key: 'poNumber', label: 'PO No.', minWidth: 130, render: (r) => <Typography fontWeight={900} color="primary.main">{value(r.poNumber)}</Typography> },
-    { key: 'masterPo', label: 'Master PO', minWidth: 125 },
-    { key: 'factoryCode', label: 'Factory', minWidth: 90 },
-    { key: 'styleNumber', label: 'Style', minWidth: 110 },
-    { key: 'description', label: 'Description', minWidth: 200 },
-    { key: 'color', label: 'Color', minWidth: 120 },
-    { key: 'size', label: 'Size', minWidth: 85 },
-    { key: 'totalQty', label: 'Total Qty', minWidth: 90 },
-    { key: 'qtyPerCarton', label: 'Pcs / Ctn', minWidth: 90 },
-    { key: 'plannedCartons', label: 'Planned Cartons', minWidth: 125 },
-    { key: 'destination', label: 'Destination', minWidth: 130 },
-    { key: 'dcCode', label: 'DC Code', minWidth: 95 },
-    { key: 'channel', label: 'Channel', minWidth: 100 },
-    { key: 'shipMode', label: 'Ship Mode', minWidth: 100 },
-    { key: 'season', label: 'Season', minWidth: 90 },
-    { key: 'fwd', label: 'FWD', minWidth: 90 },
-    { key: 'cartonBoxSize', label: 'Carton Size', minWidth: 120 },
-    { key: 'netWeightKg', label: 'N.W. (kg)', minWidth: 90 },
-    { key: 'grossWeightKg', label: 'G.W. (kg)', minWidth: 90 },
-    { key: 'exFtyDate', label: 'Ex-Factory', minWidth: 110 },
-    { key: 'status', label: 'Status', minWidth: 110, render: (r) => <StatusChip status={r.status || 'READY'} /> }
+    { key: '__stt', label: trUi("STT"), minWidth: 65 },
+    { key: 'poNumber', label: trUi("PO No."), minWidth: 130, render: (r) => <Typography fontWeight={900} color="primary.main">{value(r.poNumber)}</Typography> },
+    { key: 'masterPo', label: trUi("Master PO"), minWidth: 125 },
+    { key: 'factoryCode', label: trUi("Factory"), minWidth: 90 },
+    { key: 'styleNumber', label: trUi("Style"), minWidth: 110 },
+    { key: 'description', label: trUi("Description"), minWidth: 200 },
+    { key: 'color', label: trUi("Color"), minWidth: 120 },
+    { key: 'size', label: trUi("Size"), minWidth: 85 },
+    { key: 'totalQty', label: trUi("Total Qty"), minWidth: 90 },
+    { key: 'qtyPerCarton', label: trUi("Pcs / Ctn"), minWidth: 90 },
+    { key: 'plannedCartons', label: trUi("Planned Cartons"), minWidth: 125 },
+    { key: 'destination', label: trUi("Destination"), minWidth: 130 },
+    { key: 'dcCode', label: trUi("DC Code"), minWidth: 95 },
+    { key: 'channel', label: trUi("Channel"), minWidth: 100 },
+    { key: 'shipMode', label: trUi("Ship Mode"), minWidth: 100 },
+    { key: 'season', label: trUi("Season"), minWidth: 90 },
+    { key: 'fwd', label: trUi("FWD"), minWidth: 90 },
+    { key: 'cartonBoxSize', label: trUi("Carton Size"), minWidth: 120 },
+    { key: 'netWeightKg', label: trUi("N.W. (kg)"), minWidth: 90 },
+    { key: 'grossWeightKg', label: trUi("G.W. (kg)"), minWidth: 90 },
+    { key: 'exFtyDate', label: trUi("Ex-Factory"), minWidth: 110 },
+    { key: 'status', label: trUi("Status"), minWidth: 110, render: (r) => <StatusChip status={r.status || 'READY'} /> }
   ];
 
   const tableColumns = (() => {
@@ -657,12 +661,12 @@ export default function BuyerOrderWorkspacePage() {
     const dataColumns = allWorkflowColumns.filter((column) => selected.has(column.key));
     const weightSelectColumn = false ? [{
       key: '__sendWeight',
-      label: 'CW',
+      label: trUi("CW"),
       minWidth: 56,
       render: (row) => {
         const poId = row.id || row.key;
         return (
-          <Tooltip title="Select PO to send to Carton Weight">
+          <Tooltip title={trUi("Select PO to send to Carton Weight")}>
             <Checkbox
               size="small"
               checked={selectedWeightPoIds.includes(poId)}
@@ -674,10 +678,10 @@ export default function BuyerOrderWorkspacePage() {
       }
     }] : [];
     const planningDateColumn = {
-      key: 'plannedShippingDate', label: 'Scheduled Ship Date', minWidth: 155,
+      key: 'plannedShippingDate', label: trUi("Scheduled Ship Date"), minWidth: 155,
       render: (row) => row.plannedShippingDate
         ? <Chip size="small" color="primary" variant="outlined" label={row.plannedShippingDate} />
-        : <Typography variant="caption" color="text.secondary">Not scheduled</Typography>
+        : <Typography variant="caption" color="text.secondary">{trUi("Not scheduled")}</Typography>
     };
     // Inspection progress is no longer forced into every PO row: Cartons,
     // RFID, and Weight are independent, default-hidden column choices.
@@ -685,7 +689,7 @@ export default function BuyerOrderWorkspacePage() {
 
     return [...weightSelectColumn, ...dataColumns, planningDateColumn, {
       key: '__actions',
-      label: 'Actions',
+      label: trUi("Actions"),
       minWidth: 105,
       render: (row) => {
         const poId = row.id || row.key;
@@ -694,23 +698,23 @@ export default function BuyerOrderWorkspacePage() {
         return (
           <Stack direction="row" spacing={0.25} onClick={(event) => event.stopPropagation()}>
             {row.weightEditLocked ? (
-              <Tooltip title="Carton Weight completed: PO editing locked.">
-                <Chip size="small" label="Weight Locked" variant="outlined" />
+              <Tooltip title={trUi("Carton Weight completed: PO editing locked.")}>
+                <Chip size="small" label={trUi("Weight Locked")} variant="outlined" />
               </Tooltip>
             ) : (
               <Tooltip title={row.hasOperationalData || assignment
-                ? 'Edit PO (descriptive fields only once Packing/Shipment starts; carton/scan data is preserved)'
-                : 'Edit imported PO, including already picked POs'}>
+                ? trUi("Edit PO (descriptive fields only once Packing/Shipment starts; carton/scan data is preserved)")
+                : trUi("Edit imported PO, including already picked POs")}>
                 <span><IconButton size="small" disabled={deleting} onClick={() => openPoEditor(row)}><EditOutlined fontSize="small" /></IconButton></span>
               </Tooltip>
             )}
             {!row.weightEditLocked && !row.picked && !row.hasOperationalData && !row.plannedShippingDate && !assignment ? (
-              <Tooltip title="Delete unpicked and unstarted PO">
+              <Tooltip title={trUi("Delete unpicked and unstarted PO")}>
                 <span><IconButton size="small" color="error" disabled={deleting} onClick={() => removeImportedPo(row)}><DeleteOutline fontSize="small" /></IconButton></span>
               </Tooltip>
             ) : null}
             {false && !row.weightEditLocked && assignment?.reassignable ? (
-              <Tooltip title={`Reassign from ${assignment.scheduleNo}`}>
+              <Tooltip title={trUi("Reassign from {0}", assignment.scheduleNo)}>
                 <span><IconButton size="small" color="primary" disabled={deleting} onClick={() => openPoReassignDialog(row, assignment)}><LocalShippingOutlined fontSize="small" /></IconButton></span>
               </Tooltip>
             ) : null}
@@ -769,27 +773,27 @@ export default function BuyerOrderWorkspacePage() {
       <Stack spacing={1} sx={managementStackSx}>
         <CompactPageHeader
           title={order?.orderName || 'Order'}
-          subtitle={isSsccWorkflowBuyer(buyer) ? 'Import Lululemon PO Excel (headers on row 2). Factory comes from this Order. Open a PO for SSCC / RFID / Weight.' : 'Purchase Orders · Cartons and Items are generated only when opened.'}
+          subtitle={isSsccWorkflowBuyer(buyer) ? trUi("Import Lululemon PO Excel (headers on row 2). Factory comes from this Order. Open a PO for SSCC / RFID / Weight.") : trUi("Purchase Orders · Cartons and Items are generated only when opened.")}
           breadcrumbs={(
             <Breadcrumbs separator="/">
-              <Link component={RouterLink} underline="hover" color="inherit" to="/dashboard">Dashboard</Link>
+              <Link component={RouterLink} underline="hover" color="inherit" to="/dashboard">{trUi("Dashboard")}</Link>
               <Link component={RouterLink} underline="hover" color="inherit" to={`/buyers/${buyer.slug}/orders`}>{buyer.label}</Link>
               <Typography color="text.primary">{order?.orderName || 'Order'}</Typography>
             </Breadcrumbs>
           )}
           meta={isSsccWorkflowBuyer(buyer) ? null : <Chip size="small" variant="outlined" label={`${pos.count.toLocaleString()} POs`} />}
           actions={isSsccWorkflowBuyer(buyer) ? null : (<>
-            <Tooltip title="Back to Orders"><Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(`/buyers/${buyer.slug}/orders`)}>Orders</Button></Tooltip>
-            <Tooltip title="Refresh"><Button size="small" startIcon={<Refresh />} onClick={() => { loadOrder(); loadShippingSchedules(); loadPos(posPaginationRef.current.page, posPaginationRef.current.size); }}>Refresh</Button></Tooltip>
+            <Tooltip title={trUi("Back to Orders")}><Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(`/buyers/${buyer.slug}/orders`)}>{trUi("Orders")}</Button></Tooltip>
+            <Tooltip title={trUi("Refresh")}><Button size="small" startIcon={<Refresh />} onClick={() => { loadOrder(); loadShippingSchedules(); loadPos(posPaginationRef.current.page, posPaginationRef.current.size); }}>{trUi("Refresh")}</Button></Tooltip>
           </>)}
         />
 
         {isSsccWorkflowBuyer(buyer) && !factoryLoading && order?.factoryCode &&
           String(order.factoryCode).toUpperCase() !== String(selectedFactory || '').toUpperCase() &&
-          <Alert severity="warning">This Order belongs to Factory {order.factoryCode}. Select that Factory in the header to work on its PO.</Alert>}
-        <PoDuplicateConflictDialog open={duplicatePos.length > 0} duplicates={duplicatePos} onClose={() => setDuplicatePos([])} />
-        {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{notice.text}</Alert> : null}
-        {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+          <Alert severity="warning">{trUi("This Order belongs to Factory ")}{order.factoryCode}{trUi(". Select that Factory in the header to work on its PO.")}</Alert>}
+        {PoDuplicateConflictDialog && <PoDuplicateConflictDialog open={duplicatePos.length > 0} duplicates={duplicatePos} onClose={() => setDuplicatePos([])} />}
+        {notice ? <Alert severity={notice.severity} onClose={() => setNotice(null)}>{trSystem(notice.text)}</Alert> : null}
+        {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
         {!hasOperationalWorkflow(buyer) ? (
           <Alert severity="info">{APP_MESSAGES.BUYER_WORKFLOW_NOT_ASSIGNED}</Alert>
         ) : null}
@@ -797,14 +801,14 @@ export default function BuyerOrderWorkspacePage() {
         {/* Other buyers retain their existing PO toolbar and actions. */}
         {!isSsccWorkflowBuyer(buyer) ? (
           <CompactToolbar>
-            <CompactStat label="POs" value={pos.count.toLocaleString()} />
+            <CompactStat label={trUi("POs")} value={pos.count.toLocaleString()} />
             {isBarcodeWorkflowBuyer(buyer) && writable ? (
               <FormControl size="small" sx={{ minWidth: 155 }}>
-                <InputLabel>Import Mode</InputLabel>
-                <Select label="Import Mode" value={importMode} onChange={(e) => setImportMode(e.target.value)}>
-                  <MenuItem value={IMPORT_MODE.CREATE_ONLY}>Create Only</MenuItem>
-                  <MenuItem value={IMPORT_MODE.UPSERT}>Update + Create</MenuItem>
-                  <MenuItem value={IMPORT_MODE.REPLACE_ALL}>Replace All</MenuItem>
+                <InputLabel>{trUi("Import Mode")}</InputLabel>
+                <Select label={trUi("Import Mode")} value={importMode} onChange={(e) => setImportMode(e.target.value)}>
+                  <MenuItem value={IMPORT_MODE.CREATE_ONLY}>{trUi("Create Only")}</MenuItem>
+                  <MenuItem value={IMPORT_MODE.UPSERT}>{trUi("Update + Create")}</MenuItem>
+                  <MenuItem value={IMPORT_MODE.REPLACE_ALL}>{trUi("Replace All")}</MenuItem>
                 </Select>
               </FormControl>
             ) : null}
@@ -817,11 +821,11 @@ export default function BuyerOrderWorkspacePage() {
                   onClick={() => fileRef.current?.click()}
                   disabled={importing}
                 >
-                  {importing ? (importProgress < 100 ? `Uploading ${importProgress}%` : 'Processing file...') : 'Import Excel'}
+                  {importing ? (importProgress < 100 ? `Uploading ${importProgress}%` : trUi("Processing file...")) : trUi("Import Excel")}
                 </Button>
                 <input ref={fileRef} hidden type="file" accept={EXCEL_FILE_ACCEPT} onChange={uploadMasterData} />
               </>
-            ) : !writable ? <Chip size="small" label="View only" /> : null}
+            ) : !writable ? <Chip size="small" label={trUi("View only")} /> : null}
           </CompactToolbar>
         ) : null}
 
@@ -839,7 +843,7 @@ export default function BuyerOrderWorkspacePage() {
                   onChange={(_, next) => { setColumnMenuAnchor(null); setPoTab(next); posPaginationRef.current.page = 0; }}
                   variant="scrollable"
                   scrollButtons="auto"
-                  aria-label="LULULEMON purchase order shipping schedule views"
+                  aria-label={trUi("LULULEMON purchase order shipping schedule views")}
                   sx={{
                     minHeight: 44,
                     minWidth: 0,
@@ -853,16 +857,16 @@ export default function BuyerOrderWorkspacePage() {
                     }
                   }}
                 >
-                  <Tab value="all" label="1. All POs" />
-                  <Tab value="scheduled" label="2. Shipping Schedules" />
-                  <Tab value="unscheduled" label="3. Unscheduled POs" />
+                  <Tab value="all" label={trUi("1. All POs")} />
+                  <Tab value="scheduled" label={trUi("2. Shipping Schedules")} />
+                  <Tab value="unscheduled" label={trUi("3. Unscheduled POs")} />
                 </Tabs>
 
               </Stack>
               {/* Place existing shipping, Excel and column actions beside the three PO tabs. */}
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"
                 sx={{ justifyContent: { xs: 'flex-start', lg: 'flex-end' }, flexShrink: 0 }}>
-                {poTab === 'all' && writable && buyerCode === BUYER_CODE.LULULEMON ? (
+                {poTab === 'all' && writable && isSsccWorkflowBuyer(buyer) ? (
                   <LululemonExcelActions orderId={orderId} buyer={buyerCode} onMessage={setNotice}
                     onApplied={async () => { await loadOrder(); await loadPos(0, posPaginationRef.current.size); }} />
                 ) : null}
@@ -871,7 +875,7 @@ export default function BuyerOrderWorkspacePage() {
                   variant="outlined"
                   startIcon={<ViewColumnOutlined />}
                   onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
-                  aria-label={poTab === 'scheduled' ? 'Customize Shipping Schedule columns' : 'Customize PO table columns'}
+                  aria-label={poTab === 'scheduled' ? trUi("Customize Shipping Schedule columns") : trUi("Customize PO table columns")}
                   aria-haspopup="menu"
                   aria-expanded={Boolean(columnMenuAnchor)}
                   sx={{ textTransform: 'none', fontWeight: 700, minHeight: 36, whiteSpace: 'nowrap' }}
@@ -887,18 +891,16 @@ export default function BuyerOrderWorkspacePage() {
                     onClick={() => { setPoTab('scheduled'); setCreatingShippingSchedule(true); }}
                     disabled={!selectedFactory || factoryLoading}
                     sx={{ textTransform: 'none', fontWeight: 750, minHeight: 36, whiteSpace: 'nowrap' }}
-                  >
-                    New Schedule
-                  </Button>
+                  >{trUi("\n                    New Schedule\n                  ")}</Button>
                 ) : null}
-                {!writable ? <Chip size="small" label="View only" /> : null}
+                {!writable ? <Chip size="small" label={trUi("View only")} /> : null}
               </Stack>
             </Stack>
             {importing ? (
               <Box sx={{ maxWidth: 340, mt: 1 }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 0.25 }}>
                   <Typography variant="caption" fontWeight={700}>
-                    {importProgress < 100 ? 'Uploading PO Excel' : 'Processing PO Excel'}
+                    {importProgress < 100 ? trUi("Uploading PO Excel") : trUi("Processing PO Excel")}
                   </Typography>
                   <Typography variant="caption" fontWeight={800}>{importProgress}%</Typography>
                 </Stack>
@@ -914,11 +916,11 @@ export default function BuyerOrderWorkspacePage() {
               PaperProps={{ sx: { width: 330, maxHeight: 520 } }}
             >
               <Box sx={{ px: 1.5, py: 1 }}>
-                <Typography fontWeight={800}>Customize Columns</Typography>
-                <Typography variant="caption" color="text.secondary">{poTab === 'scheduled' ? 'Choose columns for the Shipping Schedules list. Date and Action are always visible.' : `Choose columns for ${poTab === 'unscheduled' ? 'Unscheduled POs' : 'All POs'}. Each tab remembers its own selection.`}</Typography>
+                <Typography fontWeight={800}>{trUi("Customize Columns")}</Typography>
+                <Typography variant="caption" color="text.secondary">{poTab === 'scheduled' ? trUi("Choose columns for the Shipping Schedules list. Date and Action are always visible.") : trUi("Choose columns for {0}. Each tab remembers its own selection.", poTab === 'unscheduled' ? 'Unscheduled POs' : 'All POs')}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <Button size="small" onClick={resetColumns}>Default</Button>
-                  <Button size="small" onClick={showAllColumns}>Show All</Button>
+                  <Button size="small" onClick={resetColumns}>{trUi("Default")}</Button>
+                  <Button size="small" onClick={showAllColumns}>{trUi("Show All")}</Button>
                 </Stack>
               </Box>
               <Divider />
@@ -926,7 +928,7 @@ export default function BuyerOrderWorkspacePage() {
                 ? SCHEDULE_COLUMNS.map((column) => (
                   <MenuItem key={column.key} dense disabled={column.required} onClick={() => toggleColumn(column.key)}>
                     <Checkbox size="small" checked={scheduleColumnKeys.includes(column.key)} disabled={column.required} />
-                    <ListItemText primary={column.label} secondary={column.required ? 'Required' : 'Optional'} />
+                    <ListItemText primary={column.group === 'ALL_BP' ? column.label : trUi(column.label)} secondary={column.required ? trUi('Required') : trUi('Optional')} />
                   </MenuItem>
                 ))
                 : allWorkflowColumns.map((column) => {
@@ -934,7 +936,7 @@ export default function BuyerOrderWorkspacePage() {
                   return (
                     <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
                       <Checkbox size="small" checked={checked} />
-                      <ListItemText primary={column.label} secondary={column.group === 'ALL_BP' ? 'ALL_BP' : 'System'} />
+                      <ListItemText primary={column.group === 'ALL_BP' ? column.label : trUi(column.label)} secondary={column.group === 'ALL_BP' ? 'ALL_BP' : trUi('System')} />
                     </MenuItem>
                   );
                 })}
@@ -951,64 +953,64 @@ export default function BuyerOrderWorkspacePage() {
         {!(isSsccWorkflowBuyer(buyer) && poTab === 'scheduled') ? <ManagementTable fillAvailableHeight
           filterBar={<TableFilterBar
           minFilterWidth={isSsccWorkflowBuyer(buyer) ? 210 : 150}
-          desktopColumns={buyerCode === BUYER_CODE.LULULEMON ? 4 : undefined}
+          desktopColumns={isSsccWorkflowBuyer(buyer) ? 4 : undefined}
           fields={isSsccWorkflowBuyer(buyer) ? [
             // ALL_BP PO fields: use the persisted PurchaseOrder properties, not a client-only page filter.
-            { key: 'dcCode', label: 'DC Code' },
+            { key: 'dcCode', label: trUi("DC Code") },
             { key: 'poNumber', label: 'PO' },
-            { key: 'masterPo', label: 'MASTER PO' },
-            { key: 'style', label: 'Style#' },
-            { key: 'description', label: 'Description' },
-            { key: 'color', label: 'Color description' },
-            { key: 'channel', label: 'Channel' },
-            { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' }
+            { key: 'masterPo', label: trUi("MASTER PO") },
+            { key: 'style', label: trUi("Style#") },
+            { key: 'description', label: trUi("Description") },
+            { key: 'color', label: trUi("Color description") },
+            { key: 'channel', label: trUi("Channel") },
+            { key: 'exFtyDate', label: trUi("Ex-Factory"), type: 'date' }
           ] : [
             // Preserve the existing ES workflow filters.
-            { key: 'poNumber', label: 'PO No.' },
-            { key: 'factory', label: 'Factory' },
-            { key: 'style', label: 'Style' },
+            { key: 'poNumber', label: trUi("PO No.") },
+            { key: 'factory', label: trUi("Factory") },
+            { key: 'style', label: trUi("Style") },
             { key: 'sku', label: 'SKU' },
-            { key: 'destination', label: 'Destination' },
-            { key: 'status', label: 'Status' },
-            { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' }
+            { key: 'destination', label: trUi("Destination") },
+            { key: 'status', label: trUi("Status") },
+            { key: 'exFtyDate', label: trUi("Ex-Factory"), type: 'date' }
           ]}
           values={filters}
           onChange={(key, nextValue) => setFilters((current) => ({ ...current, [key]: nextValue }))}
           onClear={() => setFilters(emptyPoFilters())}
         />}
-          title={buyerCode === BUYER_CODE.LULULEMON
-            ? (poTab === 'scheduled' ? 'Scheduled POs' : poTab === 'unscheduled' ? 'Unscheduled POs' : 'All Purchase Orders')
-            : 'Purchase Orders'}
+          title={isSsccWorkflowBuyer(buyer)
+            ? (poTab === 'scheduled' ? trUi("Scheduled POs") : poTab === 'unscheduled' ? trUi("Unscheduled POs") : trUi("All Purchase Orders"))
+            : trUi("Purchase Orders")}
           {...pos}
           rowsPerPage={pos.size}
           getRowId={(row) => row.key}
-          onRowClick={openPo}
+          onRowClick={isSsccWorkflowBuyer(buyer) ? undefined : openPo}
           onPageChange={(page) => loadPos(page, posPaginationRef.current.size)}
           onRowsPerPageChange={(size) => loadPos(0, size)}
           columns={tableColumns}
-          emptyText={buyerCode === BUYER_CODE.LULULEMON && filters.inspectionStatus === 'IMPORTING'
-            ? 'PO records become available after ALL_BP import finishes. Live upload progress is shown above.'
-            : buyerCode === BUYER_CODE.LULULEMON && poTab === 'scheduled'
-            ? 'No scheduled POs match the current filters.'
-            : buyerCode === BUYER_CODE.LULULEMON && poTab === 'unscheduled'
-              ? 'No unscheduled POs match the current filters.'
-              : 'No PO records. Import Excel to create PO data for this Order.'}
+          emptyText={isSsccWorkflowBuyer(buyer) && filters.inspectionStatus === 'IMPORTING'
+            ? trUi("PO records become available after ALL_BP import finishes. Live upload progress is shown above.")
+            : isSsccWorkflowBuyer(buyer) && poTab === 'scheduled'
+            ? trUi("No scheduled POs match the current filters.")
+            : isSsccWorkflowBuyer(buyer) && poTab === 'unscheduled'
+              ? trUi("No unscheduled POs match the current filters.")
+              : trUi("No PO records. Import Excel to create PO data for this Order.")}
         /> : null}
       </Stack>
 
       <Dialog open={Boolean(reassignDialog)} onClose={() => { if (!reassignSaving) setReassignDialog(null); }} fullWidth maxWidth="sm">
-        <DialogTitle fontWeight={900}>Reassign PO to Shipping Schedule</DialogTitle>
+        <DialogTitle fontWeight={900}>{trUi("Reassign PO to Shipping Schedule")}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.25}>
-            <Alert severity="info">Assigned PO cannot be edited or deleted directly. Reassign it to a new Shipping Schedule here.</Alert>
+            <Alert severity="info">{trUi("Assigned PO cannot be edited or deleted directly. Reassign it to a new Shipping Schedule here.")}</Alert>
             {reassignDialog ? (
               <>
-                <Typography variant="body2"><strong>PO:</strong> {reassignDialog.poNumber}</Typography>
-                <Typography variant="body2"><strong>Current Schedule:</strong> {reassignDialog.currentScheduleNo} · {reassignDialog.currentStatus}</Typography>
+                <Typography variant="body2"><strong>{trUi("PO:")}</strong> {reassignDialog.poNumber}</Typography>
+                <Typography variant="body2"><strong>{trUi("Current Schedule:")}</strong> {reassignDialog.currentScheduleNo} · {reassignDialog.currentStatus}</Typography>
                 <TextField
                   select
                   size="small"
-                  label="New Factory"
+                  label={trUi("New Factory")}
                   value={reassignDialog.factoryCode || ''}
                   onChange={(event) => setReassignField('factoryCode', event.target.value)}
                 >
@@ -1017,7 +1019,7 @@ export default function BuyerOrderWorkspacePage() {
                 <TextField
                   size="small"
                   type="date"
-                  label="New Shipping Date"
+                  label={trUi("New Shipping Date")}
                   InputLabelProps={{ shrink: true }}
                   value={reassignDialog.exFtyDate || ''}
                   onChange={(event) => setReassignField('exFtyDate', event.target.value)}
@@ -1027,7 +1029,7 @@ export default function BuyerOrderWorkspacePage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setReassignDialog(null)} disabled={reassignSaving}>Cancel</Button>
+          <Button onClick={() => setReassignDialog(null)} disabled={reassignSaving}>{trUi("Cancel")}</Button>
           <Button variant="contained" startIcon={reassignSaving ? <CircularProgress size={16} color="inherit" /> : <LocalShippingOutlined />} onClick={savePoReassignment} disabled={reassignSaving || !reassignDialog?.factoryCode || !reassignDialog?.exFtyDate}>
             {reassignSaving ? 'Reassigning...' : 'Reassign PO'}
           </Button>
@@ -1035,21 +1037,21 @@ export default function BuyerOrderWorkspacePage() {
       </Dialog>
 
       <Dialog open={Boolean(poEditor)} onClose={() => { if (!poSaving) setPoEditor(null); }} fullWidth maxWidth="xl">
-        <DialogTitle fontWeight={900}>Edit Imported PO · ALL_BP</DialogTitle>
+        <DialogTitle fontWeight={900}>{trUi("Edit Imported PO · ALL_BP")}</DialogTitle>
         <DialogContent dividers>
           <Alert severity="info" sx={{ mb: 1.5 }}>
-            Sales/Admin can edit picked POs until Weight is completed. After Packing or Shipment starts, only non-structural descriptive fields may change; PO Number, Factory, Qty, SKU identity, carton plan, weights and Ex-Factory date stay fixed to protect carton/SSCC history. Carton Ratio, Full Ctns and Remainder Qty remain read-only.
-            If Cartons/Items were already generated and Packing has not started, they are rebuilt from the edited PO after Save.
+            {trUi("Sales/Admin can edit picked POs until Weight is completed. After Packing or Shipment starts, only non-structural descriptive fields may change; PO Number, Factory, Qty, SKU identity, carton plan, weights and Ex-Factory date stay fixed to protect carton/SSCC history. Carton Ratio, Full Ctns and Remainder Qty remain read-only.")}
+            {trUi("If Cartons/Items were already generated and Packing has not started, they are rebuilt from the edited PO after Save.")}
           </Alert>
 
           {poEditor ? (
             <Stack spacing={1.5}>
               <Box>
-                <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 0.75 }}>System fields</Typography>
-                {poEditor.structuralLocked ? <Alert severity="warning" sx={{ mb: 1 }}>Packing or Shipment has started. Structural fields are read-only; descriptive fields can still be updated until Weight completes.</Alert> : null}
+                <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 0.75 }}>{trUi("System fields")}</Typography>
+                {poEditor.structuralLocked ? <Alert severity="warning" sx={{ mb: 1 }}>{trUi("Packing or Shipment has started. Structural fields are read-only; descriptive fields can still be updated until Weight completes.")}</Alert> : null}
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 320px))' }, gap: 1.25 }}>
-                  <TextField size="small" label="Factory (optional)" disabled={poEditor.picked || poEditor.structuralLocked} value={poEditor.factoryCode || ''} onChange={(e) => setPoField('factoryCode', e.target.value)} />
-                  <TextField size="small" type="date" label="Ex-Factory" disabled={poEditor.structuralLocked} InputLabelProps={{ shrink: true }} value={poEditor.exFtyDate || ''} onChange={(e) => setPoField('exFtyDate', e.target.value)} />
+                  <TextField size="small" label={trUi("Factory (optional)")} disabled={poEditor.picked || poEditor.structuralLocked} value={poEditor.factoryCode || ''} onChange={(e) => setPoField('factoryCode', e.target.value)} />
+                  <TextField size="small" type="date" label={trUi("Ex-Factory")} disabled={poEditor.structuralLocked} InputLabelProps={{ shrink: true }} value={poEditor.exFtyDate || ''} onChange={(e) => setPoField('exFtyDate', e.target.value)} />
                 </Box>
               </Box>
 
@@ -1058,7 +1060,7 @@ export default function BuyerOrderWorkspacePage() {
               {(poEditor.allBpRows || []).map((sourceRow, rowIndex) => (
                 <Box key={`all-bp-row-${rowIndex}`} sx={{ border: 1, borderColor: 'divider', borderRadius: '4px', p: 1.25 }}>
                   <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={900}>ALL_BP Row {rowIndex + 1}</Typography>
+                    <Typography variant="subtitle2" fontWeight={900}>{trUi("ALL_BP Row ")}{rowIndex + 1}</Typography>
                     <Chip size="small" variant="outlined" label={`${(poEditor.headers || []).length} columns`} />
                   </Stack>
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 1.1 }}>
@@ -1081,7 +1083,7 @@ export default function BuyerOrderWorkspacePage() {
                           label={label}
                           value={sourceRow?.[label] ?? ''}
                           onChange={(event) => setAllBpField(rowIndex, label, event.target.value)}
-                          helperText={formula ? `Formula ${ALL_BP_FORMULA_TEXT[canonical] || ''} · View only` : lockedSource ? 'Locked to protect picked PO / operational data' : undefined}
+                          helperText={formula ? trUi("Formula {0} · View only", ALL_BP_FORMULA_TEXT[canonical] || '') : lockedSource ? trUi("Locked to protect picked PO / operational data") : undefined}
                           sx={formula || lockedSource ? { '& .MuiInputBase-root.Mui-disabled': { bgcolor: 'action.hover' } } : undefined}
                         />
                       );
@@ -1093,7 +1095,7 @@ export default function BuyerOrderWorkspacePage() {
           ) : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPoEditor(null)} disabled={poSaving}>Cancel</Button>
+          <Button onClick={() => setPoEditor(null)} disabled={poSaving}>{trUi("Cancel")}</Button>
           <Button variant="contained" onClick={savePoEditor} disabled={poSaving}>{poSaving ? 'Saving...' : 'Save PO'}</Button>
         </DialogActions>
       </Dialog>

@@ -1,3 +1,4 @@
+import { useT } from '../../../../../i18n/LanguageProvider';
 import PropTypes from 'prop-types';
 import { matchPath, Link } from 'react-router-dom';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -24,6 +25,7 @@ const SELECTED = '#EAF3FC';
 const SELECTED_BORDER = '#D7E7F7';
 
 export default function NavItem({ item, level, isParents = false, setSelectedID, pathname, activeMenuItemId }) {
+  const trUi = useT();
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
@@ -71,8 +73,8 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
         disabled={item.disabled}
         selected={isSelected}
         onClick={itemHandler}
-        aria-label={!drawerOpen ? item.title : undefined}
-        title={!drawerOpen ? item.title : undefined}
+        aria-label={!drawerOpen ? trUi(item.title) : undefined}
+        title={!drawerOpen ? trUi(item.title) : undefined}
         sx={{
           position: 'relative',
           minHeight: 40,
@@ -150,7 +152,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
                   letterSpacing: 0
                 }}
               >
-                {item.title}
+                {trUi(item.title)}
               </Typography>
             }
           />

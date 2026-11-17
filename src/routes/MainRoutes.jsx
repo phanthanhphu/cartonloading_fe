@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../i18n/LanguageProvider';
 import { lazy, useEffect } from 'react';
 import { Navigate, Outlet, useLocation, useRouteError } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -15,8 +16,8 @@ import { readJwtSession } from '../utils/systemTypes';
 
 const DashboardPage = Loadable(lazy(() => import('pages/dashboard/DashboardPage')));
 const BuyerOrdersPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerOrdersPage')));
-const BuyerOrderWorkspacePage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerOrderWorkspacePage')));
-const BuyerPoCartonsPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerPoCartonsPage')));
+const BuyerOrderWorkspacePage = Loadable(lazy(() => import('../features/orders/pages/OrderWorkspacePage')));
+const BuyerPoCartonsPage = Loadable(lazy(() => import('../features/cartons/pages/CartonWorkspacePage')));
 const BuyerCartonItemsPage = Loadable(lazy(() => import('buyers/core/pages/orders/BuyerCartonItemsPage')));
 const UserManagementPage = Loadable(lazy(() => import('pages/users/UserManagementPage')));
 const DepartmentManagementPage = Loadable(lazy(() => import('pages/department/DepartmentManagement')));
@@ -24,16 +25,18 @@ const BuyerManagementPage = Loadable(lazy(() => import('pages/buyers/BuyerManage
 const AuditLogPage = Loadable(lazy(() => import('pages/audit/AuditLogPage')));
 
 function RouteErrorPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const error = useRouteError();
   const message = error?.message || error?.statusText || APP_MESSAGES.UNEXPECTED_ERROR;
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#F4F7FB' }}>
       <div style={{ width: 'min(560px, 100%)', padding: 24, borderRadius: '4px', border: '1px solid #E5E7EB', background: '#FFFFFF', boxShadow: '0 12px 34px rgba(15, 23, 42, 0.08)' }}>
-        <h2 style={{ margin: 0, color: '#103B5C' }}>{APP_MESSAGES.PAGE_OPEN_FAILED}</h2>
-        <p style={{ color: '#64748B', lineHeight: 1.6 }}>{message}</p>
+        <h2 style={{ margin: 0, color: '#103B5C' }}>{trUi(APP_MESSAGES.PAGE_OPEN_FAILED)}</h2>
+        <p style={{ color: '#64748B', lineHeight: 1.6 }}>{trSystem(message)}</p>
         <button type="button" onClick={() => window.location.reload()} style={{ border: 0, borderRadius: '4px', padding: '10px 16px', background: '#103B5C', color: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}>
-          {APP_MESSAGES.RELOAD_PAGE}
+          {trUi(APP_MESSAGES.RELOAD_PAGE)}
         </button>
       </div>
     </div>
@@ -62,6 +65,7 @@ function AdminRoute({ children }) {
 }
 
 function ProtectedRoute() {
+  const trSystem = useSystemMessage();
   const location = useLocation();
   const token = localStorage.getItem(STORAGE_KEY.TOKEN);
   const expired = token ? isTokenExpired(token) : false;
@@ -69,7 +73,7 @@ function ProtectedRoute() {
   useEffect(() => {
     if (expired) {
       clearAuthSession();
-      toast.error(APP_MESSAGES.SESSION_EXPIRED);
+      toast.error(trSystem(APP_MESSAGES.SESSION_EXPIRED));
     }
   }, [expired]);
 

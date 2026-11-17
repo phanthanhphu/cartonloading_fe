@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import { LinearProgress, Stack, Tooltip, Typography } from '@mui/material';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.max(0, Number(n) || 0));
@@ -5,10 +6,11 @@ const fmt = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).
 /** Four PO bars count only cartons with BOTH current RFID PASS and Weight PASS.
  * Planned denominators come from ALL_BP; numerators come from persisted carton inspections. */
 export default function PoScanProgressCell({ row, canonical, metrics, compact = false }) {
+  const trUi = useT();
   // Never substitute uninspected ALL_BP planned numbers for progress when running
   // against an older backend. A missing field means data is unavailable, not zero.
   if (!row || row.completedQty === null || row.completedQty === undefined) {
-    return <Tooltip title="Completion data unavailable. Deploy the matching LULULEMON backend and refresh."><Typography variant="caption" color="text.secondary">— / —</Typography></Tooltip>;
+    return <Tooltip title={trUi("Completion data unavailable. Deploy the matching LULULEMON backend and refresh.")}><Typography variant="caption" color="text.secondary">— / —</Typography></Tooltip>;
   }
 
   const totalQty = Number(row.totalQty ?? row.plannedTotalQty ?? 0);
@@ -33,7 +35,7 @@ export default function PoScanProgressCell({ row, canonical, metrics, compact = 
     total = totalFullCartons;
     subtitle = 'Completed / Full cartons';
   } else if (canonical === 'REMAINDER') {
-    if (!oddCount && !compact) return <Typography variant="body2">No odd carton</Typography>;
+    if (!oddCount && !compact) return <Typography variant="body2">{trUi("No odd carton")}</Typography>;
     current = row.completedRemainderQty;
     total = oddQty;
     subtitle = `${fmt(row.completedRemainderCartons)} / ${fmt(oddCount)} odd carton${oddCount > 1 ? 's' : ''} completed`;
@@ -78,7 +80,7 @@ export default function PoScanProgressCell({ row, canonical, metrics, compact = 
       <Typography component="span" variant="caption" color="text.secondary" sx={{ lineHeight: 1.3, whiteSpace: 'nowrap' }}>
         {subtitle}
       </Typography>
-      <Tooltip title={`${fmt(current)} / ${fmt(total)} · ${progressText} · RFID PASS + Weight PASS required`} arrow placement="top">
+      <Tooltip title={trUi("{0} / {1} · {2} · RFID PASS + Weight PASS required", fmt(current), fmt(total), progressText)} arrow placement="top">
         <LinearProgress
           variant="determinate"
           value={progress}

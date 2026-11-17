@@ -7,3 +7,4 @@ export const listFactories = (options = {}) => apiClient.get('/api/factories', {
 });
 export const createFactory = (body) => apiClient.post('/api/factories', body);
 export const updateFactory = (id, body) => apiClient.put(`/api/factories/${id}`, body);
+export const deleteFactory = (id) => apiClient.delete(`/api/factories/${encodeURIComponent(id)}`);

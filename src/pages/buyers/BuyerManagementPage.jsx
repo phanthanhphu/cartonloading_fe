@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../i18n/LanguageProvider';
 import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useState } from 'react';
@@ -10,6 +12,9 @@ import { getBuyerCatalog, normalizeBuyerCode, saveSelectedBuyer, setBuyerCatalog
 import { createBuyerAdmin, deleteBuyerAdmin, listBuyersAdmin, updateBuyerAdmin } from 'services/adminService';
 
 export default function BuyerManagementPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const navigate = useNavigate();
   const [state, setState] = useState({ rows: [], count: 0, page: 0, size: DEFAULT_TABLE_PAGE_SIZE, loading: false });
   const [filters, setFilters] = useState({ buyerKey: '', buyerName: '', description: '', active: '' });
@@ -33,6 +38,7 @@ export default function BuyerManagementPage() {
   useEffect(() => { load(0, state.size); }, [filters]);
 
   const save = async (body) => {
+    if (!await confirmAction({ kind: dialog?.id ? 'update' : 'create', entity: 'Buyer', name: body?.buyerName || body?.buyerKey || '' })) return;
     try {
       dialog?.id ? await updateBuyerAdmin(dialog.id, body) : await createBuyerAdmin(body);
       setDialog(null);
@@ -43,7 +49,7 @@ export default function BuyerManagementPage() {
   };
 
   const remove = async (row) => {
-    if (!row || !confirm(createDeleteBuyerConfirmMessage(row.buyerKey))) return;
+    if (!row || !await confirmAction({ kind: 'delete', entity: 'Buyer', name: row.buyerKey })) return;
     try {
       await deleteBuyerAdmin(row.id);
       load(state.page, state.size);
@@ -74,21 +80,21 @@ export default function BuyerManagementPage() {
   };
 
   const columns = [
-    { key: 'buyerKey', label: 'Buyer Key' },
-    { key: 'buyerName', label: 'Buyer Name' },
-    { key: 'active', label: 'Status', render: (r) => r.active ? 'Active' : 'Inactive' },
-    { key: 'sequence', label: 'Sequence' },
-    { key: 'description', label: 'Description' },
-    { key: 'supportedTypes', label: 'Types', render: (r) => supportedSystemTypes(r).join(', ') || '—' },
+    { key: 'buyerKey', label: trUi("Buyer Key") },
+    { key: 'buyerName', label: trUi("Buyer Name") },
+    { key: 'active', label: trUi("Status"), render: (r) => r.active ? 'Active' : 'Inactive' },
+    { key: 'sequence', label: trUi("Sequence") },
+    { key: 'description', label: trUi("Description") },
+    { key: 'supportedTypes', label: trUi("Types"), render: (r) => supportedSystemTypes(r).join(', ') || '—' },
     {
       key: 'actions',
-      label: 'Actions',
+      label: trUi("Actions"),
       minWidth: 132,
       render: (r) => (
         <Stack direction="row" spacing={0.25} alignItems="center" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title="Open Order Management"><IconButton size="small" color="primary" onClick={() => openOrders(r)}><FolderOpenOutlined fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Edit Buyer"><IconButton size="small" onClick={() => setDialog(r)}><Edit fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title="Delete Buyer"><IconButton size="small" color="error" onClick={() => remove(r)}><Delete fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={trUi("Open Order Management")}><IconButton size="small" color="primary" onClick={() => openOrders(r)}><FolderOpenOutlined fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={trUi("Edit Buyer")}><IconButton size="small" onClick={() => setDialog(r)}><Edit fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={trUi("Delete Buyer")}><IconButton size="small" color="error" onClick={() => remove(r)}><Delete fontSize="small" /></IconButton></Tooltip>
         </Stack>
       )
     }
@@ -98,19 +104,19 @@ export default function BuyerManagementPage() {
     <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
       <Stack spacing={1} sx={managementStackSx}>
         <Stack direction="row" justifyContent="flex-end">
-          <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>Add Buyer</Button>
+          <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})}>{trUi("Add Buyer")}</Button>
         </Stack>
-        {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
         
         <ManagementTable
           fillAvailableHeight
           filterBar={<TableFilterBar
           fields={[
-            { key: 'buyerKey', label: 'Buyer Key' },
-            { key: 'buyerName', label: 'Buyer Name' },
-            { key: 'description', label: 'Description' },
-    { key: 'supportedTypes', label: 'Types', render: (r) => supportedSystemTypes(r).join(', ') || '—' },
-            { key: 'active', label: 'Status', options: [{ value: 'true', label: 'Active' }, { value: 'false', label: 'Inactive' }] }
+            { key: 'buyerKey', label: trUi("Buyer Key") },
+            { key: 'buyerName', label: trUi("Buyer Name") },
+            { key: 'description', label: trUi("Description") },
+    { key: 'supportedTypes', label: trUi("Types"), render: (r) => supportedSystemTypes(r).join(', ') || '—' },
+            { key: 'active', label: trUi("Status"), options: [{ value: 'true', label: trUi("Active") }, { value: 'false', label: trUi("Inactive") }] }
           ]}
           values={filters}
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
@@ -123,12 +129,13 @@ export default function BuyerManagementPage() {
   );
 }
 
-import { createDeleteBuyerConfirmMessage } from '../../constants/appMessages';
 import { DEFAULT_TABLE_PAGE_SIZE } from '../../constants/appConstants';
 import { isSessionBuyer } from '../../utils/systemTypes';
 import { SYSTEM_TYPE_OPTIONS, supportedSystemTypes } from '../../utils/systemTypes';
 
 function BuyerDialog({ row, onClose, onSave }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const editing = Boolean(row.id);
   const [form, setForm] = useState({
     buyerKey: row.buyerKey || '',
@@ -146,22 +153,22 @@ function BuyerDialog({ row, onClose, onSave }) {
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{editing ? 'Edit' : 'Add'} Buyer</DialogTitle>
+      <DialogTitle>{editing ? 'Edit' : 'Add'}{trUi(" Buyer")}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           <TextField
-            label="Buyer Key"
+            label={trUi("Buyer Key")}
             value={form.buyerKey}
             disabled={editing}
             onChange={(e) => changeKey(e.target.value)}
-            helperText={editing ? 'Buyer Key cannot be changed.' : 'Example: NIKE, ADIDAS, NEW_BUYER. Letters/numbers are normalized to an uppercase key.'}
+            helperText={editing ? trUi("Buyer Key cannot be changed.") : trUi("Example: NIKE, ADIDAS, NEW_BUYER. Letters/numbers are normalized to an uppercase key.")}
           />
-          <TextField label="Buyer Name" value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} />
-          <TextField select label="Status" value={form.active ? 'active' : 'inactive'} onChange={(e) => setForm({ ...form, active: e.target.value === 'active' })}>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
+          <TextField label={trUi("Buyer Name")} value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} />
+          <TextField select label={trUi("Status")} value={form.active ? 'active' : 'inactive'} onChange={(e) => setForm({ ...form, active: e.target.value === 'active' })}>
+            <MenuItem value="active">{trUi("Active")}</MenuItem>
+            <MenuItem value="inactive">{trUi("Inactive")}</MenuItem>
           </TextField>
-          <Typography fontWeight={800}>Supported System Types</Typography>
+          <Typography fontWeight={800}>{trUi("Supported System Types")}</Typography>
           <Stack direction="row" flexWrap="wrap">
             {SYSTEM_TYPE_OPTIONS.map((option) => <FormControlLabel key={option.value}
               control={<Checkbox checked={form.supportedTypes.includes(option.value)}
@@ -169,14 +176,14 @@ function BuyerDialog({ row, onClose, onSave }) {
                   ? s.supportedTypes.filter((v) => v !== option.value) : [...s.supportedTypes, option.value] }))} />}
               label={option.label} />)}
           </Stack>
-          <Alert severity="info">RFID is implemented for LULULEMON; Factory Use Only for ES. UnRFID is a future workflow and cannot be used until its module is developed.</Alert>
-          <TextField type="number" label="Sequence" value={form.sequence} onChange={(e) => setForm({ ...form, sequence: Number(e.target.value) })} />
-          <TextField multiline minRows={2} label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <Alert severity="info">{trUi("RFID is implemented for LULULEMON; Factory Use Only for ES. UnRFID is a future workflow and cannot be used until its module is developed.")}</Alert>
+          <TextField type="number" label={trUi("Sequence")} value={form.sequence} onChange={(e) => setForm({ ...form, sequence: Number(e.target.value) })} />
+          <TextField multiline minRows={2} label={trUi("Description")} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={() => onSave(form)} disabled={!form.buyerKey || !form.buyerName.trim()}>Save</Button>
+        <Button onClick={onClose}>{trUi("Cancel")}</Button>
+        <Button variant="contained" onClick={() => onSave(form)} disabled={!form.buyerKey || !form.buyerName.trim()}>{trUi("Save")}</Button>
       </DialogActions>
     </Dialog>
   );

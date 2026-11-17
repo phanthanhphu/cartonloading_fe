@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
@@ -13,6 +15,9 @@ const message = (error, fallback) => error?.response?.data?.message || error?.me
 
 /** A date item is derived from persisted PO membership; no duplicate date items per Factory/Order. */
 export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, writable, refreshKey, onAddToDate, onChanged }) {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +54,7 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
 
   const removePo = async (po) => {
     if (!opened || !po?.id || removing) return;
-    if (!window.confirm(`Remove PO ${po.poNumber || po.id} from ${humanDate(opened)}? The PO and its cartons will not be deleted.`)) return;
+    if (!await confirmAction({ kind: 'unassign', entity: 'PO', name: `${po.poNumber || po.id} · ${humanDate(opened)}`, warning: 'The original PO and its cartons will not be deleted.' })) return;
     setRemoving(po.id);
     setDetailError('');
     try {
@@ -84,14 +89,14 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
   return (
     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '4px', bgcolor: 'background.paper', p: 1.25 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} sx={{ mb: 1 }}>
-        <Typography fontWeight={800} variant="subtitle2">Shipping Dates</Typography>
-        <Tooltip title="Refresh Shipping Dates"><span><IconButton size="small" disabled={loading} onClick={loadDays}>
+        <Typography fontWeight={800} variant="subtitle2">{trUi("Shipping Dates")}</Typography>
+        <Tooltip title={trUi("Refresh Shipping Dates")}><span><IconButton size="small" disabled={loading} onClick={loadDays}>
           {loading ? <CircularProgress size={17} /> : <Refresh fontSize="small" />}
         </IconButton></span></Tooltip>
       </Stack>
-      {error ? <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> : null}
+      {error ? <Alert severity="error" sx={{ mb: 1 }}>{trSystem(error)}</Alert> : null}
       <Stack direction="row" flexWrap="wrap" gap={1}>
-        {!loading && !days.length ? <Typography variant="caption" color="text.secondary">No Shipping Dates yet. Choose Schedule Shipping to create one.</Typography> : null}
+        {!loading && !days.length ? <Typography variant="caption" color="text.secondary">{trUi("No Shipping Dates yet. Choose Schedule Shipping to create one.")}</Typography> : null}
         {days.map((day) => (
           <Button key={`${day.factoryCode}-${day.shippingDate}`} variant="outlined" size="small"
             startIcon={<CalendarMonthOutlined fontSize="small" />}
@@ -104,7 +109,7 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
       </Stack>
 
       <Dialog open={Boolean(opened)} onClose={() => { if (!removing && !exporting) setOpened(null); }} fullWidth maxWidth="md">
-        <DialogTitle sx={{ fontWeight: 850 }}>Shipping – {humanDate(opened)} · {factoryCode}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 850 }}>{trUi("Shipping – ")}{humanDate(opened)} · {factoryCode}</DialogTitle>
         <DialogContent dividers sx={{ minHeight: 140 }}>
           {detailError ? <Alert severity="error" sx={{ mb: 1 }}>{detailError}</Alert> : null}
           {detailLoading ? <Box textAlign="center" py={3}><CircularProgress size={24}/></Box> : (
@@ -122,13 +127,13 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
                     <TableCell>{po.style || '—'}</TableCell>
                     <TableCell>{po.sku || '—'}</TableCell>
                     <TableCell>{po.quantity ?? '—'}</TableCell>
-                    {writable ? <TableCell><Tooltip title="Remove from this Shipping Date (PO is kept)"><span>
+                    {writable ? <TableCell><Tooltip title={trUi("Remove from this Shipping Date (PO is kept)")}><span>
                       <IconButton size="small" color="error" disabled={Boolean(removing)} onClick={() => removePo(po)}>
                         {removing === po.id ? <CircularProgress size={16} /> : <DeleteOutline fontSize="small" />}
                       </IconButton>
                     </span></Tooltip></TableCell> : null}
                   </TableRow>)}
-                  {!detailLoading && !detail?.pos?.length ? <TableRow><TableCell colSpan={writable ? 7 : 6} align="center">No POs in this Shipping Date.</TableCell></TableRow> : null}
+                  {!detailLoading && !detail?.pos?.length ? <TableRow><TableCell colSpan={writable ? 7 : 6} align="center">{trUi("No POs in this Shipping Date.")}</TableCell></TableRow> : null}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -140,10 +145,10 @@ export default function ShippingDaysPanel({ orderId, buyerCode, factoryCode, wri
             const ids = (detail?.pos || []).map(po => po.id);
             setOpened(null);
             onAddToDate(selected, ids);
-          }}>Add PO</Button> : null}
+          }}>{trUi("Add PO")}</Button> : null}
           <Button startIcon={exporting ? <CircularProgress size={16} /> : <FileDownloadOutlined />}
-            disabled={exporting || !detail?.pos?.length} onClick={exportExcel}>Export Excel</Button>
-          <Button onClick={() => setOpened(null)}>Close</Button>
+            disabled={exporting || !detail?.pos?.length} onClick={exportExcel}>{trUi("Export Excel")}</Button>
+          <Button onClick={() => setOpened(null)}>{trUi("Close")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

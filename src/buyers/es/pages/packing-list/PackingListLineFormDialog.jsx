@@ -1,3 +1,4 @@
+import { useT } from '../../../../i18n/LanguageProvider';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -18,6 +19,7 @@ const sections = [
 ];
 
 export default function PackingListLineFormDialog({ open, record, saving, onClose, onSave }) {
+  const trUi = useT();
   const [form, setForm] = useState(emptyPackingListForm());
   const [errors, setErrors] = useState({});
   const fieldMap = useMemo(() => Object.fromEntries(PACKING_LIST_FIELDS.map((field) => [field.name, field])), []);
@@ -53,7 +55,7 @@ export default function PackingListLineFormDialog({ open, record, saving, onClos
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="lg">
-      <DialogTitle sx={{ fontWeight: 900 }}>{record?.id ? 'Edit Packing List Row' : 'Add Packing List Row'}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 900 }}>{record?.id ? trUi("Edit Packing List Row") : trUi("Add Packing List Row")}</DialogTitle>
       <DialogContent dividers>
         {sections.map((section) => (
           <Box key={section.title} sx={{ mb: 2.4 }}>
@@ -64,7 +66,7 @@ export default function PackingListLineFormDialog({ open, record, saving, onClos
                 return (
                   <TextField
                     key={name}
-                    label={field.label}
+                    label={trUi(field.label)}
                     type={field.type === 'number' ? 'number' : 'text'}
                     value={form[name]}
                     error={Boolean(errors[name])}
@@ -83,9 +85,9 @@ export default function PackingListLineFormDialog({ open, record, saving, onClos
         ))}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none' }}>Cancel</Button>
+        <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none' }}>{trUi("Cancel")}</Button>
         <Button onClick={submit} disabled={saving} variant="contained" sx={{ textTransform: 'none' }}>
-          {saving ? 'Saving...' : 'Save Row'}
+          {saving ? 'Saving...' : trUi("Save Row")}
         </Button>
       </DialogActions>
     </Dialog>

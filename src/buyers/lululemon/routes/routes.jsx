@@ -3,6 +3,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import Loadable from 'components/Loadable';
 import { BUYER_MODULE_KEY } from '../../../constants/appConstants';
 import { getBuyerBySlug } from 'utils/buyerAccess';
+import { canViewManagementReports } from 'utils/accessControl';
 import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
 import {
   BuyerModuleRoute,
@@ -12,6 +13,7 @@ import {
 } from 'buyers/core/BuyerRouteGuards';
 
 const DeviceManagementPage = Loadable(lazy(() => import('../pages/DeviceManagementPage')));
+const ManagementReportsPage = Loadable(lazy(() => import('../pages/ManagementReportsPage')));
 const HistoryPage = Loadable(lazy(() => import('../pages/HistoryPage')));
 const ShippingSchedulesPage = Loadable(lazy(() => import('../pages/ShippingSchedulesPage')));
 const ShippingScheduleDetailPage = Loadable(lazy(() => import('../pages/ShippingScheduleDetailPage')));
@@ -34,7 +36,10 @@ const ProcessingRoute = () => {
   return <Navigate to={`/buyers/${buyerSlug}/orders`} replace />;
 };
 
+const ReportsRoute = ({ children }) => canViewManagementReports() ? children : <LegacyPoRedirect />;
+
 const moduleRoutes = [
+  { path: 'buyers/:buyerSlug/management-reports', element: <ModuleRoute><BuyerWorkspaceRoute><ReportsRoute><ManagementReportsPage /></ReportsRoute></BuyerWorkspaceRoute></ModuleRoute> },
   // Shipping Scheduler uses a dedicated list page and a dedicated date detail page.
   { path: 'buyers/:buyerSlug/orders/:orderId/shipping-schedules',
     element: <ModuleRoute><BuyerWorkspaceRoute><BuyerOrdersAccessRoute><ShippingSchedulesPage /></BuyerOrdersAccessRoute></BuyerWorkspaceRoute></ModuleRoute> },

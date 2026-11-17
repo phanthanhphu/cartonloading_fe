@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import { useMemo } from 'react';
 
 import { alpha } from '@mui/material/styles';
@@ -16,6 +17,7 @@ import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import AppBackButton from 'components/AppBackButton';
 
 export default function Header() {
+  const trUi = useT();
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
@@ -32,7 +34,7 @@ export default function Header() {
       }}
     >
       <IconButton
-        aria-label={drawerOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        aria-label={drawerOpen ? trUi("Collapse sidebar") : trUi("Expand sidebar")}
         onClick={() => handlerDrawerOpen(!drawerOpen)}
         edge="start"
         color="secondary"

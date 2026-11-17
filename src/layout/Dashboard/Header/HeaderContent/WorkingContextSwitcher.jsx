@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, MenuItem, Popover, Stack, TextField, Typography } from '@mui/material';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
@@ -16,6 +17,8 @@ const selectedForBuyer = (options, buyerCode) => options.find((item) => item.buy
 
 /** Small, permission-backed switcher; user profile popover stays separate. */
 export default function WorkingContextSwitcher({ pathname }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const triggerRef = useRef(null);
   const session = readJwtSession();
   const currentBuyer = getBuyerByCode(session.buyer) || readSelectedBuyer();
@@ -60,14 +63,14 @@ export default function WorkingContextSwitcher({ pathname }) {
       setOptions(authorized);
       const requested = requestedBuyer ? selectedForBuyer(authorized, requestedBuyer) : null;
       const preferred = requested || selectedForBuyer(authorized, session.buyer) || authorized[0];
-      if (requestedBuyer && !requested) setError('This Buyer / Type is not active or approved for your account.');
+      if (requestedBuyer && !requested) setError(trUi("This Buyer / Type is not active or approved for your account."));
       if (requested) setEditing(true);
       setBuyerCode(preferred?.buyerKey || '');
       setSystemType(preferred?.supportedTypes?.includes(session.type) ? session.type : preferred?.supportedTypes?.[0] || '');
       setFactoryCode(preferred?.buyerKey === BUYER_CODE.LULULEMON
         ? (preferred.factories?.includes(currentFactory.factoryCode) ? currentFactory.factoryCode : preferred.factories?.[0] || '')
         : '');
-      if (!authorized.length) setError('No approved Buyer / Type is available for this account.');
+      if (!authorized.length) setError(trUi("No approved Buyer / Type is available for this account."));
     } catch (err) {
       setError(errorText(err, 'Could not load approved Buyer / Type.'));
     } finally {
@@ -225,14 +228,17 @@ export default function WorkingContextSwitcher({ pathname }) {
       <Button
         ref={triggerRef}
         color="inherit" variant="outlined" size="small" onClick={(event) => show(event)}
-        aria-label="Open Working Context" aria-haspopup="dialog" aria-expanded={open}
+        aria-label={trUi("Open Working Context")} aria-haspopup="dialog" aria-expanded={open}
         endIcon={<KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />}
         startIcon={<BusinessOutlinedIcon sx={{ fontSize: 17 }} />}
-        sx={{ borderColor: '#D8E2EC', color: '#183658', bgcolor: '#fff', minWidth: 0,
-          maxWidth: { xs: 138, sm: 250 }, height: 38, borderRadius: '5px', textTransform: 'none', px: 1.2 }}
+        sx={{ borderColor: '#D8E2EC', color: '#183658', bgcolor: '#fff',
+          width: { xs: 110, sm: 120 }, minWidth: { xs: 110, sm: 120 }, maxWidth: { xs: 110, sm: 120 },
+          height: 38, flexShrink: 0, boxSizing: 'border-box',
+          borderRadius: '6px', textTransform: 'none', px: 0.5,
+          '& .MuiButton-startIcon': { mr: 0.4 }, '& .MuiButton-endIcon': { ml: 0.4 } }}
       >
         <Stack spacing={0} sx={{ minWidth: 0, textAlign: 'left' }}>
-          <Typography noWrap sx={{ fontSize: '0.72rem', lineHeight: 1.25, fontWeight: 800 }}>
+          <Typography noWrap sx={{ fontSize: '0.68rem', lineHeight: 1.25, fontWeight: 800 }}>
             {currentBuyer?.label || session.buyer || 'Buyer'}
           </Typography>
           <Typography noWrap sx={{ fontSize: '0.64rem', lineHeight: 1.25, color: '#647993' }}>
@@ -246,38 +252,38 @@ export default function WorkingContextSwitcher({ pathname }) {
         PaperProps={{ sx: { width: 330, maxWidth: 'calc(100vw - 24px)', mt: 0.7, borderRadius: '8px', p: 2, boxShadow: '0 9px 30px rgba(20,44,72,.16)' } }}>
         <Stack gap={1.6}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography fontWeight={800} sx={{ fontSize: '0.89rem' }}>Working Context</Typography>
+            <Typography fontWeight={800} sx={{ fontSize: '0.89rem' }}>{trUi("Working Context")}</Typography>
             {!editing && !loading && options.length > 0 && <Button size="small" startIcon={<EditOutlinedIcon fontSize="small" />}
-              onClick={() => setEditing(true)} sx={{ textTransform: 'none' }}>Edit</Button>}
+              onClick={() => setEditing(true)} sx={{ textTransform: 'none' }}>{trUi("Edit")}</Button>}
           </Stack>
           <Divider />
-          {loading ? <Stack direction="row" alignItems="center" gap={1}><CircularProgress size={17} /><Typography variant="body2">Loading approved choices…</Typography></Stack> : null}
+          {loading ? <Stack direction="row" alignItems="center" gap={1}><CircularProgress size={17} /><Typography variant="body2">{trUi("Loading approved choices…")}</Typography></Stack> : null}
           {!loading && !editing && <Stack gap={1}>
-            <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">Buyer</Typography><Typography fontWeight={700} variant="body2">{currentBuyer?.label || session.buyer}</Typography></Stack>
-            <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">Type</Typography><Typography fontWeight={700} variant="body2">{session.type}</Typography></Stack>
-            {session.buyer === BUYER_CODE.LULULEMON && <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">Factory</Typography><Typography fontWeight={700} variant="body2">{currentFactory.factoryCode || 'Not assigned'}</Typography></Stack>}
+            <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">{trUi("Buyer")}</Typography><Typography fontWeight={700} variant="body2">{currentBuyer?.label || session.buyer}</Typography></Stack>
+            <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">{trUi("Type")}</Typography><Typography fontWeight={700} variant="body2">{session.type}</Typography></Stack>
+            {session.buyer === BUYER_CODE.LULULEMON && <Stack direction="row" justifyContent="space-between"><Typography variant="body2" color="text.secondary">{trUi("Factory")}</Typography><Typography fontWeight={700} variant="body2">{currentFactory.factoryCode || trUi("Not assigned")}</Typography></Stack>}
           </Stack>}
           {!loading && editing && <Stack gap={1.4}>
-            <TextField select label="Buyer" size="small" fullWidth value={buyerCode} disabled={saving} onChange={(e) => chooseBuyer(e.target.value)}>
+            <TextField select label={trUi("Buyer")} size="small" fullWidth value={buyerCode} disabled={saving} onChange={(e) => chooseBuyer(e.target.value)}>
               {options.map((item) => <MenuItem key={item.buyerKey} value={item.buyerKey}>{item.buyerName || item.buyerKey}</MenuItem>)}
             </TextField>
-            <TextField select label="Type" size="small" fullWidth value={systemType} disabled={saving || !chosen} onChange={(e) => setSystemType(e.target.value)}>
+            <TextField select label={trUi("Type")} size="small" fullWidth value={systemType} disabled={saving || !chosen} onChange={(e) => setSystemType(e.target.value)}>
               {(chosen?.supportedTypes || []).map((type) => <MenuItem key={type} value={type}>{type}</MenuItem>)}
             </TextField>
-            {buyerCode === BUYER_CODE.LULULEMON && <TextField select label="Factory" size="small" fullWidth value={factoryCode}
+            {buyerCode === BUYER_CODE.LULULEMON && <TextField select label={trUi("Factory")} size="small" fullWidth value={factoryCode}
               disabled={saving || !(chosen?.factories?.length)} onChange={(e) => setFactoryCode(e.target.value)}
-              helperText={!chosen?.factories?.length ? 'No active Factory is assigned.' : undefined}>
+              helperText={!chosen?.factories?.length ? trUi("No active Factory is assigned.") : undefined}>
               {(chosen?.factories || []).map((code) => <MenuItem key={code} value={code}>{code}</MenuItem>)}
             </TextField>}
-            {buyerCode !== BUYER_CODE.LULULEMON && <Typography variant="caption" color="text.secondary">This Buyer does not use the shared Factory selector.</Typography>}
+            {buyerCode !== BUYER_CODE.LULULEMON && <Typography variant="caption" color="text.secondary">{trUi("This Buyer does not use the shared Factory selector.")}</Typography>}
             <Stack direction="row" justifyContent="flex-end" gap={1}>
-              <Button disabled={saving} variant="outlined" onClick={() => { setEditing(false); setError(''); }}>Cancel</Button>
+              <Button disabled={saving} variant="outlined" onClick={() => { setEditing(false); setError(''); }}>{trUi("Cancel")}</Button>
               <Button variant="contained" disabled={saving || invalid} onClick={requestApply}>
                 {saving ? <CircularProgress size={18} color="inherit" /> : 'Apply'}
               </Button>
             </Stack>
           </Stack>}
-          {error && !confirmOpen && <Alert severity="error" sx={{ py: 0.2, '& .MuiAlert-message': { fontSize: '0.76rem' } }}>{error}</Alert>}
+          {error && !confirmOpen && <Alert severity="error" sx={{ py: 0.2, '& .MuiAlert-message': { fontSize: '0.76rem' } }}>{trSystem(error)}</Alert>}
         </Stack>
       </Popover>
       <Dialog
@@ -290,37 +296,29 @@ export default function WorkingContextSwitcher({ pathname }) {
         PaperProps={{ sx: { borderRadius: 2, maxWidth: 460 } }}
       >
         <DialogTitle id="working-context-confirm-title" sx={{ display: 'flex', alignItems: 'center', gap: 1.2, fontWeight: 800, color: '#183658', pb: 1 }}>
-          <WarningAmberRoundedIcon color="warning" />
-          Confirm Context Switch
-        </DialogTitle>
+          <WarningAmberRoundedIcon color="warning" />{trUi("\n          Confirm Context Switch\n        ")}</DialogTitle>
         <DialogContent sx={{ pt: '12px !important', pb: 1 }}>
-          <Typography id="working-context-confirm-description" variant="body2" sx={{ mb: 2 }}>
-            Are you sure you want to switch your working context?
-          </Typography>
+          <Typography id="working-context-confirm-description" variant="body2" sx={{ mb: 2 }}>{trUi("\n            Are you sure you want to switch your working context?\n          ")}</Typography>
           <Box sx={{ bgcolor: '#F4F7FB', border: '1px solid #E1E8F0', borderRadius: 1.5, p: 1.5 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>CURRENT CONTEXT</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{trUi("CURRENT CONTEXT")}</Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.3 }}>
               {currentBuyer?.label || session.buyer || 'Buyer'} · {session.type || 'Type'}
               {session.buyer === BUYER_CODE.LULULEMON && currentFactory.factoryCode ? ` · ${currentFactory.factoryCode}` : ''}
             </Typography>
             <Typography sx={{ textAlign: 'center', color: '#718298', fontSize: 22, my: 0.4, lineHeight: 1 }}>↓</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>SWITCH TO</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{trUi("SWITCH TO")}</Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.3 }}>
               {chosen?.buyerName || buyerCode || 'Buyer'} · {systemType || 'Type'}
               {buyerCode === BUYER_CODE.LULULEMON && factoryCode ? ` · ${factoryCode}` : ''}
             </Typography>
           </Box>
-          <Alert severity="warning" variant="standard" sx={{ mt: 2, '& .MuiAlert-message': { fontSize: '0.8rem' } }}>
-            Unsaved changes on this page may be lost.
-          </Alert>
-          {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
+          <Alert severity="warning" variant="standard" sx={{ mt: 2, '& .MuiAlert-message': { fontSize: '0.8rem' } }}>{trUi("\n            Unsaved changes on this page may be lost.\n          ")}</Alert>
+          {error && <Alert severity="error" sx={{ mt: 1.5 }}>{trSystem(error)}</Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, pt: 1.5 }}>
-          <Button onClick={cancelConfirmation} disabled={saving} variant="outlined" sx={{ textTransform: 'none' }}>
-            Cancel
-          </Button>
+          <Button onClick={cancelConfirmation} disabled={saving} variant="outlined" sx={{ textTransform: 'none' }}>{trUi("\n            Cancel\n          ")}</Button>
           <Button onClick={apply} disabled={saving || invalid} variant="contained" sx={{ textTransform: 'none' }}>
-            {saving ? <CircularProgress size={18} color="inherit" /> : 'Confirm Switch'}
+            {saving ? <CircularProgress size={18} color="inherit" /> : trUi("Confirm Switch")}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,10 +1,12 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import { managementPageSx, managementPanelSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { canPlanCarton } from 'buyers/es/domain/workflow';
 import { useEffect, useMemo, useState } from 'react';
-import {   Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, Tab, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, Tab, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import { canManageSales, readStoredUser } from 'utils/accessControl';
 import { getAccessibleBuyers, readSelectedBuyer } from 'utils/buyerAccess';
 import { listPackingOrders } from 'buyers/es/services/packingListService';
@@ -18,6 +20,8 @@ const dateTime = (value) => value ? String(value).replace('T', ' ').slice(0, 19)
 const lifecycleColor = (state) => ({ SHIPPED: 'success', COMPLETED: 'success', CHECKED: 'info', ASSIGNED: 'warning', CANCELLED: 'error' }[state] || 'default');
 
 export default function ShipmentManagementPage({ mode = 'tracking' }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const buyers = useMemo(() => getAccessibleBuyers(readStoredUser()), []);
   const selectedBuyer = readSelectedBuyer();
   const initialBuyer = buyers.find((item) => item.code === selectedBuyer?.code) || buyers[0] || null;
@@ -136,75 +140,73 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
     <Stack spacing={2} sx={{ ...managementPageSx, px: { xs: 0.25, md: 0.5 } }}>
       {sales && <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#F8FBFF', borderColor: '#CFE0F2' }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }}>
-          <Typography sx={{ fontWeight: 850, color: '#173B63' }}>Sales Shipment Planning:</Typography>
-          <Typography color="text.secondary">1. Select Order</Typography>
-          <Typography color="text.secondary">→ 2. Select assigned cartons</Typography>
-          <Typography color="text.secondary">→ 3. Create Shipment Plan</Typography>
-          <Typography color="text.secondary">→ 4. Packing receives plan for Weight Check</Typography>
+          <Typography sx={{ fontWeight: 850, color: '#173B63' }}>{trUi("Sales Shipment Planning:")}</Typography>
+          <Typography color="text.secondary">{trUi("1. Select Order")}</Typography>
+          <Typography color="text.secondary">{trUi("→ 2. Select assigned cartons")}</Typography>
+          <Typography color="text.secondary">{trUi("→ 3. Create Shipment Plan")}</Typography>
+          <Typography color="text.secondary">{trUi("→ 4. Packing receives plan for Weight Check")}</Typography>
         </Stack>
       </Paper>}
-      {error && !action && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
+      {error && !action && <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert>}
       {notice && <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert>}
       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
-        <TextField select size="small" label="Buyer" value={buyer} onChange={(event) => changeBuyer(event.target.value)} sx={{ minWidth: 200 }} disabled={busy}>
+        <TextField select size="small" label={trUi("Buyer")} value={buyer} onChange={(event) => changeBuyer(event.target.value)} sx={{ minWidth: 200 }} disabled={busy}>
           {buyers.map((item) => <MenuItem key={item.code} value={item.code}>{item.label}</MenuItem>)}
         </TextField>
-        <Button onClick={() => setRevision((n) => n + 1)} disabled={loading || busy}>Refresh</Button>
+        <Button onClick={() => setRevision((n) => n + 1)} disabled={loading || busy}>{trUi("Refresh")}</Button>
         {loading && <CircularProgress size={22} />}
       </Stack>
-      <Tabs value={tab} onChange={(_, value) => setTab(value)}><Tab label={sales ? 'Plan New Shipment' : 'Carton tracking'} /><Tab label={sales ? 'Sales Shipment Plans' : 'Shipment plans'} /></Tabs>
+      <Tabs value={tab} onChange={(_, value) => setTab(value)}><Tab label={sales ? trUi("Plan New Shipment") : trUi("Carton tracking")} /><Tab label={sales ? trUi("Sales Shipment Plans") : trUi("Shipment plans")} /></Tabs>
       {tab === 0 && <>
         <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden', ...managementPanelSx }}>
         <Box sx={{ p: 1.25, bgcolor: '#FBFCFE', borderBottom: '1px solid', borderColor: 'divider' }}><Stack spacing={2}>
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-            <TextField size="small" label="Find Order for shipment planning" value={orderKeyword} onChange={(event) => setOrderKeyword(event.target.value)} helperText={APP_MESSAGES.SHIPMENT_ORDER_SEARCH_HELPER} />
-            <TextField select size="small" label="Order" value={orderId} onChange={(event) => changeFilter(setOrderId, event.target.value)} sx={{ minWidth: 240 }}>
-              <MenuItem value="">Select an Order</MenuItem>
+            <TextField size="small" label={trUi("Find Order for shipment planning")} value={orderKeyword} onChange={(event) => setOrderKeyword(event.target.value)} helperText={APP_MESSAGES.SHIPMENT_ORDER_SEARCH_HELPER} />
+            <TextField select size="small" label={trUi("Order")} value={orderId} onChange={(event) => changeFilter(setOrderId, event.target.value)} sx={{ minWidth: 240 }}>
+              <MenuItem value="">{trUi("Select an Order")}</MenuItem>
               {orderId && !orders.some((item) => item.id === orderId) && <MenuItem value={orderId}>{cartons.content[0]?.orderName || orderId}</MenuItem>}
               {orders.map((item) => <MenuItem key={item.id} value={item.id}>{item.orderName || item.id}</MenuItem>)}
             </TextField>
-            <TextField select size="small" label="Lifecycle" value={lifecycle} onChange={(event) => changeFilter(setLifecycle, event.target.value)} sx={{ minWidth: 150 }}>
+            <TextField select size="small" label={trUi("Lifecycle")} value={lifecycle} onChange={(event) => changeFilter(setLifecycle, event.target.value)} sx={{ minWidth: 150 }}>
               {SHIPMENT_FILTER_STATES.map((state) => <MenuItem key={state} value={state}>{state}</MenuItem>)}
             </TextField>
-            <TextField select size="small" label="Shipment filter" value={shipmentId} onChange={(event) => changeFilter(setShipmentId, event.target.value)} sx={{ minWidth: 180 }}>
-              <MenuItem value="">All shipments</MenuItem><MenuItem value={COMMON_FILTER.UNPLANNED}>Not planned</MenuItem>
-              {shipmentId && shipmentId !== COMMON_FILTER.UNPLANNED && <MenuItem value={shipmentId}>Selected shipment</MenuItem>}
+            <TextField select size="small" label={trUi("Shipment filter")} value={shipmentId} onChange={(event) => changeFilter(setShipmentId, event.target.value)} sx={{ minWidth: 180 }}>
+              <MenuItem value="">{trUi("All shipments")}</MenuItem><MenuItem value={COMMON_FILTER.UNPLANNED}>{trUi("Not planned")}</MenuItem>
+              {shipmentId && shipmentId !== COMMON_FILTER.UNPLANNED && <MenuItem value={shipmentId}>{trUi("Selected shipment")}</MenuItem>}
             </TextField>
           </Stack>
           <Stack component="form" direction="row" spacing={1} onSubmit={(event) => { event.preventDefault(); changeFilter(setKeyword, search.trim()); }}>
-            <TextField size="small" fullWidth label="Scan barcode or search PO / product / style / shipment" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <Button type="submit" variant="contained" disabled={loading}>Search</Button>
+            <TextField size="small" fullWidth label={trUi("Scan barcode or search PO / product / style / shipment")} value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Button type="submit" variant="contained" disabled={loading}>{trUi("Search")}</Button>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="center">
-            <Button variant="outlined" onClick={download} disabled={busy || loading}>Export CSV</Button>
-            {sales && <Button variant="contained" onClick={() => openAction('create')} disabled={!orderId || !selected.length || busy || loading}>Create Shipment Plan ({selected.length})</Button>}
-            {selected.length > 0 && <Button onClick={() => setSelected([])}>Clear selection</Button>}
+            <Button variant="outlined" onClick={download} disabled={busy || loading}>{trUi("Export CSV")}</Button>
+            {sales && <Button variant="contained" onClick={() => openAction('create')} disabled={!orderId || !selected.length || busy || loading}>{trUi("Create Shipment Plan (")}{selected.length})</Button>}
+            {selected.length > 0 && <Button onClick={() => setSelected([])}>{trUi("Clear selection")}</Button>}
           </Stack>
-          {sales && !orderId && <Typography variant="caption">Step 1: Select one Order. Then choose cartons that already have assigned Factory Barcodes.</Typography>}
-          {sales && orderId && <Alert severity="info" sx={{ py: 0.35 }}>
-            Step 2: Select eligible cartons. Sales cannot create new cartons here; shipment planning only uses physical cartons generated from Master Total Ctns and already assigned a Factory Barcode.
-          </Alert>}
+          {sales && !orderId && <Typography variant="caption">{trUi("Step 1: Select one Order. Then choose cartons that already have assigned Factory Barcodes.")}</Typography>}
+          {sales && orderId && <Alert severity="info" sx={{ py: 0.35 }}>{trUi("\n            Step 2: Select eligible cartons. Sales cannot create new cartons here; shipment planning only uses physical cartons generated from Master Total Ctns and already assigned a Factory Barcode.\n          ")}</Alert>}
         </Stack></Box>
-        <StandardTableViewport sx={{ border: 0, borderRadius: 0, ...managementTableViewportSx }}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? "Shipment planning cartons" : "Carton tracking"}><TableHead><TableRow>
-          {sales && <TableCell padding="checkbox"><Checkbox aria-label="Select available cartons on this page" disabled={!orderId || loading || !eligible.length}
+        <StandardTableViewport sx={{ border: 0, borderRadius: 0, ...managementTableViewportSx }}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE} aria-label={sales ? trUi("Shipment planning cartons") : trUi("Carton tracking")}><TableHead><TableRow>
+          {sales && <TableCell padding="checkbox"><Checkbox aria-label={trUi("Select available cartons on this page")} disabled={!orderId || loading || !eligible.length}
             checked={eligible.length > 0 && eligible.every((row) => selected.includes(row.id))}
             indeterminate={eligible.some((row) => selected.includes(row.id)) && !eligible.every((row) => selected.includes(row.id))}
             onChange={(event) => setSelected((old) => event.target.checked ? [...new Set([...old, ...eligible.map((row) => row.id)])] : old.filter((id) => !eligible.some((row) => row.id === id)))} /></TableCell>}
           {['Barcode / Carton', 'Order / PO', 'Product / Color / Size', 'Planned / Assigned Qty', 'Lifecycle', 'Inspection', 'Shipment', 'Actions'].map((label) => <TableCell key={label}>{label}</TableCell>)}
         </TableRow></TableHead><TableBody>
-          {!loading && !cartons.content.length && <TableRow><TableCell colSpan={sales ? 9 : 8}>No cartons match these filters.</TableCell></TableRow>}
+          {!loading && !cartons.content.length && <TableRow><TableCell colSpan={sales ? 9 : 8}>{trUi("No cartons match these filters.")}</TableCell></TableRow>}
           {cartons.content.map((row) => <TableRow key={row.id} hover>
             {sales && <TableCell padding="checkbox"><Checkbox aria-label={`Select ${row.factoryBarcode || row.cartonCode || row.id}`} checked={selected.includes(row.id)} disabled={!orderId || !canPlanCarton(row) || loading} onChange={() => toggle(row.id)} /></TableCell>}
-            <TableCell><Button size="small" onClick={() => setDetails(row)}>{row.factoryBarcode || row.cartonCode || 'Unassigned'}</Button><Typography variant="caption" display="block">{row.cartonCode}</Typography><Typography variant="caption" color="text.secondary" display="block">Physical carton {row.cartonSequence || '—'} / {row.plannedCartons || '—'}</Typography></TableCell>
+            <TableCell><Button size="small" onClick={() => setDetails(row)}>{row.factoryBarcode || row.cartonCode || 'Unassigned'}</Button><Typography variant="caption" display="block">{row.cartonCode}</Typography><Typography variant="caption" color="text.secondary" display="block">{trUi("Physical carton ")}{row.cartonSequence || '—'} / {row.plannedCartons || '—'}</Typography></TableCell>
             <TableCell>{row.orderName}<Typography variant="caption" display="block">{row.poNumber || '—'}</Typography></TableCell>
             <TableCell>{row.articleNumber || row.style}<Typography variant="caption" display="block">{row.color || '—'} / {row.size || '—'}</Typography></TableCell>
-            <TableCell>{row.cartonPcs ?? row.qtyPerCarton ?? '—'}<Typography variant="caption" display="block">Assigned: {row.assignedQuantity ?? '—'}</Typography></TableCell>
+            <TableCell>{row.cartonPcs ?? row.qtyPerCarton ?? '—'}<Typography variant="caption" display="block">{trUi("Assigned: ")}{row.assignedQuantity ?? '—'}</Typography></TableCell>
             <TableCell><Chip size="small" label={row.lifecycleStatus} color={lifecycleColor(row.lifecycleStatus)} /></TableCell>
-            <TableCell>{row.weightKg != null ? `${row.weightKg} kg · ` : ''}{row.weightStatus || 'Not weighed'}<Typography variant="caption" display="block">Manual: {row.manualInspectionResult || '—'}</Typography></TableCell>
-            <TableCell>{row.shipmentNo || 'Not planned'}</TableCell>
+            <TableCell>{row.weightKg != null ? `${row.weightKg} kg · ` : ''}{row.weightStatus || trUi("Not weighed")}<Typography variant="caption" display="block">{trUi("Manual: ")}{row.manualInspectionResult || '—'}</Typography></TableCell>
+            <TableCell>{row.shipmentNo || trUi("Not planned")}</TableCell>
             <TableCell><Stack spacing={0.5}>
-              {packing && [SHIPMENT_LIFECYCLE_STATUS.ASSIGNED, SHIPMENT_LIFECYCLE_STATUS.CHECKED].includes(row.lifecycleStatus) && row.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT && <Button size="small" disabled={busy || loading} onClick={() => openAction('inspect', row)}>Inspect</Button>}
-              {packing && row.lifecycleStatus === SHIPMENT_LIFECYCLE_STATUS.CHECKED && row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button size="small" disabled={busy || loading} onClick={() => openAction('complete', row)}>Complete</Button>}
+              {packing && [SHIPMENT_LIFECYCLE_STATUS.ASSIGNED, SHIPMENT_LIFECYCLE_STATUS.CHECKED].includes(row.lifecycleStatus) && row.status !== BARCODE_CARTON_STATUS.WAITING_WEIGHT && <Button size="small" disabled={busy || loading} onClick={() => openAction('inspect', row)}>{trUi("Inspect")}</Button>}
+              {packing && row.lifecycleStatus === SHIPMENT_LIFECYCLE_STATUS.CHECKED && row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button size="small" disabled={busy || loading} onClick={() => openAction('complete', row)}>{trUi("Complete")}</Button>}
             </Stack></TableCell>
           </TableRow>)}
         </TableBody></SortableTable></StandardTableViewport>
@@ -213,19 +215,19 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       </>}
       {tab === 1 && <>
         <Alert severity="info">{APP_MESSAGES.SHIPMENT_DISPATCH_RULES}</Alert>
-        <StandardTableViewport component={Paper} sx={{ ...managementTableViewportSx }}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label="Shipment plans"><TableHead><TableRow>
+        <StandardTableViewport component={Paper} sx={{ ...managementTableViewportSx }}><SortableTable size="small" rowNumberStart={shipmentPage * 25} aria-label={trUi("Shipment plans")}><TableHead><TableRow>
           {['Shipment', 'Destination / Carrier', 'Planned date', 'Status', 'Progress (cartons)', 'Actions'].map((label) => <TableCell key={label}>{label}</TableCell>)}
         </TableRow></TableHead><TableBody>
-          {!loading && !shipments.content.length && <TableRow><TableCell colSpan={6}>No Sales Shipment Plans yet. Open “Plan New Shipment”, select an Order and eligible cartons, then create a plan.</TableCell></TableRow>}
+          {!loading && !shipments.content.length && <TableRow><TableCell colSpan={6}>{trUi("No Sales Shipment Plans yet. Open “Plan New Shipment”, select an Order and eligible cartons, then create a plan.")}</TableCell></TableRow>}
           {shipments.content.map(({ shipment: row, planned, checked, completed, shipped, failed }) => <TableRow key={row.id}>
             <TableCell>{row.shipmentNo}<Typography variant="caption" display="block">{row.reference || '—'}</Typography></TableCell>
             <TableCell>{row.destination}<Typography variant="caption" display="block">{row.carrier || '—'}</Typography></TableCell>
             <TableCell>{row.plannedDate}</TableCell><TableCell><Chip size="small" label={row.status} color={lifecycleColor(row.status)} /></TableCell>
-            <TableCell>Checked {checked}/{planned}<br />Completed {completed}/{planned}<br />Shipped {shipped}/{planned}{failed > 0 && <Typography color="error">Failed: {failed}</Typography>}</TableCell>
+            <TableCell>{trUi("Checked ")}{checked}/{planned}<br />{trUi("Completed ")}{completed}/{planned}<br />{trUi("Shipped ")}{shipped}/{planned}{failed > 0 && <Typography color="error">{trUi("Failed: ")}{failed}</Typography>}</TableCell>
             <TableCell><Stack spacing={0.5}>
-              <Button size="small" onClick={() => { setOrderId(row.orderId); setShipmentId(row.id); setKeyword(''); setSearch(''); setLifecycle(COMMON_FILTER.ALL); setPage(0); setSelected([]); setTab(0); }}>View cartons</Button>
-              {packing && [SHIPMENT_STATUS.PLANNED, SHIPMENT_STATUS.DISPATCHING].includes(row.status) && <Button size="small" disabled={busy || loading || completed !== planned || !planned || failed > 0} onClick={() => openAction('dispatch', row)}>{row.status === SHIPMENT_STATUS.DISPATCHING ? 'Resume dispatch' : 'Dispatch'}</Button>}
-              {sales && row.status === SHIPMENT_STATUS.PLANNED && !row.executionStarted && <Button size="small" color="error" disabled={busy || loading} onClick={() => openAction('cancel', row)}>Cancel plan</Button>}
+              <Button size="small" onClick={() => { setOrderId(row.orderId); setShipmentId(row.id); setKeyword(''); setSearch(''); setLifecycle(COMMON_FILTER.ALL); setPage(0); setSelected([]); setTab(0); }}>{trUi("View cartons")}</Button>
+              {packing && [SHIPMENT_STATUS.PLANNED, SHIPMENT_STATUS.DISPATCHING].includes(row.status) && <Button size="small" disabled={busy || loading || completed !== planned || !planned || failed > 0} onClick={() => openAction('dispatch', row)}>{row.status === SHIPMENT_STATUS.DISPATCHING ? trUi("Resume dispatch") : 'Dispatch'}</Button>}
+              {sales && row.status === SHIPMENT_STATUS.PLANNED && !row.executionStarted && <Button size="small" color="error" disabled={busy || loading} onClick={() => openAction('cancel', row)}>{trUi("Cancel plan")}</Button>}
             </Stack></TableCell>
           </TableRow>)}
         </TableBody></SortableTable></StandardTableViewport>
@@ -234,25 +236,25 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
       <Dialog open={Boolean(action)} onClose={() => !busy && setAction(null)} fullWidth maxWidth="sm">
         <DialogTitle>{({ create: 'Create Sales Shipment Plan', inspect: 'Record inspection', complete: 'Confirm carton completion', dispatch: 'Confirm shipment dispatch', cancel: 'Cancel shipment plan' })[action?.type]}</DialogTitle>
         <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && <Alert severity="error">{trSystem(error)}</Alert>}
           {action?.type === 'create' && <>
             <Alert severity="info">{createShipmentSelectionStepMessage(selected.length)}</Alert>
             {[['shipmentNo', 'Shipment number'], ['destination', 'Destination'], ['plannedDate', 'Planned shipment date'], ['carrier', 'Carrier (optional)'], ['reference', 'Reference (optional)']].map(([name, label]) =>
               <TextField key={name} label={label} value={form[name] || ''} onChange={(event) => field(name, event.target.value)} type={name === 'plannedDate' ? 'date' : 'text'} InputLabelProps={name === 'plannedDate' ? { shrink: true } : undefined} required={['shipmentNo', 'destination', 'plannedDate'].includes(name)} disabled={busy} fullWidth />)}
           </>}
           {action?.type === 'inspect' && <>
-            <Typography>{action.row.factoryBarcode} · {action.row.articleNumber} · {action.row.color} / {action.row.size} · Qty {action.row.assignedQuantity ?? action.row.cartonPcs}</Typography>
+            <Typography>{action.row.factoryBarcode} · {action.row.articleNumber} · {action.row.color} / {action.row.size}{trUi(" · Qty ")}{action.row.assignedQuantity ?? action.row.cartonPcs}</Typography>
             <Alert severity="info">{APP_MESSAGES.SHIPMENT_MANUAL_INSPECTION_INFO}</Alert>
-            <TextField select label="Inspection result" value={form.result || INSPECTION_RESULT.PASS} onChange={(event) => field('result', event.target.value)} disabled={busy}><MenuItem value={INSPECTION_RESULT.PASS}>PASS</MenuItem><MenuItem value={INSPECTION_RESULT.FAIL}>FAIL</MenuItem></TextField>
-            <TextField label="Inspection note" value={form.note || ''} onChange={(event) => field('note', event.target.value)} multiline minRows={3} required disabled={busy} />
+            <TextField select label={trUi("Inspection result")} value={form.result || INSPECTION_RESULT.PASS} onChange={(event) => field('result', event.target.value)} disabled={busy}><MenuItem value={INSPECTION_RESULT.PASS}>{trUi("PASS")}</MenuItem><MenuItem value={INSPECTION_RESULT.FAIL}>{trUi("FAIL")}</MenuItem></TextField>
+            <TextField label={trUi("Inspection note")} value={form.note || ''} onChange={(event) => field('note', event.target.value)} multiline minRows={3} required disabled={busy} />
           </>}
           {action?.type === 'complete' && <Alert severity="warning">{createCompleteCartonConfirmMessage(action.row.factoryBarcode)}</Alert>}
           {action?.type === 'dispatch' && <Alert severity="warning">{createDispatchShipmentConfirmMessage(action.row.shipmentNo)}</Alert>}
           {action?.type === 'cancel' && <Alert severity="warning">{createCancelShipmentConfirmMessage(action.row.shipmentNo)}</Alert>}
         </Stack></DialogContent>
-        <DialogActions><Button disabled={busy} onClick={() => setAction(null)}>Back</Button><Button variant="contained" disabled={busy} onClick={submitAction}>{busy ? 'Saving…' : 'Confirm'}</Button></DialogActions>
+        <DialogActions><Button disabled={busy} onClick={() => setAction(null)}>{trUi("Back")}</Button><Button variant="contained" disabled={busy} onClick={submitAction}>{busy ? 'Saving…' : 'Confirm'}</Button></DialogActions>
       </Dialog>
-      <Dialog open={Boolean(details)} onClose={() => setDetails(null)} fullWidth maxWidth="sm"><DialogTitle>Carton traceability</DialogTitle>
+      <Dialog open={Boolean(details)} onClose={() => setDetails(null)} fullWidth maxWidth="sm"><DialogTitle>{trUi("Carton traceability")}</DialogTitle>
         <DialogContent><SortableTable size="small"><TableBody>{details && [
           ['Barcode', details.factoryBarcode], ['Carton', details.cartonCode], ['Order / PO', `${details.orderName || ''} / ${details.poNumber || ''}`],
           ['Product', details.articleNumber], ['Style / Color / Size', `${details.style || details.styleNumber || ''} / ${details.color || ''} / ${details.size || ''}`],
@@ -263,7 +265,7 @@ export default function ShipmentManagementPage({ mode = 'tracking' }) {
           ['Completed by / at', `${details.completedBy || '—'} / ${dateTime(details.completedAt)}`], ['Shipment', details.shipmentNo],
           ['Shipped by / at', `${details.shippedBy || '—'} / ${dateTime(details.shippedAt)}`]]
           .map(([label, value]) => <TableRow key={label}><TableCell>{label}</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{value ?? '—'}</TableCell></TableRow>)}
-        </TableBody></SortableTable></DialogContent><DialogActions><Button onClick={() => setDetails(null)}>Close</Button></DialogActions>
+        </TableBody></SortableTable></DialogContent><DialogActions><Button onClick={() => setDetails(null)}>{trUi("Close")}</Button></DialogActions>
       </Dialog>
     </Stack>
   );

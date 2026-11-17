@@ -1,13 +1,17 @@
+import * as cartonWorkspaceAdapter from '../features/cartons/cartonWorkspaceAdapter';
+import * as orderWorkspaceAdapter from '../features/orders/workspaceAdapter';
 import {
   AssignmentOutlined,
   HistoryOutlined,
-  SensorsOutlined
+  SensorsOutlined,
+  AssessmentOutlined
 } from '@mui/icons-material';
 import {
   canAssignBarcode,
   canManageSales,
   canUseBuyerWorkspace,
   canWeightCheck,
+  canViewManagementReports,
   isAdmin
 } from 'utils/accessControl';
 import { buyerPath } from 'utils/buyerAccess';
@@ -17,7 +21,8 @@ const allowed = {
   workspace: () => canUseBuyerWorkspace(),
   packing: () => canAssignBarcode() || canManageSales(),
   trace: () => canUseBuyerWorkspace() || canAssignBarcode() || canManageSales() || canWeightCheck(),
-  weighing: () => canWeightCheck()
+  weighing: () => canWeightCheck(),
+  reports: () => canViewManagementReports()
 };
 
 /** LULULEMON owns its menu, routes and workflow; it does not inherit ES Barcode/Weight screens. */
@@ -25,6 +30,8 @@ const moduleConfig = {
   buyerCodes: [BUYER_CODE.LULULEMON],
   key: BUYER_MODULE_KEY.SSCC_PACKING,
   landingChild: 'orders',
+  orderWorkspace: { mode: 'sscc', ...orderWorkspaceAdapter },
+  cartonWorkspace: { mode: 'sscc', ...cartonWorkspaceAdapter },
   capabilities: {
     allBp: true,
     po: true,
@@ -41,11 +48,13 @@ const moduleConfig = {
   },
   menu: (buyer) => [
     { id: 'orders', title: 'Orders', icon: AssignmentOutlined, to: buyerPath(buyer, 'orders'), access: () => allowed.workspace() || allowed.packing() || allowed.weighing() },
+    { id: 'management-reports', title: 'Reports', icon: AssessmentOutlined, to: buyerPath(buyer, 'management-reports'), access: allowed.reports },
     { id: 'rfid-devices', title: 'Device Management', icon: SensorsOutlined, to: buyerPath(buyer, 'rfid-devices'), access: () => isAdmin() },
     { id: 'trace-history', title: 'Carton History', icon: HistoryOutlined, to: buyerPath(buyer, 'trace-history'), access: allowed.trace }
   ],
-  accessLanding: (buyer) => (allowed.workspace() || allowed.packing() || allowed.weighing())
+  accessLanding: (buyer) => allowed.workspace() || allowed.packing() || allowed.weighing()
     ? buyerPath(buyer, 'orders')
+    : allowed.reports() ? buyerPath(buyer, 'management-reports')
     : buyerPath(buyer, 'trace-history'),
   workflow: (buyer) => [
     { owner: 'Packing', title: 'Orders', description: 'Create Factory-scoped Orders, import All_BP and scan SSCC/SKU directly in a PO.', to: buyerPath(buyer, 'orders'), access: allowed.packing },

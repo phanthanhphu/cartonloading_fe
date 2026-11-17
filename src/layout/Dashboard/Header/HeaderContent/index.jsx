@@ -5,6 +5,8 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
 import Profile from './Profile';
+import LanguageSwitcher from './LanguageSwitcher';
+import { useT } from '../../../../i18n/LanguageProvider';
 import WorkingContextSwitcher from './WorkingContextSwitcher';
 import { getBuyerBySlug } from '../../../../utils/buyerAccess';
 // Every real route gets an explicit page name. Keep specific routes above generic ones.
@@ -28,6 +30,8 @@ const PAGE_MAP = [
   { path: '/packing/shipments', title: 'Packing Weight Check & Dispatch', section: 'Operations' },
   { path: '/shipment-management', title: 'Carton & Shipment Tracking', section: 'Supply Chain' },
   { path: '/weight-check', title: 'Packing Weight Check & Dispatch', section: 'Operations' },
+
+  { path: '/buyers/:buyerSlug/management-reports', title: 'Reports', section: 'Supply Chain' },
 
   // Dedicated LULULEMON admin/history routes (URLs remain unchanged).
   { path: '/buyers/:buyerSlug/rfid-devices', title: 'Device Management', section: 'Administration' },
@@ -77,6 +81,7 @@ const resolvePage = (pathname) => {
 };
 
 export default function HeaderContent() {
+  const trUi = useT();
   const { pathname } = useLocation();
   const page = useMemo(() => resolvePage(pathname), [pathname]);
 
@@ -85,7 +90,7 @@ export default function HeaderContent() {
       <Stack spacing={0.05} sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           component="h1"
-          title={page.title}
+          title={trUi(page.title)}
           sx={{
             color: '#183658',
             fontSize: { xs: '0.9rem', sm: '0.98rem' },
@@ -96,15 +101,13 @@ export default function HeaderContent() {
             whiteSpace: 'nowrap'
           }}
         >
-          {page.title}
-        </Typography>
-        <Typography sx={{ color: '#7A8CA0', fontSize: '0.69rem', fontWeight: 550, whiteSpace: 'nowrap' }}>
-          {page.section}
+          {trUi(page.title)}
         </Typography>
       </Stack>
 
       <WorkingContextSwitcher pathname={pathname} />
 
+      <LanguageSwitcher />
       <Profile />
     </Box>
   );

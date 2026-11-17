@@ -1,3 +1,4 @@
+import { useT } from '../../i18n/LanguageProvider';
 import PropTypes from 'prop-types';
 
 // material-ui
@@ -8,13 +9,14 @@ import { useTheme, alpha } from '@mui/material/styles';
 import logoYoungone from '../../assets/svg/logos/logo-youngone.png';
 
 export default function LogoMain({ sx }) {
+  const trUi = useT();
   const theme = useTheme();
 
   return (
     <Box
       component="img"
       src={logoYoungone}
-      alt="Youngone logo"
+      alt={trUi("Youngone logo")}
       draggable={false}
       sx={{
         display: 'block',

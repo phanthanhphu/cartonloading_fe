@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import { DEVICE_CONNECTION_STATE } from '../../../constants/appConstants';
 import { useEffect, useState } from 'react';
 import { Button, Chip, Paper, Stack, Tooltip, Typography } from '@mui/material';
@@ -8,6 +9,7 @@ const message = (error) => error?.response?.data?.message || error?.message || '
 
 /** Compact operator control: one Factory, one assigned Conveyor, no technical fields. */
 export default function ConveyorSimControl({ factoryCode, endAction = null, notice = '' }) {
+  const trUi = useT();
   const [devices, setDevices] = useState([]);
   const [selected, setSelected] = useState('');
   const [reading, setReading] = useState(null);
@@ -67,7 +69,7 @@ export default function ConveyorSimControl({ factoryCode, endAction = null, noti
     <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} flexWrap="wrap" useFlexGap>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
         <PrecisionManufacturingOutlined color="primary" fontSize="small" />
-        <Typography variant="subtitle2" fontWeight={850}>Device</Typography>
+        <Typography variant="subtitle2" fontWeight={850}>{trUi("Device")}</Typography>
         <Tooltip arrow title={statusTip}>
           <Chip size="small" label={statusLabel} color={statusColor} variant={connected || fault ? 'filled' : 'outlined'} />
         </Tooltip>
@@ -75,12 +77,12 @@ export default function ConveyorSimControl({ factoryCode, endAction = null, noti
       <Stack direction="row" alignItems="center" spacing={0.75}>
         <Button size="small" variant="contained" color="success" startIcon={<PlayArrow />}
           disabled={busy || !connected || reading.commandOn || fault}
-          onClick={() => send('START')}>RUN</Button>
-        <Tooltip arrow title="Web STOP only sends a device command. It does not replace an emergency stop.">
+          onClick={() => send('START')}>{trUi("RUN")}</Button>
+        <Tooltip arrow title={trUi("Web STOP only sends a device command. It does not replace an emergency stop.")}>
           <span>
             <Button size="small" variant="outlined" color="warning" startIcon={<Stop />}
               disabled={busy || !connected || !reading.commandOn}
-              onClick={() => send('STOP')}>STOP</Button>
+              onClick={() => send('STOP')}>{trUi("STOP")}</Button>
           </span>
         </Tooltip>
         {endAction}

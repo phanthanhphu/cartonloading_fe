@@ -66,7 +66,7 @@ const getDashboardMenu = () => {
   // Preserve the existing Tools behavior for other Buyers.
   const groupedIds = new Set([
     ...salesIds, ...operationIds,
-    ...(isLululemon ? ['rfid-devices', 'trace-history'] : [])
+    ...(isLululemon ? ['rfid-devices', 'trace-history', 'management-reports'] : [])
   ]);
   const otherBuyerChildren = activeBuyer
     ? buyerEntries.filter((entry) => !groupedIds.has(entry.id)).map((entry) => toMenuItem(entry, activeBuyer))
@@ -82,6 +82,7 @@ const getDashboardMenu = () => {
 
   const buyerLabel = activeBuyer?.label || 'Buyer';
   const cartonHistoryEntry = isLululemon ? entryById.get('trace-history') : null;
+  const managementReportsEntry = isLululemon ? entryById.get('management-reports') : null;
   const deviceManagementEntry = isLululemon && isAdmin() ? entryById.get('rfid-devices') : null;
 
   return {
@@ -91,7 +92,8 @@ const getDashboardMenu = () => {
         title: 'Home',
         type: 'group',
         children: [
-          item('dashboard', 'Dashboard', '/dashboard', DashboardOutlined)
+          item('dashboard', 'Dashboard', '/dashboard', DashboardOutlined),
+          ...(managementReportsEntry ? [toMenuItem(managementReportsEntry, activeBuyer)] : [])
         ]
       },
       {

@@ -1,9 +1,11 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import {   Alert, Box, Button, Chip, CircularProgress, FormControl, InputLabel, MenuItem, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, FormControl, InputLabel, MenuItem, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import {   ArrowBackOutlined, CheckCircleOutline, KeyboardOutlined, QrCodeScannerOutlined, RefreshOutlined, ScaleOutlined, WarningAmberOutlined } from '@mui/icons-material';
 import { APP_MESSAGES, createBarcodeIdentifiedMessage, createCartonCompletedManualMessage, createCartonCompletedWeightMessage, createCartonWaitingForWeightMessage } from '../../../../constants/appMessages';
 import {   getCartonTransaction, getCurrentStationTransaction, listCartonsForItem, listScaleStations, scanAssignedFactoryBarcode, submitManualWeight } from 'buyers/es/services/cartonLoadingService';
@@ -63,6 +65,8 @@ const kg = (value) => value == null
   : `${Number(value).toLocaleString(FORMAT_LOCALE.EN_US, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
 
 export default function CartonItemDetailPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId, masterLineId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -349,32 +353,26 @@ export default function CartonItemDetailPage() {
             startIcon={<ArrowBackOutlined />}
             onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}`)}
             sx={{ mb: 0.35, textTransform: 'none' }}
-          >
-            Back to Order
-          </Button>
+          >{trUi("\n            Back to Order\n          ")}</Button>
           <Typography sx={{ fontSize: { xs: '1.45rem', md: '1.8rem' }, fontWeight: 950, color: '#103B5C' }}>
-            Carton Factory Barcode &amp; Weight
+            {trUi("Carton Factory Barcode & Weight")}
           </Typography>
           <Typography color="text.secondary">
-            {buyer.label} · {order?.orderName || 'Order'}
+            {buyer.label} · {order?.orderName || trUi("Order")}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="flex-start" flexWrap="wrap" useFlexGap>
-          <Button variant="outlined" startIcon={<RefreshOutlined />} onClick={() => loadRows()} disabled={loading} sx={{ textTransform: 'none' }}>
-            Refresh
-          </Button>
+          <Button variant="outlined" startIcon={<RefreshOutlined />} onClick={() => loadRows()} disabled={loading} sx={{ textTransform: 'none' }}>{trUi("\n            Refresh\n          ")}</Button>
           <Button
             variant="contained"
             startIcon={<QrCodeScannerOutlined />}
             onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}/scan`)}
             sx={{ textTransform: 'none', bgcolor: '#103B5C' }}
-          >
-            Scan Another Carton
-          </Button>
+          >{trUi("\n            Scan Another Carton\n          ")}</Button>
         </Stack>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 1.25 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 1.25 }}>{trSystem(error)}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 1.25 }}>{notice}</Alert>}
 
       <Paper
@@ -389,16 +387,15 @@ export default function CartonItemDetailPage() {
       >
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.25} alignItems={{ lg: 'center' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 950, color: '#103B5C' }}>Matched parent item</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-              Supplier {first.supplierNumber || '—'} · PO {first.poNumber || '—'} · Article {first.articleNumber || '—'} · Size {first.size || '—'} · Color {first.color || '—'}
+            <Typography sx={{ fontWeight: 950, color: '#103B5C' }}>{trUi("Matched parent item")}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>{trUi("\n              Supplier ")}{first.supplierNumber || '—'}{trUi(" · PO ")}{first.poNumber || '—'}{trUi(" · Article ")}{first.articleNumber || '—'}{trUi(" · Size ")}{first.size || '—'}{trUi(" · Color ")}{first.color || '—'}
             </Typography>
           </Box>
           <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-            <Chip label={`Total ${rows.length}`} color="primary" />
-            <Chip label={`Completed ${completed}`} color="success" variant="outlined" />
-            <Chip label={`Waiting ${waiting}`} color="info" variant="outlined" />
-            <Chip label={`Assigned ready ${readyAssigned}`} color={readyAssigned ? 'warning' : 'success'} variant="outlined" />
+            <Chip label={trUi("Total {0}", rows.length)} color="primary" />
+            <Chip label={trUi("Completed {0}", completed)} color="success" variant="outlined" />
+            <Chip label={trUi("Waiting {0}", waiting)} color="info" variant="outlined" />
+            <Chip label={trUi("Assigned ready {0}", readyAssigned)} color={readyAssigned ? 'warning' : 'success'} variant="outlined" />
           </Stack>
         </Stack>
       </Paper>
@@ -417,16 +414,12 @@ export default function CartonItemDetailPage() {
         <Stack spacing={1.5}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ md: 'center' }}>
             <Box>
-              <Typography sx={{ fontSize: '1.05rem', fontWeight: 950, color: '#103B5C' }}>
-                Scan assigned Factory Barcode
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Each Factory Barcode identifies one exact carton already mapped from Master Data. Zebra USB starts lookup automatically after Enter.
-              </Typography>
+              <Typography sx={{ fontSize: '1.05rem', fontWeight: 950, color: '#103B5C' }}>{trUi("\n                Scan assigned Factory Barcode\n              ")}</Typography>
+              <Typography variant="body2" color="text.secondary">{trUi("\n                Each Factory Barcode identifies one exact carton already mapped from Master Data. Zebra USB starts lookup automatically after Enter.\n              ")}</Typography>
             </Box>
             <Chip
               icon={waitingForWeight ? <ScaleOutlined /> : <CheckCircleOutline />}
-              label={waitingForWeight ? `Locked — Carton #${currentSequence} is waiting for weight` : 'Ready to scan'}
+              label={waitingForWeight ? trUi("Locked — Carton #{0} is waiting for weight", currentSequence) : trUi("Ready to scan")}
               color={waitingForWeight ? 'info' : 'success'}
               variant={waitingForWeight ? 'filled' : 'outlined'}
               sx={{ fontWeight: 850 }}
@@ -435,15 +428,15 @@ export default function CartonItemDetailPage() {
 
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.2} alignItems={{ lg: 'center' }}>
             <FormControl size="small" sx={{ minWidth: { xs: '100%', lg: 260 } }}>
-              <InputLabel id="item-scan-station-label">Scale Station</InputLabel>
+              <InputLabel id="item-scan-station-label">{trUi("Scale Station")}</InputLabel>
               <Select
                 labelId="item-scan-station-label"
                 value={stationCode}
-                label="Scale Station"
+                label={trUi("Scale Station")}
                 onChange={(event) => setStationCode(event.target.value)}
                 disabled={waitingForWeight}
               >
-                <MenuItem value=""><em>Manual weight only — no PLC station</em></MenuItem>
+                <MenuItem value=""><em>{trUi("Manual weight only — no PLC station")}</em></MenuItem>
                 {stations.map((station) => (
                   <MenuItem key={station.stationCode} value={station.stationCode}>
                     {station.stationName || station.stationCode} ({station.stationCode})
@@ -453,7 +446,7 @@ export default function CartonItemDetailPage() {
             </FormControl>
             <TextField
               size="small"
-              label="Pallet / Location"
+              label={trUi("Pallet / Location")}
               value={palletCode}
               onChange={(event) => setPalletCode(event.target.value)}
               disabled={waitingForWeight}
@@ -466,8 +459,8 @@ export default function CartonItemDetailPage() {
               onChange={(_, value) => value && setScanInputMode(value)}
               disabled={waitingForWeight}
             >
-              <ToggleButton value={SCAN_INPUT_MODE.ZEBRA}><QrCodeScannerOutlined sx={{ mr: 0.5 }} /> Zebra USB</ToggleButton>
-              <ToggleButton value={WEIGHT_SOURCE.MANUAL}><KeyboardOutlined sx={{ mr: 0.5 }} /> Manual input</ToggleButton>
+              <ToggleButton value={SCAN_INPUT_MODE.ZEBRA}><QrCodeScannerOutlined sx={{ mr: 0.5 }} />{trUi(" Zebra USB")}</ToggleButton>
+              <ToggleButton value={WEIGHT_SOURCE.MANUAL}><KeyboardOutlined sx={{ mr: 0.5 }} />{trUi(" Manual input")}</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
 
@@ -476,7 +469,7 @@ export default function CartonItemDetailPage() {
               inputRef={scanInputRef}
               fullWidth
               size="medium"
-              label={scanInputMode === SCAN_INPUT_MODE.ZEBRA ? 'Scan assigned Factory Barcode' : 'Enter Factory Barcode manually'}
+              label={scanInputMode === SCAN_INPUT_MODE.ZEBRA ? trUi("Scan assigned Factory Barcode") : trUi("Enter Factory Barcode manually")}
               value={barcode}
               onChange={(event) => setBarcode(event.target.value)}
               onKeyDown={(event) => {
@@ -488,8 +481,8 @@ export default function CartonItemDetailPage() {
               disabled={waitingForWeight || scanSubmitting}
               autoComplete="off"
               placeholder={scanInputMode === SCAN_INPUT_MODE.ZEBRA
-                ? 'Scan the Factory Use Only label. Zebra Enter identifies the exact assigned carton.'
-                : 'Type or paste the Factory Barcode, then click Identify Carton.'}
+                ? trUi("Scan the Factory Use Only label. Zebra Enter identifies the exact assigned carton.")
+                : trUi("Type or paste the Factory Barcode, then click Identify Carton.")}
               sx={{
                 '& .MuiInputBase-root': { minHeight: 54, fontSize: '1rem' }
               }}
@@ -502,7 +495,7 @@ export default function CartonItemDetailPage() {
               disabled={waitingForWeight || scanSubmitting || !barcode.trim()}
               sx={{ minWidth: { xs: '100%', md: 205 }, minHeight: 54, textTransform: 'none', bgcolor: '#103B5C', fontWeight: 900 }}
             >
-              {scanSubmitting ? 'Identifying...' : 'Identify Carton'}
+              {scanSubmitting ? 'Identifying...' : trUi("Identify Carton")}
             </Button>
           </Stack>
 
@@ -532,29 +525,24 @@ export default function CartonItemDetailPage() {
                       flexShrink: 0
                     }}
                   >
-                    <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.9 }}>CURRENT</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.9 }}>{trUi("CURRENT")}</Typography>
                     <Typography sx={{ fontSize: '1.6rem', lineHeight: 1.1, fontWeight: 950 }}>#{currentSequence}</Typography>
                     <Typography variant="caption">of {plannedCartons}</Typography>
                   </Box>
 
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
-                      <Typography sx={{ fontSize: '1.2rem', fontWeight: 950, color: '#103B5C' }}>
-                        Waiting for weight
-                      </Typography>
-                      <Chip size="small" label="Scan locked" color="info" />
+                      <Typography sx={{ fontSize: '1.2rem', fontWeight: 950, color: '#103B5C' }}>{trUi("\n                        Waiting for weight\n                      ")}</Typography>
+                      <Chip size="small" label={trUi("Scan locked")} color="info" />
                     </Stack>
-                    <Typography sx={{ mt: 0.35, fontWeight: 950, color: 'success.dark', wordBreak: 'break-word' }}>
-                      Factory Barcode: {activeTransaction.factoryBarcode || activeTransaction.barcode || '—'}
+                    <Typography sx={{ mt: 0.35, fontWeight: 950, color: 'success.dark', wordBreak: 'break-word' }}>{trUi("\n                      Factory Barcode: ")}{activeTransaction.factoryBarcode || activeTransaction.barcode || '—'}
                     </Typography>
-                    <Typography sx={{ mt: 0.2, fontWeight: 850, wordBreak: 'break-word' }}>
-                      Carton: {activeTransaction.cartonCode || activeTransaction.itemKey || '—'} · CTN No.: {activeTransaction.cartonNumber ?? '—'} · Qty: {activeTransaction.cartonPcs ?? activeTransaction.qtyPerCarton ?? '—'}
+                    <Typography sx={{ mt: 0.2, fontWeight: 850, wordBreak: 'break-word' }}>{trUi("\n                      Carton: ")}{activeTransaction.cartonCode || activeTransaction.itemKey || '—'}{trUi(" · CTN No.: ")}{activeTransaction.cartonNumber ?? '—'}{trUi(" · Qty: ")}{activeTransaction.cartonPcs ?? activeTransaction.qtyPerCarton ?? '—'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      PO {activeTransaction.poNumber || '—'} · Article {activeTransaction.articleNumber || '—'} · Color {activeTransaction.color || '—'} · Size {activeTransaction.size || '—'}
+                      PO {activeTransaction.poNumber || '—'}{trUi(" · Article ")}{activeTransaction.articleNumber || '—'}{trUi(" · Color ")}{activeTransaction.color || '—'}{trUi(" · Size ")}{activeTransaction.size || '—'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Job {activeTransaction.jobId || '—'} · Station {activeTransaction.stationCode || 'Manual weight'} · Pallet {activeTransaction.palletCode || palletCode || '—'}
+                    <Typography variant="body2" color="text.secondary">{trUi("\n                      Job ")}{activeTransaction.jobId || '—'}{trUi(" · Station ")}{activeTransaction.stationCode || trUi("Manual weight")}{trUi(" · Pallet ")}{activeTransaction.palletCode || palletCode || '—'}
                     </Typography>
                   </Box>
 
@@ -564,31 +552,27 @@ export default function CartonItemDetailPage() {
                     value={weightMode}
                     onChange={(_, value) => value && setWeightMode(value)}
                   >
-                    <ToggleButton value={WEIGHT_SOURCE.PLC} disabled={!activeTransaction.stationCode}><ScaleOutlined sx={{ mr: 0.5 }} /> PLC automatic</ToggleButton>
-                    <ToggleButton value={WEIGHT_SOURCE.MANUAL}><KeyboardOutlined sx={{ mr: 0.5 }} /> Manual weight</ToggleButton>
+                    <ToggleButton value={WEIGHT_SOURCE.PLC} disabled={!activeTransaction.stationCode}><ScaleOutlined sx={{ mr: 0.5 }} />{trUi(" PLC automatic")}</ToggleButton>
+                    <ToggleButton value={WEIGHT_SOURCE.MANUAL}><KeyboardOutlined sx={{ mr: 0.5 }} />{trUi(" Manual weight")}</ToggleButton>
                   </ToggleButtonGroup>
                 </Stack>
 
                 {weightMode === WEIGHT_SOURCE.PLC && activeTransaction.stationCode && (
-                  <Alert severity="info">
-                    Waiting for PLC to send a stable weight for Job {activeTransaction.jobId}. The page checks the result automatically.
-                  </Alert>
+                  <Alert severity="info">{trUi("\n                    Waiting for PLC to send a stable weight for Job ")}{activeTransaction.jobId}{trUi(". The page checks the result automatically.\n                  ")}</Alert>
                 )}
 
                 {!activeTransaction.stationCode && (
-                  <Alert severity="warning">
-                    This carton has no Scale Station. PLC input is unavailable; enter the actual weight manually below.
-                  </Alert>
+                  <Alert severity="warning">{trUi("\n                    This carton has no Scale Station. PLC input is unavailable; enter the actual weight manually below.\n                  ")}</Alert>
                 )}
 
                 {weightMode === WEIGHT_SOURCE.MANUAL && (
                   <Box sx={{ p: { xs: 1.25, md: 1.5 }, borderRadius: '4px', bgcolor: '#FFFFFF', border: '1px solid #BAE6FD' }}>
-                    <Typography sx={{ mb: 1.1, fontWeight: 950, color: '#103B5C' }}>Manual weight entry</Typography>
+                    <Typography sx={{ mb: 1.1, fontWeight: 950, color: '#103B5C' }}>{trUi("Manual weight entry")}</Typography>
                     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.1} alignItems="stretch">
                       <TextField
                         autoFocus
                         type="number"
-                        label="Actual Weight (kg)"
+                        label={trUi("Actual Weight (kg)")}
                         value={manualWeight}
                         onChange={(event) => setManualWeight(event.target.value)}
                         onKeyDown={(event) => {
@@ -605,10 +589,10 @@ export default function CartonItemDetailPage() {
                       />
                       <TextField
                         fullWidth
-                        label="Reason (optional)"
+                        label={trUi("Reason (optional)")}
                         value={manualReason}
                         onChange={(event) => setManualReason(event.target.value)}
-                        placeholder="Example: PLC unavailable / test weight"
+                        placeholder={trUi("Example: PLC unavailable / test weight")}
                         sx={{ '& .MuiInputBase-root': { minHeight: 56 } }}
                       />
                       <Button
@@ -620,24 +604,18 @@ export default function CartonItemDetailPage() {
                         disabled={weightSubmitting || !manualWeight}
                         sx={{ minWidth: { xs: '100%', lg: 210 }, minHeight: 56, textTransform: 'none', fontWeight: 950 }}
                       >
-                        {weightSubmitting ? 'Saving...' : 'Confirm Weight'}
+                        {weightSubmitting ? 'Saving...' : trUi("Confirm Weight")}
                       </Button>
                     </Stack>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
-                      Confirming the weight completes only this carton. Scan the next carton's assigned Factory Barcode for the next job.
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>{trUi("\n                      Confirming the weight completes only this carton. Scan the next carton's assigned Factory Barcode for the next job.\n                    ")}</Typography>
                   </Box>
                 )}
               </Stack>
             </Paper>
           ) : activeTransaction ? (
-            <Alert severity="success" icon={<CheckCircleOutline />}>
-              Carton #{activeTransaction.cartonNumber ?? activeTransaction.cartonSequence} is completed at {kg(activeTransaction.weightKg)}. The station is ready; scan the next carton's assigned Factory Barcode.
-            </Alert>
+            <Alert severity="success" icon={<CheckCircleOutline />}>{trUi("\n              Carton #")}{activeTransaction.cartonNumber ?? activeTransaction.cartonSequence}{trUi(" is completed at ")}{kg(activeTransaction.weightKg)}{trUi(". The station is ready; scan the next carton's assigned Factory Barcode.\n            ")}</Alert>
           ) : (
-            <Alert severity="info">
-              Ready to scan an assigned Factory Barcode. Each code identifies one exact physical carton; the system never selects the next carton by sequence.
-            </Alert>
+            <Alert severity="info">{trUi("\n              Ready to scan an assigned Factory Barcode. Each code identifies one exact physical carton; the system never selects the next carton by sequence.\n            ")}</Alert>
           )}
         </Stack>
       </Paper>
@@ -647,18 +625,18 @@ export default function CartonItemDetailPage() {
           <Box sx={{ flex: 1 }}>
             <TableFilterBar
               fields={[
-                { key: 'factoryBarcode', label: 'Factory Barcode' },
-                { key: 'itemKey', label: 'Item Key' },
-                { key: 'poNumber', label: 'PO No.' },
-                { key: 'articleNumber', label: 'Article' },
-                { key: 'status', label: 'Status', options: [
-                  { value: BARCODE_CARTON_STATUS.PLANNED, label: 'Not scanned' },
-                  { value: BARCODE_CARTON_STATUS.WAITING_WEIGHT, label: 'Waiting for weight' },
-                  { value: BARCODE_CARTON_STATUS.COMPLETED, label: 'Completed' },
-                  { value: BARCODE_CARTON_STATUS.WEIGHT_WARNING, label: 'Weight warning' },
-                  { value: SCALE_WEIGHT_STATUS.UNDER, label: 'Underweight' },
-                  { value: SCALE_WEIGHT_STATUS.OVER, label: 'Overweight' },
-                  { value: SCALE_WEIGHT_STATUS.OK, label: 'OK' }
+                { key: 'factoryBarcode', label: trUi("Factory Barcode") },
+                { key: 'itemKey', label: trUi("Item Key") },
+                { key: 'poNumber', label: trUi("PO No.") },
+                { key: 'articleNumber', label: trUi("Article") },
+                { key: 'status', label: trUi("Status"), options: [
+                  { value: BARCODE_CARTON_STATUS.PLANNED, label: trUi("Not scanned") },
+                  { value: BARCODE_CARTON_STATUS.WAITING_WEIGHT, label: trUi("Waiting for weight") },
+                  { value: BARCODE_CARTON_STATUS.COMPLETED, label: trUi("Completed") },
+                  { value: BARCODE_CARTON_STATUS.WEIGHT_WARNING, label: trUi("Weight warning") },
+                  { value: SCALE_WEIGHT_STATUS.UNDER, label: trUi("Underweight") },
+                  { value: SCALE_WEIGHT_STATUS.OVER, label: trUi("Overweight") },
+                  { value: SCALE_WEIGHT_STATUS.OK, label: trUi("OK") }
                 ] }
               ]}
               values={filters}
@@ -667,9 +645,7 @@ export default function CartonItemDetailPage() {
             />
           </Box>
           <Box sx={{ flex: 1 }} />
-          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800 }}>
-            Showing {filtered.length.toLocaleString(FORMAT_LOCALE.EN_US)} of {rows.length.toLocaleString(FORMAT_LOCALE.EN_US)} cartons
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800 }}>{trUi("\n            Showing ")}{filtered.length.toLocaleString(FORMAT_LOCALE.EN_US)} of {rows.length.toLocaleString(FORMAT_LOCALE.EN_US)}{trUi(" cartons\n          ")}</Typography>
         </Stack>
       </Paper>
 
@@ -704,40 +680,36 @@ export default function CartonItemDetailPage() {
                   >
                     <TableCell sx={{ fontWeight: 950, whiteSpace: 'nowrap' }}>
                       #{row.cartonSequence ?? row.itemSequence ?? '—'}
-                      {isActive && <Chip size="small" label="Current" color="info" sx={{ ml: 0.8 }} />}
+                      {isActive && <Chip size="small" label={trUi("Current")} color="info" sx={{ ml: 0.8 }} />}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900 }}>{row.cartonNumber ?? '—'}</TableCell>
                     <TableCell sx={{ fontWeight: 900 }}>{row.cartonPcs ?? row.qtyPerCarton ?? '—'}</TableCell>
                     <TableCell sx={{ fontWeight: row.factoryBarcode ? 950 : 400, whiteSpace: 'nowrap', color: row.factoryBarcode ? 'success.dark' : 'text.secondary' }}>{row.factoryBarcode || 'Unassigned'}</TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#103B5C', whiteSpace: 'nowrap' }}>{row.itemKey || row.cartonCode || '—'}</TableCell>
-                    <TableCell><Chip size="small" label={scan.label} color={scan.color} variant="outlined" /></TableCell>
+                    <TableCell><Chip size="small" label={trUi(scan.label)} color={scan.color} variant="outlined" /></TableCell>
                     <TableCell>{kg(row.expectedWeightKg)}</TableCell>
                     <TableCell sx={{ fontWeight: row.weightKg != null ? 950 : 400 }}>{kg(row.weightKg)}</TableCell>
                     <TableCell>{row.weightDifferenceKg == null ? '—' : kg(row.weightDifferenceKg)}</TableCell>
-                    <TableCell><Chip size="small" label={weight.label} color={weight.color} /></TableCell>
+                    <TableCell><Chip size="small" label={trUi(weight.label)} color={weight.color} /></TableCell>
                     <TableCell>{row.weightSource || '—'}</TableCell>
                     <TableCell>{row.stationCode || '—'}</TableCell>
                     <TableCell>{row.weighedBy || row.scannedBy || '—'}</TableCell>
                   </TableRow>
                 );
               }) : (
-                <TableRow><TableCell colSpan={13} align="center" sx={{ py: 8, color: 'text.secondary' }}>No matching data.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} align="center" sx={{ py: 8, color: 'text.secondary' }}>{trUi("No matching data.")}</TableCell></TableRow>
               )}
             </TableBody>
           </SortableTable>
         </StandardTableViewport>
         <Box sx={{ p: 1.25, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-          <Typography variant="caption" color="text.secondary">
-            The Factory Barcode is a one-to-one carton ID. The backend opens only the carton mapped to the scanned code; it never chooses another carton by sequence.
-          </Typography>
-          <Typography variant="caption" fontWeight={850}>{filtered.length.toLocaleString(FORMAT_LOCALE.EN_US)} rows</Typography>
+          <Typography variant="caption" color="text.secondary">{trUi("\n            The Factory Barcode is a one-to-one carton ID. The backend opens only the carton mapped to the scanned code; it never chooses another carton by sequence.\n          ")}</Typography>
+          <Typography variant="caption" fontWeight={850}>{filtered.length.toLocaleString(FORMAT_LOCALE.EN_US)}{trUi(" rows")}</Typography>
         </Box>
       </Paper>
 
       {warnings > 0 && (
-        <Alert severity="warning" icon={<WarningAmberOutlined />} sx={{ mt: 1.25 }}>
-          This item has {warnings} carton weight warning(s). Review the expected weight and tolerance.
-        </Alert>
+        <Alert severity="warning" icon={<WarningAmberOutlined />} sx={{ mt: 1.25 }}>{trUi("\n          This item has ")}{warnings}{trUi(" carton weight warning(s). Review the expected weight and tolerance.\n        ")}</Alert>
       )}
     </Box>
   );

@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import { BARCODE_CARTON_STATUS, SCALE_WEIGHT_STATUS, LOOKUP_PAGE_SIZE, WEIGHT_SOURCE, PROGRESS_STATUS, DEFAULT_PALLET_CODE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -88,6 +89,8 @@ function StatCard({ label, value, icon, color = 'primary.main' }) {
 }
 
 function MasterItemCard({ item, selected, disabled, onClick }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const done = Number(item.completedCartons || 0);
   const total = Number(item.plannedCartons || 0);
   return (
@@ -105,13 +108,12 @@ function MasterItemCard({ item, selected, disabled, onClick }) {
           <Stack spacing={0.8}>
             <Stack direction="row" justifyContent="space-between" spacing={1}>
               <Box minWidth={0}>
-                <Typography fontWeight={950} color="primary.main">Article {item.articleNumber || '—'}</Typography>
-                <Typography variant="body2" fontWeight={800} noWrap>Size {item.size || '—'} · {item.color || '—'}</Typography>
+                <Typography fontWeight={950} color="primary.main">{trUi("Article ")}{item.articleNumber || '—'}</Typography>
+                <Typography variant="body2" fontWeight={800} noWrap>{trUi("Size ")}{item.size || '—'} · {item.color || '—'}</Typography>
               </Box>
               <Chip size="small" color={done >= total && total > 0 ? 'success' : 'primary'} label={`${done}/${total}`} />
             </Stack>
-            <Typography variant="caption" color="text.secondary">
-              Supplier {item.supplierNumber || '—'} · PO {item.poNumber || '—'} · Qty {item.qtyPerCarton ?? '—'} · Remaining {Number(item.notScannedCartons || 0)}
+            <Typography variant="caption" color="text.secondary">{trUi("\n              Supplier ")}{item.supplierNumber || '—'}{trUi(" · PO ")}{item.poNumber || '—'}{trUi(" · Qty ")}{item.qtyPerCarton ?? '—'}{trUi(" · Remaining ")}{Number(item.notScannedCartons || 0)}
             </Typography>
             <Typography variant="caption" color="primary.main" fontWeight={800} noWrap>
               {item.firstItemKey || '—'} → {item.lastItemKey || '—'}
@@ -124,6 +126,8 @@ function MasterItemCard({ item, selected, disabled, onClick }) {
 }
 
 function ChildCartonCard({ carton, disabled, onClick }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const status = statusMeta(carton.status);
   const weight = weightMeta(carton.weightStatus);
   const canSelect = carton.status === BARCODE_CARTON_STATUS.PLANNED && !disabled;
@@ -141,27 +145,26 @@ function ChildCartonCard({ carton, disabled, onClick }) {
         <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
           <Stack spacing={0.7}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={0.5}>
-              <Typography variant="h5" fontWeight={950}>No. {carton.cartonSequence ?? carton.itemSequence}</Typography>
-              <Chip size="small" label={status.label} color={status.color} />
+              <Typography variant="h5" fontWeight={950}>{trUi("No. ")}{carton.cartonSequence ?? carton.itemSequence}</Typography>
+              <Chip size="small" label={trUi(status.label)} color={status.color} />
             </Stack>
             <Typography variant="caption" color="text.secondary">
               {carton.itemKey || carton.cartonCode || '—'}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              No. {carton.cartonSequence ?? carton.itemSequence}/{carton.plannedCartons ?? carton.itemTotal} · {carton.cartonPcs ?? carton.qtyPerCarton ?? '—'} PCS
+            <Typography variant="caption" color="text.secondary">{trUi("\n              No. ")}{carton.cartonSequence ?? carton.itemSequence}/{carton.plannedCartons ?? carton.itemTotal} · {carton.cartonPcs ?? carton.qtyPerCarton ?? '—'} PCS
             </Typography>
             {carton.weightKg != null && (
               <Box>
                 <Typography fontWeight={950} color="success.main">{formatWeight(carton.weightKg)}</Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" label={weight.label} color={weight.color} />
-                  <Typography variant="caption" color="text.secondary">Source: {source === WEIGHT_SOURCE.MANUAL ? 'Manual' : 'PLC'}</Typography>
+                  <Chip size="small" label={trUi(weight.label)} color={weight.color} />
+                  <Typography variant="caption" color="text.secondary">{trUi("Source: ")}{source === WEIGHT_SOURCE.MANUAL ? 'Manual' : 'PLC'}</Typography>
                 </Stack>
-                {carton.expectedWeightKg != null && <Typography variant="caption" color="text.secondary">Standard {formatWeight(carton.expectedWeightKg)} · Difference {formatWeight(carton.weightDifferenceKg)}</Typography>}
+                {carton.expectedWeightKg != null && <Typography variant="caption" color="text.secondary">{trUi("Standard ")}{formatWeight(carton.expectedWeightKg)}{trUi(" · Difference ")}{formatWeight(carton.weightDifferenceKg)}</Typography>}
               </Box>
             )}
-            {carton.status === BARCODE_CARTON_STATUS.PLANNED && <Typography variant="caption" fontWeight={800} color="primary.main">Tap to scan/weigh</Typography>}
-            {carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT && <Typography variant="caption" color="warning.main">Job {carton.jobId}</Typography>}
+            {carton.status === BARCODE_CARTON_STATUS.PLANNED && <Typography variant="caption" fontWeight={800} color="primary.main">{trUi("Tap to scan/weigh")}</Typography>}
+            {carton.status === BARCODE_CARTON_STATUS.WAITING_WEIGHT && <Typography variant="caption" color="warning.main">{trUi("Job ")}{carton.jobId}</Typography>}
           </Stack>
         </CardContent>
       </CardActionArea>
@@ -170,6 +173,8 @@ function ChildCartonCard({ carton, disabled, onClick }) {
 }
 
 export default function CartonLoadingMobilePage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const buyer = getActiveBuyer();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -385,7 +390,7 @@ export default function CartonLoadingMobilePage() {
           await refreshMatchedData();
         }
       } catch (error) {
-        console.error('Unable to poll carton transaction', error);
+        console.error(trUi("Unable to poll carton transaction"), error);
       }
     }, 1000);
     return () => window.clearInterval(timer);
@@ -530,30 +535,30 @@ export default function CartonLoadingMobilePage() {
         <Paper elevation={0} sx={{ p: { xs: 1.3, sm: 2 }, borderRadius: '4px', border: '1px solid', borderColor: 'divider' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} mb={1.3}>
             <Box minWidth={0}>
-              <Typography variant="h4" fontWeight={950}>Item Scan & Weight</Typography>
-              <Typography color="text.secondary" variant="body2">{buyer.label} · Scan the QR to retrieve information, then select a child item by No.</Typography>
+              <Typography variant="h4" fontWeight={950}>{trUi("Item Scan & Weight")}</Typography>
+              <Typography color="text.secondary" variant="body2">{buyer.label}{trUi(" · Scan the QR to retrieve information, then select a child item by No.")}</Typography>
             </Box>
-            <Chip icon={<ScaleOutlinedIcon />} label={selectedStation?.online ? 'PLC Online' : 'PLC Offline'} color={selectedStation?.online ? 'success' : 'default'} />
+            <Chip icon={<ScaleOutlinedIcon />} label={selectedStation?.online ? trUi("PLC Online") : trUi("PLC Offline")} color={selectedStation?.online ? 'success' : 'default'} />
           </Stack>
 
           <Grid container spacing={1}>
             <Grid item xs={12} sm={6}>
-              <TextField select fullWidth size="small" label="Order / WSP" value={orderId} onChange={(event) => setOrderId(event.target.value)} disabled={waiting || busy}>
+              <TextField select fullWidth size="small" label={trUi("Order / WSP")} value={orderId} onChange={(event) => setOrderId(event.target.value)} disabled={waiting || busy}>
                 {orders.map((order) => <MenuItem key={order.id} value={order.id}>{order.orderName}</MenuItem>)}
               </TextField>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <TextField select fullWidth size="small" label="Scale Station" value={stationCode} onChange={(event) => setStationCode(event.target.value)} disabled={waiting || busy}>
+              <TextField select fullWidth size="small" label={trUi("Scale Station")} value={stationCode} onChange={(event) => setStationCode(event.target.value)} disabled={waiting || busy}>
                 {stations.map((station) => <MenuItem key={station.stationCode} value={station.stationCode}>{station.stationCode}</MenuItem>)}
               </TextField>
             </Grid>
             <Grid item xs={6} sm={3}>
-              <TextField fullWidth size="small" label="Pallet/Location" value={palletCode} onChange={(event) => setPalletCode(event.target.value)} disabled={waiting || busy} placeholder={DEFAULT_PALLET_CODE} InputProps={{ startAdornment: <WarehouseOutlinedIcon sx={{ mr: 1, color: 'text.secondary' }} /> }} />
+              <TextField fullWidth size="small" label={trUi("Pallet/Location")} value={palletCode} onChange={(event) => setPalletCode(event.target.value)} disabled={waiting || busy} placeholder={DEFAULT_PALLET_CODE} InputProps={{ startAdornment: <WarehouseOutlinedIcon sx={{ mr: 1, color: 'text.secondary' }} /> }} />
             </Grid>
           </Grid>
 
           <Divider sx={{ my: 1.3 }} />
-          <Typography variant="caption" color="text.secondary" fontWeight={800}>WEIGHT INPUT MODE</Typography>
+          <Typography variant="caption" color="text.secondary" fontWeight={800}>{trUi("WEIGHT INPUT MODE")}</Typography>
           <ToggleButtonGroup
             fullWidth
             exclusive
@@ -562,20 +567,20 @@ export default function CartonLoadingMobilePage() {
             disabled={waiting || busy}
             sx={{ mt: 0.7 }}
           >
-            <ToggleButton value={WEIGHT_SOURCE.PLC} sx={{ py: 1, fontWeight: 900 }}><ScaleOutlinedIcon sx={{ mr: 0.7 }} /> PLC (default)</ToggleButton>
-            <ToggleButton value={WEIGHT_SOURCE.MANUAL} sx={{ py: 1, fontWeight: 900 }}><KeyboardOutlinedIcon sx={{ mr: 0.7 }} /> Manual</ToggleButton>
+            <ToggleButton value={WEIGHT_SOURCE.PLC} sx={{ py: 1, fontWeight: 900 }}><ScaleOutlinedIcon sx={{ mr: 0.7 }} />{trUi(" PLC (default)")}</ToggleButton>
+            <ToggleButton value={WEIGHT_SOURCE.MANUAL} sx={{ py: 1, fontWeight: 900 }}><KeyboardOutlinedIcon sx={{ mr: 0.7 }} />{trUi(" Manual")}</ToggleButton>
           </ToggleButtonGroup>
         </Paper>
 
         {progress && (
           <Paper variant="outlined" sx={{ p: 1.2, borderRadius: '4px' }}>
             <Grid container spacing={0.8}>
-              <Grid item xs={4}><StatCard label="Planned" value={progress.plannedCartons} icon={<Inventory2OutlinedIcon />} /></Grid>
-              <Grid item xs={4}><StatCard label="Weighed" value={(progress.completedCartons || 0) + (progress.warningCartons || 0)} icon={<CheckCircleOutlineOutlinedIcon />} color="success.main" /></Grid>
-              <Grid item xs={4}><StatCard label="Remaining" value={progress.remainingCartons} icon={<RefreshOutlinedIcon />} color="warning.main" /></Grid>
+              <Grid item xs={4}><StatCard label={trUi("Planned")} value={progress.plannedCartons} icon={<Inventory2OutlinedIcon />} /></Grid>
+              <Grid item xs={4}><StatCard label={trUi("Weighed")} value={(progress.completedCartons || 0) + (progress.warningCartons || 0)} icon={<CheckCircleOutlineOutlinedIcon />} color="success.main" /></Grid>
+              <Grid item xs={4}><StatCard label={trUi("Remaining")} value={progress.remainingCartons} icon={<RefreshOutlinedIcon />} color="warning.main" /></Grid>
             </Grid>
             <Box mt={1}>
-              <Stack direction="row" justifyContent="space-between"><Typography variant="caption">Progress</Typography><Typography variant="caption" fontWeight={900}>{percent.toFixed(1)}%</Typography></Stack>
+              <Stack direction="row" justifyContent="space-between"><Typography variant="caption">{trUi("Progress")}</Typography><Typography variant="caption" fontWeight={900}>{percent.toFixed(1)}%</Typography></Stack>
               <LinearProgress variant="determinate" value={percent} sx={{ mt: 0.4, height: 8, borderRadius: '4px' }} />
             </Box>
           </Paper>
@@ -587,13 +592,13 @@ export default function CartonLoadingMobilePage() {
               <Stack spacing={1.2} alignItems="center" textAlign="center">
                 <ScaleOutlinedIcon color="warning" sx={{ fontSize: 52 }} />
                 <Box>
-                  <Typography variant="h4" fontWeight={950}>Waiting for PLC</Typography>
-                  <Typography>{transaction.itemKey || transaction.cartonCode} · Job {transaction.jobId}</Typography>
-                  <Typography color="text.secondary">Article {transaction.articleNumber} · Station {transaction.stationCode}</Typography>
+                  <Typography variant="h4" fontWeight={950}>{trUi("Waiting for PLC")}</Typography>
+                  <Typography>{transaction.itemKey || transaction.cartonCode}{trUi(" · Job ")}{transaction.jobId}</Typography>
+                  <Typography color="text.secondary">{trUi("Article ")}{transaction.articleNumber}{trUi(" · Station ")}{transaction.stationCode}</Typography>
                 </Box>
                 <Alert severity="warning" sx={{ width: '100%' }}>{APP_MESSAGES.PLACE_ITEM_ON_SCALE}</Alert>
                 <LinearProgress sx={{ width: '100%', height: 8, borderRadius: '4px' }} />
-                <Button variant="outlined" startIcon={<KeyboardOutlinedIcon />} onClick={openWaitingManual}>PLC unavailable — switch to manual entry</Button>
+                <Button variant="outlined" startIcon={<KeyboardOutlinedIcon />} onClick={openWaitingManual}>{trUi("PLC unavailable — switch to manual entry")}</Button>
               </Stack>
             </CardContent>
           </Card>
@@ -604,14 +609,14 @@ export default function CartonLoadingMobilePage() {
             <CardContent>
               <Stack spacing={1} alignItems="center" textAlign="center">
                 <CheckCircleOutlineOutlinedIcon color="success" sx={{ fontSize: 54 }} />
-                <Typography variant="h4" fontWeight={950}>Completed {transaction.itemKey || transaction.cartonCode}</Typography>
+                <Typography variant="h4" fontWeight={950}>{trUi("Completed ")}{transaction.itemKey || transaction.cartonCode}</Typography>
                 <Typography variant="h2" color="success.main" fontWeight={950}>{formatWeight(transaction.weightKg)}</Typography>
                 <Stack direction="row" spacing={0.7}>
-                  <Chip label={`Source: ${transaction.weightSource === WEIGHT_SOURCE.MANUAL || transaction.manualReason ? 'Manual' : 'PLC'}`} color="success" variant="outlined" />
-                  <Chip label={weightMeta(transaction.weightStatus).label} color={weightMeta(transaction.weightStatus).color} />
+                  <Chip label={trUi("Source: {0}", transaction.weightSource === WEIGHT_SOURCE.MANUAL || transaction.manualReason ? trUi("Manual") : 'PLC')} color="success" variant="outlined" />
+                  <Chip label={trUi(weightMeta(transaction.weightStatus).label)} color={weightMeta(transaction.weightStatus).color} />
                 </Stack>
                 {transaction.warningMessage && <Alert severity="warning" sx={{ width: '100%' }}>{transaction.warningMessage}</Alert>}
-                <Button fullWidth variant="contained" onClick={() => setTransaction(null)}>Close Result</Button>
+                <Button fullWidth variant="contained" onClick={() => setTransaction(null)}>{trUi("Close Result")}</Button>
               </Stack>
             </CardContent>
           </Card>
@@ -620,30 +625,30 @@ export default function CartonLoadingMobilePage() {
         <Paper variant="outlined" sx={{ p: 1.3, borderRadius: '4px' }}>
           <Stack spacing={1.1}>
             <Box>
-              <Typography fontWeight={950}>1. Scan QR / Item Code</Typography>
-              <Typography variant="caption" color="text.secondary">The QR is matched by e.s. PO, e.s. Article No., and Quantity. Supplier No. is retrieved from the Order data or additionally validated when included in the QR. Physical cartons 1–N are generated from Master Total ctns; Qty Per Ctn is only the planned quantity inside each carton.</Typography>
+              <Typography fontWeight={950}>{trUi("1. Scan QR / Item Code")}</Typography>
+              <Typography variant="caption" color="text.secondary">{trUi("The QR is matched by e.s. PO, e.s. Article No., and Quantity. Supplier No. is retrieved from the Order data or additionally validated when included in the QR. Physical cartons 1–N are generated from Master Total ctns; Qty Per Ctn is only the planned quantity inside each carton.")}</Typography>
             </Box>
             <TextField
               id="carton-item-barcode"
               fullWidth
-              label="QR / Item Barcode"
+              label={trUi("QR / Item Barcode")}
               value={barcodeInput}
               onChange={(event) => setBarcodeInput(event.target.value)}
               onKeyDown={(event) => { if (event.key === KEYBOARD_KEY.ENTER) { event.preventDefault(); performLookup(barcodeInput); } }}
               disabled={waiting || busy}
-              placeholder="Example 0000000000008589132-0000000040-0001571490-00000000000000000000"
+              placeholder={trUi("Example 0000000000008589132-0000000040-0001571490-00000000000000000000")}
               inputProps={{ autoComplete: 'off', inputMode: 'text' }}
             />
             <Stack direction="row" spacing={1}>
               <Button fullWidth variant="contained" size="large" startIcon={<QrCodeScannerOutlinedIcon />} onClick={() => performLookup(barcodeInput)} disabled={waiting || busy || !barcodeInput.trim()}>
-                {busy ? 'Matching...' : 'Get Item Information'}
+                {busy ? 'Matching...' : trUi("Get Item Information")}
               </Button>
-              <Button variant="outlined" size="large" startIcon={<CameraAltOutlinedIcon />} onClick={startCamera} disabled={waiting || busy}>Camera</Button>
+              <Button variant="outlined" size="large" startIcon={<CameraAltOutlinedIcon />} onClick={startCamera} disabled={waiting || busy}>{trUi("Camera")}</Button>
             </Stack>
             {scannedBarcode && (
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Chip color="success" label={`Scanned: ${scannedBarcode}`} />
-                <Button size="small" onClick={resetScan} disabled={waiting}>Change Code</Button>
+                <Chip color="success" label={trUi("Scanned: {0}", scannedBarcode)} />
+                <Button size="small" onClick={resetScan} disabled={waiting}>{trUi("Change Code")}</Button>
               </Stack>
             )}
           </Stack>
@@ -657,8 +662,8 @@ export default function CartonLoadingMobilePage() {
           <Paper variant="outlined" sx={{ p: 1.3, borderRadius: '4px' }}>
             <Stack spacing={1.1}>
               <Box>
-                <Typography fontWeight={950}>2. Select the Correct Item</Typography>
-                <Typography variant="caption" color="text.secondary">When the same Article appears with multiple Size/Color values, select the item that matches the label.</Typography>
+                <Typography fontWeight={950}>{trUi("2. Select the Correct Item")}</Typography>
+                <Typography variant="caption" color="text.secondary">{trUi("When the same Article appears with multiple Size/Color values, select the item that matches the label.")}</Typography>
               </Box>
               <Grid container spacing={1}>
                 {matchedItems.map((item) => (
@@ -675,9 +680,8 @@ export default function CartonLoadingMobilePage() {
           <Paper variant="outlined" sx={{ p: 1.3, borderRadius: '4px' }}>
             <Stack spacing={1.2}>
               <Box>
-                <Typography fontWeight={950}>3. Select Child Item 1–{selectedItem.plannedCartons}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Article {selectedItem.articleNumber} · Size {selectedItem.size || '—'} · {selectedItem.color || '—'} · Mode {weightMode === WEIGHT_SOURCE.PLC ? 'PLC' : 'Manual'}
+                <Typography fontWeight={950}>{trUi("3. Select Child Item 1–")}{selectedItem.plannedCartons}</Typography>
+                <Typography variant="body2" color="text.secondary">{trUi("\n                  Article ")}{selectedItem.articleNumber}{trUi(" · Size ")}{selectedItem.size || '—'} · {selectedItem.color || '—'}{trUi(" · Mode ")}{weightMode === WEIGHT_SOURCE.PLC ? 'PLC' : 'Manual'}
                 </Typography>
               </Box>
               {childLoading ? <Box textAlign="center" py={3}><CircularProgress /></Box> : (
@@ -696,46 +700,46 @@ export default function CartonLoadingMobilePage() {
       </Stack>
 
       <Dialog open={plcConfirmOpen} onClose={() => !busy && setPlcConfirmOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 950 }}>Confirm Item for PLC</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 950 }}>{trUi("Confirm Item for PLC")}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.2}>
             <Alert severity="info">{createItemAssignedStationMessage(selectedCarton?.itemKey || selectedCarton?.cartonCode, stationCode)}</Alert>
-            <Typography>Article: <strong>{selectedCarton?.articleNumber}</strong></Typography>
-            <Typography>Scanned barcode: <strong>{scannedBarcode}</strong></Typography>
-            <Typography>After confirmation, place the item on the scale and wait for PLC to submit the weight.</Typography>
+            <Typography>{trUi("Article: ")}<strong>{selectedCarton?.articleNumber}</strong></Typography>
+            <Typography>{trUi("Scanned barcode: ")}<strong>{scannedBarcode}</strong></Typography>
+            <Typography>{trUi("After confirmation, place the item on the scale and wait for PLC to submit the weight.")}</Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPlcConfirmOpen(false)} disabled={busy}>Cancel</Button>
-          <Button variant="contained" startIcon={<ScaleOutlinedIcon />} onClick={startPlcJob} disabled={busy}>{busy ? 'Creating Job...' : 'Confirm and Wait for PLC'}</Button>
+          <Button onClick={() => setPlcConfirmOpen(false)} disabled={busy}>{trUi("Cancel")}</Button>
+          <Button variant="contained" startIcon={<ScaleOutlinedIcon />} onClick={startPlcJob} disabled={busy}>{busy ? trUi("Creating Job...") : trUi("Confirm and Wait for PLC")}</Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={manualOpen} onClose={() => !busy && setManualOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontWeight: 950 }}>Enter Weight Manually</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 950 }}>{trUi("Enter Weight Manually")}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.5}>
             <Alert severity="warning">
               {manualContext === PROGRESS_STATUS.WAITING
-                ? `Replace the PLC result for Job ${transaction?.jobId}.`
-                : `Item ${selectedCarton?.itemKey || selectedCarton?.cartonCode} will be completed using the manually entered weight.`}
+                ? trUi("Replace the PLC result for Job {0}.", transaction?.jobId)
+                : trUi("Item {0} will be completed using the manually entered weight.", selectedCarton?.itemKey || selectedCarton?.cartonCode)}
             </Alert>
             <TextField
               autoFocus
               fullWidth
               type="number"
               inputProps={{ step: '0.001', min: '0.001', inputMode: 'decimal' }}
-              label="Weight (kg)"
+              label={trUi("Weight (kg)")}
               value={manualWeight}
               onChange={(event) => setManualWeight(event.target.value)}
             />
-            <TextField fullWidth multiline minRows={2} label="Manual Entry Reason" value={manualReason} onChange={(event) => setManualReason(event.target.value)} />
+            <TextField fullWidth multiline minRows={2} label={trUi("Manual Entry Reason")} value={manualReason} onChange={(event) => setManualReason(event.target.value)} />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setManualOpen(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={() => setManualOpen(false)} disabled={busy}>{trUi("Cancel")}</Button>
           <Button variant="contained" startIcon={<CheckCircleOutlineOutlinedIcon />} onClick={submitManual} disabled={busy || !manualWeight || !manualReason.trim()}>
-            {busy ? 'Saving...' : 'Confirm Weight'}
+            {busy ? 'Saving...' : trUi("Confirm Weight")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -744,7 +748,7 @@ export default function CartonLoadingMobilePage() {
         <Box sx={{ bgcolor: '#000', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.5, color: '#fff' }}>
             <Typography fontWeight={800}>{cameraMessage}</Typography>
-            <Button color="inherit" startIcon={<CloseOutlinedIcon />} onClick={stopCamera}>Close</Button>
+            <Button color="inherit" startIcon={<CloseOutlinedIcon />} onClick={stopCamera}>{trUi("Close")}</Button>
           </Stack>
           <Box sx={{ flex: 1, position: 'relative', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
             <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -754,7 +758,7 @@ export default function CartonLoadingMobilePage() {
       </Dialog>
 
       <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((value) => ({ ...value, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert severity={notice.severity} onClose={() => setNotice((value) => ({ ...value, open: false }))} sx={{ width: '100%' }}>{notice.message}</Alert>
+        <Alert severity={notice.severity} onClose={() => setNotice((value) => ({ ...value, open: false }))} sx={{ width: '100%' }}>{trSystem(notice.message)}</Alert>
       </Snackbar>
     </Box>
   );

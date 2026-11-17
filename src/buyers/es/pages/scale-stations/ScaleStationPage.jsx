@@ -1,33 +1,10 @@
+import { useConfirmAction } from '../../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  Grid,
-  IconButton,
-  Paper,
-  Snackbar,
-  Stack,
-  Switch,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  Tooltip,
-  Typography
-} from '@mui/material';
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, Paper, Snackbar, Stack, Switch, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined';
@@ -40,6 +17,9 @@ import { getApiError } from 'utils/apiError';
 import { createScaleStation, listScaleStations, updateScaleStation } from 'buyers/es/services/cartonLoadingService';
 
 export default function ScaleStationPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -80,6 +60,7 @@ export default function ScaleStationPage() {
   const valid = useMemo(() => Boolean(form.stationCode.trim() && form.stationName.trim()), [form]);
 
   const save = async () => {
+    if (!await confirmAction({ kind: editing?.stationCode ? 'update' : 'create', entity: 'Scale Station', name: editing?.stationCode || '' })) return;
     if (!valid) return;
     setSaving(true);
     try {
@@ -106,25 +87,25 @@ export default function ScaleStationPage() {
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
       <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#fff' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ px: 1, py: 0.75, borderBottom: '1px solid #DCE4EC' }}>
-          <Typography sx={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 650 }}>{rows.length} station(s)</Typography>
+          <Typography sx={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 650 }}>{rows.length}{trUi(" station(s)")}</Typography>
           <Stack direction="row" spacing={0.6}>
-            <Tooltip title="Refresh"><span><IconButton size="small" onClick={load} disabled={loading}><RefreshOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
-            <Button size="small" variant="contained" startIcon={<AddOutlinedIcon />} onClick={openCreate}>Add Station</Button>
+            <Tooltip title={trUi("Refresh")}><span><IconButton size="small" onClick={load} disabled={loading}><RefreshOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+            <Button size="small" variant="contained" startIcon={<AddOutlinedIcon />} onClick={openCreate}>{trUi("Add Station")}</Button>
           </Stack>
         </Stack>
       <StandardTableViewport>
         <SortableTable size="small" rowNumberStart={page * rowsPerPage}>
           <TableHead>
             <TableRow>
-              <TableCell align="center">No.</TableCell>
-              <TableCell>Station Code</TableCell>
-              <TableCell>Station Name</TableCell>
-              <TableCell>Location</TableCell>
-              <TableCell>PLC IP</TableCell>
-              <TableCell>Gateway IP</TableCell>
-              <TableCell>Online</TableCell>
-              <TableCell>Active</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell align="center">{trUi("No.")}</TableCell>
+              <TableCell>{trUi("Station Code")}</TableCell>
+              <TableCell>{trUi("Station Name")}</TableCell>
+              <TableCell>{trUi("Location")}</TableCell>
+              <TableCell>{trUi("PLC IP")}</TableCell>
+              <TableCell>{trUi("Gateway IP")}</TableCell>
+              <TableCell>{trUi("Online")}</TableCell>
+              <TableCell>{trUi("Active")}</TableCell>
+              <TableCell align="right">{trUi("Actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -142,7 +123,7 @@ export default function ScaleStationPage() {
               </TableRow>
             ))}
             {!rows.length && !loading && (
-              <TableRow><TableCell colSpan={9} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>No scale stations are available. Create SCALE-01 first.</Typography></TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} align="center"><Typography color="text.secondary" sx={{ py: 3 }}>{trUi("No scale stations are available. Create SCALE-01 first.")}</Typography></TableCell></TableRow>
             )}
           </TableBody>
         </SortableTable>
@@ -152,43 +133,43 @@ export default function ScaleStationPage() {
       </Paper>
 
       <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{editing ? 'Update Scale Station' : 'Add Scale Station'}</DialogTitle>
+        <DialogTitle>{editing ? trUi("Update Scale Station") : trUi("Add Scale Station")}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0 }}>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Station Code" value={form.stationCode} onChange={(e) => setForm((v) => ({ ...v, stationCode: e.target.value }))} placeholder={DEFAULT_SCALE_STATION} />
+              <TextField fullWidth label={trUi("Station Code")} value={form.stationCode} onChange={(e) => setForm((v) => ({ ...v, stationCode: e.target.value }))} placeholder={DEFAULT_SCALE_STATION} />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Station Name" value={form.stationName} onChange={(e) => setForm((v) => ({ ...v, stationName: e.target.value }))} placeholder="Scale Station 1" />
+              <TextField fullWidth label={trUi("Station Name")} value={form.stationName} onChange={(e) => setForm((v) => ({ ...v, stationName: e.target.value }))} placeholder={trUi("Scale Station 1")} />
             </Grid>
             <Grid item xs={12}>
-              <TextField fullWidth label="Location" value={form.location} onChange={(e) => setForm((v) => ({ ...v, location: e.target.value }))} placeholder="Loading Door 01" />
+              <TextField fullWidth label={trUi("Location")} value={form.location} onChange={(e) => setForm((v) => ({ ...v, location: e.target.value }))} placeholder={trUi("Loading Door 01")} />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="PLC IP" value={form.plcIp} onChange={(e) => setForm((v) => ({ ...v, plcIp: e.target.value }))} placeholder="10.232.132.50" />
+              <TextField fullWidth label={trUi("PLC IP")} value={form.plcIp} onChange={(e) => setForm((v) => ({ ...v, plcIp: e.target.value }))} placeholder="10.232.132.50" />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Gateway IP" value={form.gatewayIp} onChange={(e) => setForm((v) => ({ ...v, gatewayIp: e.target.value }))} placeholder="10.232.132.60" />
+              <TextField fullWidth label={trUi("Gateway IP")} value={form.gatewayIp} onChange={(e) => setForm((v) => ({ ...v, gatewayIp: e.target.value }))} placeholder="10.232.132.60" />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth type="number" inputProps={{ step: '0.01', min: '0.01' }} label="Minimum Weight (kg)" value={form.minimumWeightKg} onChange={(e) => setForm((v) => ({ ...v, minimumWeightKg: e.target.value }))} />
+              <TextField fullWidth type="number" inputProps={{ step: '0.01', min: '0.01' }} label={trUi("Minimum Weight (kg)")} value={form.minimumWeightKg} onChange={(e) => setForm((v) => ({ ...v, minimumWeightKg: e.target.value }))} />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth type="number" inputProps={{ step: '0.01', min: '0.001' }} label="Stability Tolerance (kg)" value={form.stabilityToleranceKg} onChange={(e) => setForm((v) => ({ ...v, stabilityToleranceKg: e.target.value }))} />
+              <TextField fullWidth type="number" inputProps={{ step: '0.01', min: '0.001' }} label={trUi("Stability Tolerance (kg)")} value={form.stabilityToleranceKg} onChange={(e) => setForm((v) => ({ ...v, stabilityToleranceKg: e.target.value }))} />
             </Grid>
             <Grid item xs={12}>
-              <FormControlLabel control={<Switch checked={form.active} onChange={(e) => setForm((v) => ({ ...v, active: e.target.checked }))} />} label="Allow Station Use" />
+              <FormControlLabel control={<Switch checked={form.active} onChange={(e) => setForm((v) => ({ ...v, active: e.target.checked }))} />} label={trUi("Allow Station Use")} />
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={() => setDialogOpen(false)} disabled={saving}>{trUi("Cancel")}</Button>
           <Button variant="contained" onClick={save} disabled={!valid || saving}>{saving ? 'Saving...' : 'Save'}</Button>
         </DialogActions>
       </Dialog>
 
       <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((v) => ({ ...v, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert severity={notice.severity} onClose={() => setNotice((v) => ({ ...v, open: false }))}>{notice.message}</Alert>
+        <Alert severity={notice.severity} onClose={() => setNotice((v) => ({ ...v, open: false }))}>{trSystem(notice.message)}</Alert>
       </Snackbar>
     </Box>
   );

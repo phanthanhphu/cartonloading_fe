@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import { FORMAT_LOCALE } from '../../../constants/appConstants';
 import { Box, LinearProgress, Stack, Tooltip, Typography } from '@mui/material';
 
@@ -12,13 +13,14 @@ const fmt = (value) => Math.round(asQty(value)).toLocaleString(FORMAT_LOCALE.EN_
  * Does not change the business PASS logic, the ALL_BP carton plan or EPC validation.
  */
 export default function PoInspectionProgressCell({ row, metric = null }) {
+  const trUi = useT();
   const inspection = row?.inspectionProgress;
   const finalCount = row?.completedCartons;
   // Avoid showing misleading zeros when the browser has been updated but the API has not.
   if (!inspection || finalCount === null || finalCount === undefined) {
     return (
-      <Tooltip title="Inspection counters unavailable. Deploy the updated backend together with the frontend.">
-        <Typography variant="caption" color="text.secondary">Progress unavailable</Typography>
+      <Tooltip title={trUi("Inspection counters unavailable. Deploy the updated backend together with the frontend.")}>
+        <Typography variant="caption" color="text.secondary">{trUi("Progress unavailable")}</Typography>
       </Tooltip>
     );
   }
@@ -27,15 +29,15 @@ export default function PoInspectionProgressCell({ row, metric = null }) {
   const lines = [
     {
       key: 'cartons', name: 'Cartons', passed: asQty(finalCount), failed: null,
-      title: 'Cartons completed: current RFID PASS and Weight PASS for the same carton.'
+      title: trUi("Cartons completed: current RFID PASS and Weight PASS for the same carton.")
     },
     {
       key: 'rfid', name: 'RFID', passed: asQty(inspection.rfidPassedCartons),
-      failed: asQty(inspection.rfidFailedCartons), title: 'Cartons with RFID PASS.'
+      failed: asQty(inspection.rfidFailedCartons), title: trUi("Cartons with RFID PASS.")
     },
     {
       key: 'weight', name: 'Weight', passed: asQty(inspection.weightPassedCartons),
-      failed: asQty(inspection.weightFailedCartons), title: 'Cartons with Weight PASS.'
+      failed: asQty(inspection.weightFailedCartons), title: trUi("Cartons with Weight PASS.")
     }
   ];
 
@@ -67,7 +69,7 @@ export default function PoInspectionProgressCell({ row, metric = null }) {
                 variant="determinate"
                 value={planned > 0 ? Math.min(100, (passed / planned) * 100) : 0}
                 color={color === 'inherit' ? 'primary' : color}
-                aria-label={`${name}: ${fmt(passed)} of ${fmt(planned)} cartons passed`}
+                aria-label={trUi("{0}: {1} of {2} cartons passed", name, fmt(passed), fmt(planned))}
                 sx={{ height: 4, borderRadius: '4px', bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { borderRadius: '4px' } }}
               />
             </Box>

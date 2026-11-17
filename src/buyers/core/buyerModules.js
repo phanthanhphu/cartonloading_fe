@@ -42,3 +42,9 @@ export const getBuyerAccessLandingPath = (buyer) => {
 export const getBuyerMenuEntries = (buyer) => getBuyerModule(buyer)?.menu(buyer).filter((entry) => entry.access?.() !== false) || [];
 export const getBuyerWorkflowEntries = (buyer) => getBuyerModule(buyer)?.workflow(buyer) || [];
 export const buyerCapability = (buyer, capability) => Boolean(getBuyerModule(buyer)?.capabilities?.[capability]);
+
+/** Order UI dispatch metadata belongs to the registered Buyer module, not Buyer names. */
+export const getBuyerOrderWorkspace = (buyer) => getBuyerModule(buyer)?.orderWorkspace || null;
+
+/** Optional Carton processing extension registered by each Buyer module. */
+export const getBuyerCartonWorkspace = (buyer) => getBuyerModule(buyer)?.cartonWorkspace || null;

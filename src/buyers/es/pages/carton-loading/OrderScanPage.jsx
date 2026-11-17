@@ -1,31 +1,12 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import { BARCODE_CARTON_STATUS, INSPECTION_RESULT, PROGRESS_STATUS, DEFAULT_TABLE_PAGE_SIZE, DEFAULT_PALLET_CODE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  Typography
-} from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, FormControl, InputLabel, MenuItem, Paper, Select, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import {
   ArrowBackOutlined,
   CheckCircleOutlineOutlined,
@@ -62,6 +43,8 @@ const writeStorage = (key, value) => {
 };
 
 export default function OrderScanPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId } = useParams();
   const navigate = useNavigate();
   const buyer = getBuyerBySlug(buyerSlug);
@@ -187,6 +170,8 @@ export default function OrderScanPage() {
   };
 
   const ResultTable = ({ type, rows, total, page, rowsPerPage, onPageChange, onRowsPerPageChange }) => {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
     const isPass = type === INSPECTION_RESULT.PASS;
     const tone = isPass ? '#15803D' : '#DC2626';
     const soft = isPass ? '#F0FDF4' : '#FEF2F2';
@@ -196,28 +181,28 @@ export default function OrderScanPage() {
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ px: 1.5, py: 1.05, bgcolor: soft, borderBottom: `1px solid ${isPass ? '#BBF7D0' : '#FECACA'}` }}>
           <Stack direction="row" spacing={0.8} alignItems="center">
             <Icon sx={{ color: tone, fontSize: 21 }} />
-            <Typography sx={{ color: tone, fontWeight: 900, fontSize: '0.9rem' }}>{isPass ? 'PASS CARTONS' : 'FAIL CARTONS'}</Typography>
+            <Typography sx={{ color: tone, fontWeight: 900, fontSize: '0.9rem' }}>{isPass ? trUi("PASS CARTONS") : trUi("FAIL CARTONS")}</Typography>
           </Stack>
-          <Typography sx={{ color: tone, fontWeight: 900, fontSize: '0.82rem' }}>TOTAL {Number(total || 0).toLocaleString()}</Typography>
+          <Typography sx={{ color: tone, fontWeight: 900, fontSize: '0.82rem' }}>{trUi("TOTAL ")}{Number(total || 0).toLocaleString()}</Typography>
         </Stack>
         <StandardTableViewport>
           <SortableTable disableRowNumber stickyHeader size="small" sx={{ minWidth: 820, '& th, & td': { border: '1px solid #E2E8F0', px: 0.8, py: 0.65, fontSize: '0.69rem' }, '& th': { bgcolor: '#F8FAFC', color: '#40566E', fontWeight: 800 } }}>
             <TableHead>
               <TableRow>
-                <TableCell align="center" sx={{ width: 45 }}>No.</TableCell>
-                <TableCell>Carton</TableCell>
-                <TableCell>Barcode</TableCell>
-                <TableCell>Style</TableCell>
-                <TableCell>Color</TableCell>
-                <TableCell align="right">Qty</TableCell>
-                <TableCell align="right">Expected</TableCell>
-                <TableCell align="right">Actual</TableCell>
-                <TableCell align="right">Difference</TableCell>
+                <TableCell align="center" sx={{ width: 45 }}>{trUi("No.")}</TableCell>
+                <TableCell>{trUi("Carton")}</TableCell>
+                <TableCell>{trUi("Barcode")}</TableCell>
+                <TableCell>{trUi("Style")}</TableCell>
+                <TableCell>{trUi("Color")}</TableCell>
+                <TableCell align="right">{trUi("Qty")}</TableCell>
+                <TableCell align="right">{trUi("Expected")}</TableCell>
+                <TableCell align="right">{trUi("Actual")}</TableCell>
+                <TableCell align="right">{trUi("Difference")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {!rows.length ? (
-                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3.25, color: '#94A3B8', fontWeight: 650 }}>No {type} cartons yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 3.25, color: '#94A3B8', fontWeight: 650 }}>{trUi("No ")}{type}{trUi(" cartons yet.")}</TableCell></TableRow>
               ) : rows.map((row, index) => (
                 <TableRow key={row.id || `${type}-${index}`} sx={{ '&:hover': { bgcolor: soft } }}>
                   <TableCell align="center">{page * rowsPerPage + index + 1}</TableCell>
@@ -245,7 +230,7 @@ export default function OrderScanPage() {
     <Box sx={{ p: { xs: 0.55, md: 0.8 }, width: '100%', maxWidth: 1560, mx: 'auto' }}>
       <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ lg: 'center' }} spacing={0.7} mb={0.75}>
         <Stack direction="row" spacing={0.55} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}`)} sx={{ minWidth: 0, px: 0.7, textTransform: 'none' }}>Back</Button>
+          <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}`)} sx={{ minWidth: 0, px: 0.7, textTransform: 'none' }}>{trUi("Back")}</Button>
           <Typography sx={{ fontSize: '0.83rem', fontWeight: 800, color: '#173B63' }}>{order?.orderName || 'Order'}</Typography>
         </Stack>
         <Stack direction="row" spacing={0.45} flexWrap="wrap" useFlexGap>
@@ -267,14 +252,10 @@ export default function OrderScanPage() {
         <Paper variant="outlined" sx={{ py: 8, textAlign: 'center', borderRadius: '4px' }}><CircularProgress /></Paper>
       ) : !weightStageReady ? (
         <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px' }}>
-          <Alert severity="warning" sx={{ py: 0.25, '& .MuiAlert-message': { py: 0.35, fontSize: '0.78rem' } }}>
-            Weight Check is available only after Barcode Assignment reaches 100%.
-          </Alert>
+          <Alert severity="warning" sx={{ py: 0.25, '& .MuiAlert-message': { py: 0.35, fontSize: '0.78rem' } }}>{trUi("\n            Weight Check is available only after Barcode Assignment reaches 100%.\n          ")}</Alert>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1} sx={{ mt: 1.1 }}>
-            <Typography sx={{ color: '#173B63', fontWeight: 800, fontSize: '0.8rem' }}>
-              Assignment: {Number(order?.assignedCartonCount || 0).toLocaleString()} / {planned.toLocaleString()} cartons
-            </Typography>
-            <Button size="small" variant="contained" onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}`)} sx={{ textTransform: 'none' }}>Back to Order</Button>
+            <Typography sx={{ color: '#173B63', fontWeight: 800, fontSize: '0.8rem' }}>{trUi("\n              Assignment: ")}{Number(order?.assignedCartonCount || 0).toLocaleString()} / {planned.toLocaleString()}{trUi(" cartons\n            ")}</Typography>
+            <Button size="small" variant="contained" onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}`)} sx={{ textTransform: 'none' }}>{trUi("Back to Order")}</Button>
           </Stack>
         </Paper>
       ) : (
@@ -292,11 +273,11 @@ export default function OrderScanPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={0.7} sx={{ mb: 0.85 }}>
               <Stack direction="row" spacing={0.75} alignItems="center">
                 <QrCodeScannerOutlined sx={{ color: '#103B5C', fontSize: 20 }} />
-                <Typography sx={{ color: '#173B63', fontWeight: 850, fontSize: '0.9rem' }}>Weight Check Operator</Typography>
+                <Typography sx={{ color: '#173B63', fontWeight: 850, fontSize: '0.9rem' }}>{trUi("Weight Check Operator")}</Typography>
               </Stack>
               <Stack direction="row" spacing={0.55} flexWrap="wrap" useFlexGap>
-                {!stationCode && <Chip size="small" icon={<ScaleOutlined />} label="MANUAL MODE" color="info" variant="outlined" sx={{ height: 25, fontWeight: 750 }} />}
-                {!assignmentReady && weightStarted && <Chip size="small" icon={<WarningAmberOutlined />} label="BARCODE CORRECTION ACTIVE" color="warning" variant="outlined" sx={{ height: 25, fontWeight: 750 }} />}
+                {!stationCode && <Chip size="small" icon={<ScaleOutlined />} label={trUi("MANUAL MODE")} color="info" variant="outlined" sx={{ height: 25, fontWeight: 750 }} />}
+                {!assignmentReady && weightStarted && <Chip size="small" icon={<WarningAmberOutlined />} label={trUi("BARCODE CORRECTION ACTIVE")} color="warning" variant="outlined" sx={{ height: 25, fontWeight: 750 }} />}
               </Stack>
             </Stack>
 
@@ -312,21 +293,21 @@ export default function OrderScanPage() {
                   '& .MuiAlert-message': { py: 0.45, fontSize: '0.75rem', fontWeight: 650 }
                 }}
               >
-                {error}
+                {trSystem(error)}
               </Alert>
             )}
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(220px, .85fr) minmax(180px, .65fr) minmax(420px, 2.5fr) auto' }, gap: 0.75, alignItems: 'start' }}>
               <FormControl size="small" fullWidth>
-                <InputLabel id="factory-scan-station-label">Scale Station</InputLabel>
+                <InputLabel id="factory-scan-station-label">{trUi("Scale Station")}</InputLabel>
                 <Select
                   labelId="factory-scan-station-label"
                   value={stationCode}
-                  label="Scale Station"
+                  label={trUi("Scale Station")}
                   onChange={(event) => setStationCode(event.target.value)}
                   sx={{ minHeight: 46, fontWeight: 700 }}
                 >
-                  <MenuItem value=""><em>Manual test — no PLC station</em></MenuItem>
+                  <MenuItem value=""><em>{trUi("Manual test — no PLC station")}</em></MenuItem>
                   {stations.map((station) => (
                     <MenuItem key={station.stationCode} value={station.stationCode}>
                       {station.stationName || station.stationCode} ({station.stationCode})
@@ -337,7 +318,7 @@ export default function OrderScanPage() {
 
               <TextField
                 size="small"
-                label="Pallet / Location"
+                label={trUi("Pallet / Location")}
                 value={palletCode}
                 onChange={(event) => setPalletCode(event.target.value)}
                 placeholder={DEFAULT_PALLET_CODE}
@@ -349,7 +330,7 @@ export default function OrderScanPage() {
                 autoFocus
                 fullWidth
                 size="small"
-                label="Scan Factory Barcode"
+                label={trUi("Scan Factory Barcode")}
                 value={factoryBarcode}
                 onChange={(event) => setFactoryBarcode(event.target.value.replace(/\s/g, ''))}
                 onKeyDown={(event) => {
@@ -360,7 +341,7 @@ export default function OrderScanPage() {
                 }}
                 disabled={submitting || !weightStageReady}
                 autoComplete="off"
-                placeholder="Example: 26002000025429"
+                placeholder={trUi("Example: 26002000025429")}
                 sx={{
                   '& .MuiInputBase-root': { minHeight: 46 },
                   '& input': { fontSize: { xs: '1rem', md: '1.08rem' }, fontWeight: 900, letterSpacing: 0.8, py: 1.1 }
@@ -382,24 +363,18 @@ export default function OrderScanPage() {
                   whiteSpace: 'nowrap'
                 }}
               >
-                {submitting ? 'Identifying...' : 'Identify Carton'}
+                {submitting ? 'Identifying...' : trUi("Identify Carton")}
               </Button>
             </Box>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.6} sx={{ mt: 0.7 }}>
               {!assignmentReady && weightStarted && (
-                <Typography sx={{ color: '#A15C00', fontSize: '0.68rem', fontWeight: 650 }}>
-                  ⚠ Correction active: assigned, unweighed cartons may continue; corrected cartons must be reassigned before scanning.
-                </Typography>
+                <Typography sx={{ color: '#A15C00', fontSize: '0.68rem', fontWeight: 650 }}>{trUi("\n                  ⚠ Correction active: assigned, unweighed cartons may continue; corrected cartons must be reassigned before scanning.\n                ")}</Typography>
               )}
               {!stationCode && (
-                <Typography sx={{ color: '#24758A', fontSize: '0.68rem', fontWeight: 650 }}>
-                  Manual mode: identify by Factory Barcode, then enter actual weight manually.
-                </Typography>
+                <Typography sx={{ color: '#24758A', fontSize: '0.68rem', fontWeight: 650 }}>{trUi("\n                  Manual mode: identify by Factory Barcode, then enter actual weight manually.\n                ")}</Typography>
               )}
-              <Typography sx={{ color: '#7B8CA0', fontSize: '0.68rem', fontWeight: 600, ml: { md: 'auto !important' } }}>
-                Scanner Enter identifies the carton automatically.
-              </Typography>
+              <Typography sx={{ color: '#7B8CA0', fontSize: '0.68rem', fontWeight: 600, ml: { md: 'auto !important' } }}>{trUi("\n                Scanner Enter identifies the carton automatically.\n              ")}</Typography>
             </Stack>
           </Paper>
 

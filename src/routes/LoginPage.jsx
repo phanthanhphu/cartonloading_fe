@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../hooks/useAutoDismissFeedback';
 // src/pages/LoginPage.jsx
 import React, { useEffect, useState } from 'react';
@@ -180,6 +181,8 @@ const persistAuthSession = ({ token, user, role }) => {
 
 
 export default function LoginPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState(() => getSavedLoginDraft(STORAGE_KEY.LOGIN_DRAFT_EMAIL));
@@ -211,7 +214,7 @@ export default function LoginPage() {
     const accountChanged = params.get('accountChanged') === 'true';
     if (!passwordChanged && !accountChanged) return;
     window.history.replaceState(null, '', '/login');
-    if (passwordChanged) toast.success('Password changed successfully. Please sign in with your new password.');
+    if (passwordChanged) toast.success(trUi("Password changed successfully. Please sign in with your new password."));
   }, []);
 
   useEffect(() => {
@@ -264,7 +267,7 @@ export default function LoginPage() {
     if (!cleanEmail || !password || !selectedBuyerCode || !selectedType) {
       const message = APP_MESSAGES.LOGIN_REQUIRED_FIELDS;
       setLoginError(message);
-      toast.error(message);
+      toast.error(trSystem(message));
       return;
     }
 
@@ -292,7 +295,7 @@ export default function LoginPage() {
           clearAuthSession();
           const message = 'Server rejected the selected Buyer / Type context.';
           setLoginError(message);
-          toast.error(message);
+          toast.error(trSystem(message));
           return;
         }
         persistAuthSession({
@@ -307,7 +310,7 @@ export default function LoginPage() {
           clearAuthSession();
           const message = 'Login session Buyer / Type mismatch. Please sign in again.';
           setLoginError(message);
-          toast.error(message);
+          toast.error(trSystem(message));
           return;
         }
         localStorage.setItem(STORAGE_KEY.SELECTED_TYPE, selectedType);
@@ -323,7 +326,7 @@ export default function LoginPage() {
           clearAuthSession();
           const message = APP_MESSAGES.LOGIN_BUYER_ACCESS_DENIED;
           setLoginError(message);
-          toast.error(message);
+          toast.error(trSystem(message));
           return;
         }
 
@@ -332,7 +335,7 @@ export default function LoginPage() {
           clearAuthSession();
           const message = APP_MESSAGES.LOGIN_BUYER_INVALID;
           setLoginError(message);
-          toast.error(message);
+          toast.error(trSystem(message));
           return;
         }
 
@@ -368,12 +371,12 @@ export default function LoginPage() {
       saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_BUYER, selectedBuyerCode);
       saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE, selectedType);
       setLoginError(message);
-      toast.error(message);
+      toast.error(trSystem(message));
     } catch (err) {
       console.error(err);
       const message = APP_MESSAGES.LOGIN_SERVER_UNREACHABLE;
       setLoginError(message);
-      toast.error(message);
+      toast.error(trSystem(message));
     } finally {
       setSubmitting(false);
     }
@@ -478,9 +481,7 @@ export default function LoginPage() {
                   letterSpacing: -1.2,
                   fontWeight: 950
                 }}
-              >
-                Order Scan & Weight
-              </Typography>
+              >{trUi("\n                Order Scan & Weight\n              ")}</Typography>
 
               <Typography
                 sx={{
@@ -489,9 +490,7 @@ export default function LoginPage() {
                   fontWeight: 800,
                   color: '#9DEBD9'
                 }}
-              >
-                Operations Workspace
-              </Typography>
+              >{trUi("\n                Operations Workspace\n              ")}</Typography>
 
               <Typography
                 sx={{
@@ -501,14 +500,10 @@ export default function LoginPage() {
                   lineHeight: 1.65,
                   color: alpha('#FFFFFF', 0.82)
                 }}
-              >
-                Scan QA Codes with Zebra USB and receive carton weights automatically from PLC.
-              </Typography>
+              >{trUi("\n                Scan QA Codes with Zebra USB and receive carton weights automatically from PLC.\n              ")}</Typography>
             </Box>
 
-            <Typography sx={{ fontSize: '0.78rem', color: alpha('#FFFFFF', 0.62) }}>
-              Youngone Internal System
-            </Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: alpha('#FFFFFF', 0.62) }}>{trUi("\n              Youngone Internal System\n            ")}</Typography>
           </Box>
         </Box>
 
@@ -537,21 +532,17 @@ export default function LoginPage() {
                 letterSpacing: -0.8,
                 color: '#092E4A'
               }}
-            >
-              Sign in
-            </Typography>
+            >{trUi("\n              Sign in\n            ")}</Typography>
 
-            <Typography sx={{ mt: 0.9, fontSize: '0.94rem', color: alpha('#092E4A', 0.62) }}>
-              Order Scan & PLC Weight System
-            </Typography>
+            <Typography sx={{ mt: 0.9, fontSize: '0.94rem', color: alpha('#092E4A', 0.62) }}>{trUi("\n              Order Scan & PLC Weight System\n            ")}</Typography>
 
             {accountNotice && <Alert severity="warning" sx={{ mt: 2, lineHeight: 1.5 }}>{accountNotice}</Alert>}
 
             <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3.25 }}>
               <Stack spacing={2}>
                 <TextField
-                  label="Company email"
-                  placeholder="name@youngonevn.com"
+                  label={trUi("Company email")}
+                  placeholder={trUi("name@youngonevn.com")}
                   value={email}
                   onChange={(e) => {
                     const nextEmail = e.target.value;
@@ -581,8 +572,8 @@ export default function LoginPage() {
                 />
 
                 <TextField
-                  label="Password"
-                  placeholder="Enter your password"
+                  label={trUi("Password")}
+                  placeholder={trUi("Enter your password")}
                   value={password}
                   onChange={(e) => {
                     const nextPassword = e.target.value;
@@ -603,7 +594,7 @@ export default function LoginPage() {
                     endAdornment: (
                       <InputAdornment position="end">
                         <IconButton
-                          aria-label={showPw ? 'Hide password' : 'Show password'}
+                          aria-label={showPw ? trUi("Hide password") : trUi("Show password")}
                           onClick={() => setShowPw((previous) => !previous)}
                           edge="end"
                         >
@@ -626,7 +617,7 @@ export default function LoginPage() {
 
                 <TextField
                   select
-                  label="Buyer"
+                  label={trUi("Buyer")}
                   value={selectedBuyerCode}
                   onChange={(e) => {
                     const nextBuyer = e.target.value;
@@ -656,9 +647,7 @@ export default function LoginPage() {
                     }
                   }}
                 >
-                  <MenuItem value="" disabled>
-                    Select Buyer
-                  </MenuItem>
+                  <MenuItem value="" disabled>{trUi("\n                    Select Buyer\n                  ")}</MenuItem>
                   {buyerOptions.map((buyer) => (
                     <MenuItem key={buyer.code} value={buyer.code}>
                       {buyer.label}
@@ -667,21 +656,21 @@ export default function LoginPage() {
                 </TextField>
 
                 <TextField
-                  select fullWidth label="System Type" value={selectedType}
+                  select fullWidth label={trUi("System Type")} value={selectedType}
                   onChange={(e) => {
                     setSelectedType(e.target.value);
                     saveLoginDraft(STORAGE_KEY.LOGIN_DRAFT_TYPE, e.target.value);
                     if (loginError) setLoginError('');
                   }}
-                  helperText="Select RFID, UnRFID, or Factory Use Only. Your access permissions are checked when you sign in."
+                  helperText={trUi("Select RFID, UnRFID, or Factory Use Only. Your access permissions are checked when you sign in.")}
                   InputLabelProps={{ sx: { fontWeight: 750 } }}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px', backgroundColor: '#FFFFFF' } }}
                 >
-                  <MenuItem value="" disabled>Select Type</MenuItem>
+                  <MenuItem value="" disabled>{trUi("Select Type")}</MenuItem>
                   {SYSTEM_TYPE_OPTIONS.map((option) => {
                     const supported = supportedSystemTypes(buyerOptions.find((b) => b.code === selectedBuyerCode)).includes(option.value);
                     return <MenuItem key={option.value} value={option.value}>
-                      {option.label}{!supported ? ' (not configured for this Buyer)' : ''}
+                      {option.label}{!supported ? trUi(" (not configured for this Buyer)") : ''}
                     </MenuItem>;
                   })}
                 </TextField>

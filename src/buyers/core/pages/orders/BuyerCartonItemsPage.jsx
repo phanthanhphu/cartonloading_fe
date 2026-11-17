@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Breadcrumbs, Chip, Link, Stack, Typography } from '@mui/material';
@@ -17,6 +18,8 @@ const fromPoIfMissing = (value, poValue) => (value == null || String(value).trim
 const niceTime = (value) => value ? String(value).replace('T', ' ').slice(0, 16) : '—';
 
 export default function BuyerCartonItemsPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId, poKey, cartonId } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
   const [order, setOrder] = useState(null);
@@ -84,14 +87,14 @@ export default function BuyerCartonItemsPage() {
   const isLululemon = buyer.code === BUYER_CODE.LULULEMON;
 
   const columns = [
-    ...(!isLululemon ? [{ key: '__stt', label: 'STT', minWidth: 60 }] : []),
-    ...(!isLululemon ? [{ key: 'itemNo', label: 'Item No.', minWidth: 85 }] : []),
+    ...(!isLululemon ? [{ key: '__stt', label: trUi("STT"), minWidth: 60 }] : []),
+    ...(!isLululemon ? [{ key: 'itemNo', label: trUi("Item No."), minWidth: 85 }] : []),
     { key: 'sku', label: isLululemon ? 'Assigned SKU' : 'Scanned SKU', minWidth: 150, render: (r) => r.sku ? <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 750, color: '#1663BE', letterSpacing: '0.01em' }}>{r.sku}</Typography> : <Typography color="text.disabled" variant="body2">—</Typography> },
-    { key: 'style', label: 'Style', minWidth: 110 },
-    { key: 'color', label: 'Color', minWidth: 110 },
-    ...(!isLululemon ? [{ key: 'size', label: 'Size', minWidth: 80 }] : []),
-    { key: 'quantity', label: 'Qty', minWidth: 70 },
-    { key: 'status', label: 'Status', minWidth: 100, render: (r) => <StatusChip status={r.status || 'PENDING'} /> },
+    { key: 'style', label: trUi("Style"), minWidth: 110 },
+    { key: 'color', label: trUi("Color"), minWidth: 110 },
+    ...(!isLululemon ? [{ key: 'size', label: trUi("Size"), minWidth: 80 }] : []),
+    { key: 'quantity', label: trUi("Qty"), minWidth: 70 },
+    { key: 'status', label: trUi("Status"), minWidth: 100, render: (r) => <StatusChip status={r.status || 'PENDING'} /> },
     { key: 'scannedBy', label: isLululemon ? 'Recorded By' : 'Scanned By', minWidth: 120 },
     { key: 'scannedAt', label: isLululemon ? 'Recorded At' : 'Scanned At', minWidth: 160, render: (r) => <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>{niceTime(r.scannedAt)}</Typography> }
   ];
@@ -106,23 +109,23 @@ export default function BuyerCartonItemsPage() {
                 <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders`} underline="hover" color="inherit">{buyer.label}</Link>
                 <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}`} underline="hover" color="inherit">{order?.orderName || 'Order'}</Link>
                 <Link component={RouterLink} to={`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}`} underline="hover" color="inherit">PO {po?.poNumber || ''}</Link>
-                <Typography color="text.primary">Carton {carton?.cartonNo || ''}</Typography>
+                <Typography color="text.primary">{trUi("Carton ")}{carton?.cartonNo || ''}</Typography>
               </Breadcrumbs>
             )}
             meta={<Chip size="small" variant="outlined" label={`${state.count} Item${state.count === 1 ? '' : 's'}`} />}
             details={(
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                 <CompactStat label="PO" value={v(po?.poNumber)} />
-                <CompactStat label="Target" value={v(carton?.plannedQty)} />
-                <CompactStat label="Scanned" value={v(carton?.scannedQty)} />
+                <CompactStat label={trUi("Target")} value={v(carton?.plannedQty)} />
+                <CompactStat label={trUi("Scanned")} value={v(carton?.scannedQty)} />
                 <CompactStat label="SSCC-18" value={v(carton?.cartonIdentity)} />
-                <CompactStat label="Status" value={v(carton?.status)} />
+                <CompactStat label={trUi("Status")} value={v(carton?.status)} />
               </Stack>
             )}
           />
         )}
 
-        {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
 
         <Box sx={isLululemon ? {
           '& .MuiPaper-root': { borderRadius: '4px', borderColor: '#D6E4F1' },
@@ -134,25 +137,25 @@ export default function BuyerCartonItemsPage() {
         <ManagementTable
           filterBar={<TableFilterBar
           fields={[
-            ...(!isLululemon ? [{ key: 'itemNo', label: 'Item No.' }] : []),
+            ...(!isLululemon ? [{ key: 'itemNo', label: trUi("Item No.") }] : []),
             { key: 'sku', label: 'SKU' },
-            { key: 'style', label: 'Style' },
-            { key: 'color', label: 'Color' },
-            ...(!isLululemon ? [{ key: 'sizeValue', label: 'Size' }] : []),
-            { key: 'status', label: 'Status' },
-            { key: 'scannedBy', label: 'Scanned By' }
+            { key: 'style', label: trUi("Style") },
+            { key: 'color', label: trUi("Color") },
+            ...(!isLululemon ? [{ key: 'sizeValue', label: trUi("Size") }] : []),
+            { key: 'status', label: trUi("Status") },
+            { key: 'scannedBy', label: trUi("Scanned By") }
           ]}
           values={filters}
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onClear={() => setFilters({ itemNo: '', sku: '', style: '', color: '', sizeValue: '', status: '', scannedBy: '' })}
         />}
-          title={isLululemon ? `Carton Items · ${state.count} total` : 'Items'}
+          title={isLululemon ? trUi("Carton Items · {0} total", state.count) : 'Items'}
           {...state}
           rowsPerPage={state.size}
           onPageChange={(p) => load(p, paginationRef.current.size)}
           onRowsPerPageChange={(s) => load(0, s)}
           columns={columns}
-          emptyText="No Item rows found."
+          emptyText={trUi("No Item rows found.")}
         />
         </Box>
       </Stack>

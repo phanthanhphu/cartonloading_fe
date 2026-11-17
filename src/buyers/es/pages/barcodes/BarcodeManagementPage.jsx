@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import { managementPageSx, managementPanelSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
@@ -79,6 +80,8 @@ const makePrintHtml = (rows) => {
 };
 
 export default function BarcodeManagementPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -246,38 +249,35 @@ export default function BarcodeManagementPage() {
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 }, width: '100%', ...managementPageSx }}>
       <Stack direction="row" spacing={0.75} justifyContent="flex-end" flexWrap="wrap" useFlexGap sx={{ mb: 0.65 }}>
-        <Button size="small" variant="outlined" startIcon={<RefreshOutlined />} onClick={loadRows} disabled={loading}>Refresh</Button>
-        <Button size="small" variant="outlined" startIcon={<PrintOutlined />} onClick={() => printRows(printableSelected)} disabled={!printableSelected.length || printing}>
-          Print Selected ({printableSelected.length})
+        <Button size="small" variant="outlined" startIcon={<RefreshOutlined />} onClick={loadRows} disabled={loading}>{trUi("Refresh")}</Button>
+        <Button size="small" variant="outlined" startIcon={<PrintOutlined />} onClick={() => printRows(printableSelected)} disabled={!printableSelected.length || printing}>{trUi("\n          Print Selected (")}{printableSelected.length})
         </Button>
-        <Button size="small" variant="contained" startIcon={<AddOutlined />} onClick={() => setGenerateOpen(true)} sx={{ bgcolor: '#103B5C' }}>Generate Barcode</Button>
+        <Button size="small" variant="contained" startIcon={<AddOutlined />} onClick={() => setGenerateOpen(true)} sx={{ bgcolor: '#103B5C' }}>{trUi("Generate Barcode")}</Button>
       </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 1.25 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 1.25 }}>{trSystem(error)}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 1.25 }}>{notice}</Alert>}
 
       <Paper variant="outlined" sx={{ p: 1, mb: 0, borderRadius: '2px 2px 0 0', borderColor: '#DCE4EC', borderBottom: 0 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: '2fr 1fr 1fr 1fr' }, gap: 1 }}>
-          <TextField size="small" label="Barcode / Batch / PO / Article" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && runSearch()} />
+          <TextField size="small" label={trUi("Barcode / Batch / PO / Article")} value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && runSearch()} />
           <FormControl size="small">
-            <InputLabel>Status</InputLabel>
-            <Select value={status} label="Status" onChange={(event) => setStatus(event.target.value)}>
-              <MenuItem value={COMMON_FILTER.ALL}>All</MenuItem>
-              <MenuItem value={FACTORY_BARCODE_STATUS.AVAILABLE}>Available</MenuItem>
-              <MenuItem value={FACTORY_BARCODE_STATUS.ASSIGNED}>Assigned</MenuItem>
-              <MenuItem value={FACTORY_BARCODE_STATUS.VOID}>Void</MenuItem>
+            <InputLabel>{trUi("Status")}</InputLabel>
+            <Select value={status} label={trUi("Status")} onChange={(event) => setStatus(event.target.value)}>
+              <MenuItem value={COMMON_FILTER.ALL}>{trUi("All")}</MenuItem>
+              <MenuItem value={FACTORY_BARCODE_STATUS.AVAILABLE}>{trUi("Available")}</MenuItem>
+              <MenuItem value={FACTORY_BARCODE_STATUS.ASSIGNED}>{trUi("Assigned")}</MenuItem>
+              <MenuItem value={FACTORY_BARCODE_STATUS.VOID}>{trUi("Void")}</MenuItem>
             </Select>
           </FormControl>
-          <TextField size="small" type="number" label="Year" value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} placeholder={String(currentYear)} />
-          <TextField size="small" label="Factory Code" value={factoryFilter} onChange={(event) => setFactoryFilter(event.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="002" />
+          <TextField size="small" type="number" label={trUi("Year")} value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} placeholder={String(currentYear)} />
+          <TextField size="small" label={trUi("Factory Code")} value={factoryFilter} onChange={(event) => setFactoryFilter(event.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="002" />
         </Box>
         <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
-          <Button variant="contained" startIcon={<SearchOutlined />} onClick={runSearch} sx={{ textTransform: 'none' }}>Search</Button>
-          <Button variant="outlined" onClick={resetSearch} sx={{ textTransform: 'none' }}>Reset</Button>
+          <Button variant="contained" startIcon={<SearchOutlined />} onClick={runSearch} sx={{ textTransform: 'none' }}>{trUi("Search")}</Button>
+          <Button variant="outlined" onClick={resetSearch} sx={{ textTransform: 'none' }}>{trUi("Reset")}</Button>
           <Box sx={{ flex: 1 }} />
-          <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center', fontWeight: 800 }}>
-            Total {totalElements.toLocaleString()} labels
-          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center', fontWeight: 800 }}>{trUi("\n            Total ")}{totalElements.toLocaleString()}{trUi(" labels\n          ")}</Typography>
         </Stack>
       </Paper>
 
@@ -302,7 +302,7 @@ export default function BarcodeManagementPage() {
                     <TableCell padding="checkbox"><Checkbox checked={selected.has(row.barcode)} onChange={(event) => toggleOne(row.barcode, event.target.checked)} /></TableCell>
                     <TableCell align="center" sx={{ width: 56, color: '#64748B', fontWeight: 650 }}>{page * LARGE_TABLE_PAGE_SIZE + index + 1}</TableCell>
                     <TableCell sx={{ fontWeight: 750, color: '#173B63', letterSpacing: 0.35 }}>{row.barcode}</TableCell>
-                    <TableCell><Chip size="small" label={meta.label} color={meta.color} variant={row.status === FACTORY_BARCODE_STATUS.AVAILABLE ? 'outlined' : 'filled'} /></TableCell>
+                    <TableCell><Chip size="small" label={trUi(meta.label)} color={meta.color} variant={row.status === FACTORY_BARCODE_STATUS.AVAILABLE ? 'outlined' : 'filled'} /></TableCell>
                     <TableCell>{row.factoryCode || '—'}</TableCell>
                     <TableCell>{row.year || '—'}</TableCell>
                     <TableCell>{Number(row.runningNumber || 0).toLocaleString()}</TableCell>
@@ -313,7 +313,7 @@ export default function BarcodeManagementPage() {
                         <Box>
                           <Typography variant="body2" fontWeight={850}>{row.assignedCartonCode}</Typography>
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            CTN {row.assignedCartonNumber ?? '—'} · Qty {row.assignedQuantity ?? row.assignedQtyPerCarton ?? '—'}
+                            CTN {row.assignedCartonNumber ?? '—'}{trUi(" · Qty ")}{row.assignedQuantity ?? row.assignedQtyPerCarton ?? '—'}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">{row.assignedBuyerCode || '—'} · {row.assignedOrderName || '—'}</Typography>
                         </Box>
@@ -322,43 +322,41 @@ export default function BarcodeManagementPage() {
                     <TableCell>{row.assignedPoNumber || row.assignedArticleNumber ? `${row.assignedPoNumber || '—'} / ${row.assignedArticleNumber || '—'}` : '—'}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{dateTimeText(row.createdAt)}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Button size="small" startIcon={<PrintOutlined />} onClick={() => printRows([row])} disabled={row.status === FACTORY_BARCODE_STATUS.VOID || printing} sx={{ textTransform: 'none', mr: 0.5 }}>Print</Button>
-                      <Button size="small" color="error" startIcon={<BlockOutlined />} onClick={() => runVoid(row)} disabled={row.status !== FACTORY_BARCODE_STATUS.AVAILABLE} sx={{ textTransform: 'none' }}>Void</Button>
+                      <Button size="small" startIcon={<PrintOutlined />} onClick={() => printRows([row])} disabled={row.status === FACTORY_BARCODE_STATUS.VOID || printing} sx={{ textTransform: 'none', mr: 0.5 }}>{trUi("Print")}</Button>
+                      <Button size="small" color="error" startIcon={<BlockOutlined />} onClick={() => runVoid(row)} disabled={row.status !== FACTORY_BARCODE_STATUS.AVAILABLE} sx={{ textTransform: 'none' }}>{trUi("Void")}</Button>
                     </TableCell>
                   </TableRow>
                 );
               }) : (
-                <TableRow><TableCell colSpan={13} align="center" sx={{ py: 8, color: 'text.secondary' }}>No Factory Barcodes found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} align="center" sx={{ py: 8, color: 'text.secondary' }}>{trUi("No Factory Barcodes found.")}</TableCell></TableRow>
               )}
             </TableBody>
           </SortableTable>
         </StandardTableViewport>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.25, borderTop: '1px solid #E5E7EB' }}>
-          <Typography variant="body2" color="text.secondary">Page {totalPages ? page + 1 : 0} / {totalPages}</Typography>
+          <Typography variant="body2" color="text.secondary">{trUi("Page ")}{totalPages ? page + 1 : 0} / {totalPages}</Typography>
           <Pagination count={Math.max(1, totalPages)} page={Math.min(page + 1, Math.max(1, totalPages))} onChange={(_, value) => setPage(value - 1)} disabled={totalPages <= 1} />
         </Stack>
       </Paper>
 
       <Dialog open={generateOpen} onClose={generating ? undefined : () => setGenerateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 750 }}>Generate Factory Barcodes</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 750 }}>{trUi("Generate Factory Barcodes")}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1.5}>
-            <Alert severity="info">
-              Format: <strong>YY + Factory Code + 9-digit Running Number</strong>. Running numbers are allocated by the server and can never be reused.
-            </Alert>
-            <TextField type="number" label="Year" value={generateYear} onChange={(event) => setGenerateYear(Number(event.target.value))} inputProps={{ min: 2000, max: 2099 }} />
-            <TextField label="Factory Code" value={generateFactoryCode} onChange={(event) => setGenerateFactoryCode(event.target.value.replace(/\D/g, '').slice(0, 3))} helperText={APP_MESSAGES.FACTORY_CODE_HELPER} />
-            <TextField type="number" label="Quantity" value={generateQuantity} onChange={(event) => setGenerateQuantity(event.target.value)} inputProps={{ min: 1, max: 1000 }} />
+            <Alert severity="info">{trUi("\n              Format: ")}<strong>{trUi("YY + Factory Code + 9-digit Running Number")}</strong>{trUi(". Running numbers are allocated by the server and can never be reused.\n            ")}</Alert>
+            <TextField type="number" label={trUi("Year")} value={generateYear} onChange={(event) => setGenerateYear(Number(event.target.value))} inputProps={{ min: 2000, max: 2099 }} />
+            <TextField label={trUi("Factory Code")} value={generateFactoryCode} onChange={(event) => setGenerateFactoryCode(event.target.value.replace(/\D/g, '').slice(0, 3))} helperText={APP_MESSAGES.FACTORY_CODE_HELPER} />
+            <TextField type="number" label={trUi("Quantity")} value={generateQuantity} onChange={(event) => setGenerateQuantity(event.target.value)} inputProps={{ min: 1, max: 1000 }} />
             <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px', bgcolor: '#F8FAFC' }}>
-              <Typography variant="caption" color="text.secondary">Next Running Number</Typography>
+              <Typography variant="caption" color="text.secondary">{trUi("Next Running Number")}</Typography>
               <Typography sx={{ fontSize: '1.25rem', fontWeight: 750, color: '#103B5C' }}>{sequence?.nextRunningNumber ? Number(sequence.nextRunningNumber).toLocaleString() : '—'}</Typography>
-              <Typography variant="caption" color="text.secondary">Next Factory Barcode</Typography>
+              <Typography variant="caption" color="text.secondary">{trUi("Next Factory Barcode")}</Typography>
               <Typography sx={{ fontSize: '1.15rem', fontWeight: 750, letterSpacing: 1 }}>{sequence?.nextBarcode || '—'}</Typography>
             </Paper>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setGenerateOpen(false)} disabled={generating}>Cancel</Button>
+          <Button onClick={() => setGenerateOpen(false)} disabled={generating}>{trUi("Cancel")}</Button>
           <Button variant="contained" onClick={runGenerate} disabled={generating} startIcon={generating ? <CircularProgress size={16} color="inherit" /> : <AddOutlined />} sx={{ bgcolor: '#103B5C' }}>
             {generating ? 'Generating...' : 'Generate'}
           </Button>

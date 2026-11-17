@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -15,10 +16,10 @@ import { ArrowForward, StoreOutlined } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 import ManagementTable from 'components/ManagementTable';
-import OperationsDashboard from 'buyers/lululemon/components/OperationsDashboard';
+import ManagementAnalytics from 'buyers/lululemon/components/ManagementAnalytics';
 import { CompactPageHeader } from 'components/CompactPageHeader';
 import { getCartonDashboard } from 'services/managementService';
-import { readStoredUser } from 'utils/accessControl';
+import { canViewManagementReports, readStoredUser } from 'utils/accessControl';
 import { getAccessibleBuyers, getActiveBuyer, saveSelectedBuyer } from 'utils/buyerAccess';
 import { getBuyerAccessLandingPath } from 'buyers/core/buyerModules';
 import { BUYER_CODE, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../constants/appConstants';
@@ -29,6 +30,8 @@ const metricLabels = [
 ];
 
 export default function DashboardPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -65,18 +68,24 @@ export default function DashboardPage() {
   const summaryFor = (buyer) => buyerSummary.find((row) => row.buyerCode === buyer.code) || {};
 
   if (showLululemon) {
-    return <Box sx={{ p: { xs: 0.5, md: 0.5 }, height: { xs: 'auto', md: 'calc(100dvh - 88px)' }, minHeight: 0, boxSizing: 'border-box' }}><OperationsDashboard /></Box>;
+    // LULULEMON's executive Dashboard shows only the three report charts.
+    // ADMIN has no automatic report bypass; Option 1 / Option 2 control access.
+    return <Box sx={{ p: { xs: 1, md: 1.5 }, boxSizing: 'border-box',
+      height: { xs: 'auto', md: 'calc(100dvh - 88px)' }, minHeight: 0, overflowY: { xs: 'visible', md: 'hidden' } }}>
+      {canViewManagementReports() ? <ManagementAnalytics /> :
+        <Alert severity="info">{trUi("Reports access is not assigned.")}</Alert>}
+    </Box>;
   }
 
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 } }}>
       <Stack spacing={1}>
         <CompactPageHeader
-          title="Carton Loading Dashboard"
-          subtitle="Orders, PO, Cartons, Items, barcode/SSCC, weight and shipment status."
+          title={trUi("Carton Loading Dashboard")}
+          subtitle={trUi("Orders, PO, Cartons, Items, barcode/SSCC, weight and shipment status.")}
         />
 
-        {error ? <Alert severity="error">{error}</Alert> : null}
+        {error ? <Alert severity="error">{trSystem(error)}</Alert> : null}
 
 
         <Grid container spacing={1}>
@@ -84,7 +93,7 @@ export default function DashboardPage() {
             <Grid item xs={6} md={3} key={key}>
               <Card variant="outlined" sx={{ height: '100%', borderRadius: '4px' }}>
                 <CardContent>
-                  <Typography color="text.secondary" variant="body2">{label}</Typography>
+                  <Typography color="text.secondary" variant="body2">{trUi(label)}</Typography>
                   <Typography variant="h4" fontWeight={900} sx={{ mt: 0.5 }}>
                     {loading ? '…' : Number(data?.[key] || 0).toLocaleString()}
                   </Typography>
@@ -95,10 +104,8 @@ export default function DashboardPage() {
         </Grid>
 
         <Box>
-          <Typography variant="h5" fontWeight={900}>Buyer Overview</Typography>
-          <Typography color="text.secondary" sx={{ mt: 0.35, mb: 1.25 }}>
-            Open a Buyer to manage its own Orders. Each Order contains only its own PO → Carton → Item hierarchy.
-          </Typography>
+          <Typography variant="h5" fontWeight={900}>{trUi("Buyer Overview")}</Typography>
+          <Typography color="text.secondary" sx={{ mt: 0.35, mb: 1.25 }}>{trUi("\n            Open a Buyer to manage its own Orders. Each Order contains only its own PO → Carton → Item hierarchy.\n          ")}</Typography>
           <Grid container spacing={1.5}>
             {accessibleBuyers.map((buyer) => {
               const summary = summaryFor(buyer);
@@ -125,7 +132,7 @@ export default function DashboardPage() {
                             <Typography variant="h6" fontWeight={900}>{buyer.label}</Typography>
                             <Typography variant="body2" color="text.secondary">{buyer.code}</Typography>
                           </Box>
-                          <Chip size="small" label="Open" variant="outlined" />
+                          <Chip size="small" label={trUi("Open")} variant="outlined" />
                         </Stack>
 
                         <Grid container spacing={1}>
@@ -138,15 +145,13 @@ export default function DashboardPage() {
                             <Grid item xs={3} key={label}>
                               <Box sx={{ p: 1, borderRadius: '4px', bgcolor: '#F8FAFC', textAlign: 'center' }}>
                                 <Typography fontWeight={900}>{Number(value || 0).toLocaleString()}</Typography>
-                                <Typography variant="caption" color="text.secondary">{label}</Typography>
+                                <Typography variant="caption" color="text.secondary">{trUi(label)}</Typography>
                               </Box>
                             </Grid>
                           ))}
                         </Grid>
 
-                        <Button endIcon={<ArrowForward />} onClick={(e) => { e.stopPropagation(); openBuyer(buyer); }} sx={{ alignSelf: 'flex-start' }}>
-                          View Orders
-                        </Button>
+                        <Button endIcon={<ArrowForward />} onClick={(e) => { e.stopPropagation(); openBuyer(buyer); }} sx={{ alignSelf: 'flex-start' }}>{trUi("\n                          View Orders\n                        ")}</Button>
                       </Stack>
                     </CardContent>
                   </Card>
@@ -157,7 +162,7 @@ export default function DashboardPage() {
         </Box>
 
         <ManagementTable
-          title="Buyer Summary"
+          title={trUi("Buyer Summary")}
           rows={visible}
           count={buyerSummary.length}
           page={page}
@@ -166,13 +171,13 @@ export default function DashboardPage() {
           onPageChange={setPage}
           onRowsPerPageChange={(value) => { setSize(value); setPage(0); }}
           columns={[
-            { key: 'buyerCode', label: 'Buyer' },
-            { key: 'orders', label: 'Orders' },
+            { key: 'buyerCode', label: trUi("Buyer") },
+            { key: 'orders', label: trUi("Orders") },
             { key: 'pos', label: 'PO' },
-            { key: 'cartons', label: 'Cartons' },
-            { key: 'items', label: 'Items' },
-            { key: 'completedCartons', label: 'Completed' },
-            { key: 'weightWarnings', label: 'Weight Warnings' }
+            { key: 'cartons', label: trUi("Cartons") },
+            { key: 'items', label: trUi("Items") },
+            { key: 'completedCartons', label: trUi("Completed") },
+            { key: 'weightWarnings', label: trUi("Weight Warnings") }
           ]}
         />
       </Stack>

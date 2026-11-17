@@ -1,23 +1,21 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
-import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
-import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT } from '../../../../constants/appConstants';
+import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
+import { CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT } from '../../../constants/appConstants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Breadcrumbs, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import { CheckCircleOutlineRounded, ErrorOutlineRounded, AccessTimeRounded, VisibilityOutlined, ReplayRounded } from '@mui/icons-material';
+import { CheckCircleOutlineRounded, ErrorOutlineRounded, AccessTimeRounded, VisibilityOutlined, ReplayRounded, ArrowBack } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import ManagementTable from 'components/ManagementTable';
 import StatusChip from 'components/StatusChip';
 import TableFilterBar from 'components/TableFilterBar';
 import { CompactPageHeader, CompactStat } from 'components/CompactPageHeader';
 import { getBuyerBySlug } from 'utils/buyerAccess';
+import { getBuyerCartonWorkspace } from 'buyers/core/buyerModules';
 import { getManagedOrder, getManagedPo, listManagedCartons } from 'services/managementService';
-import { APP_MESSAGES } from '../../../../constants/appMessages';
-import { BUYER_CODE } from '../../../../constants/appConstants';
+import { APP_MESSAGES } from '../../../constants/appMessages';
 import { canWeightCheck, isAdmin } from 'utils/accessControl';
-import PoRfidWeightWorkspace from 'buyers/lululemon/components/PoRfidWeightWorkspace';
-import { unassignProcessingIdentity } from 'buyers/lululemon/services/cartonProcessing';
-import OperationWorkspaceDialog from 'buyers/lululemon/components/OperationWorkspaceDialog';
 import { useSelectedFactory } from 'utils/factorySelection';
 
 // Scan RFID / Weight intentionally retains the previous compact 2px corners.
@@ -44,15 +42,20 @@ const scanRfidWeightTheme = (base) => createTheme(base, {
 const initial = { page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE, count: 0, rows: [], loading: false };
 const v = (x) => (x === null || x === undefined || x === '' ? '—' : x);
 
-export default function BuyerPoCartonsPage() {
+export default function CartonWorkspacePage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId, poKey } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [po, setPo] = useState(null);
   const [state, setState] = useState(initial);
-  const isLulu = buyer?.code === BUYER_CODE.LULULEMON;
-  const canProcess = isLulu && (canWeightCheck() || isAdmin());
+  const cartonWorkspace = getBuyerCartonWorkspace(buyer);
+  const { PoRfidWeightWorkspace, OperationWorkspaceDialog } = cartonWorkspace?.components || {};
+  const { unassignProcessingIdentity } = cartonWorkspace?.operations || {};
+  const isSsccCartonWorkflow = cartonWorkspace?.mode === 'sscc';
+  const canProcess = isSsccCartonWorkflow && (canWeightCheck() || isAdmin());
   const { factoryCode: selectedFactory, loading: factoryLoading } = useSelectedFactory(buyer?.code);
   // PO-level scan station: one toolbar action for the entire PO, no per-carton action buttons.
   const [scanOpen, setScanOpen] = useState(false);
@@ -106,7 +109,7 @@ export default function BuyerPoCartonsPage() {
     load(paginationRef.current.page, paginationRef.current.size);
   };
   if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
-  const mismatch = isLulu && !factoryLoading && po?.factoryCode &&
+  const mismatch = isSsccCartonWorkflow && !factoryLoading && po?.factoryCode &&
     String(po.factoryCode).toUpperCase() !== String(selectedFactory || '').toUpperCase();
 
   // Only LULULEMON uses the compact RFID-first workstation table. ES retains
@@ -158,9 +161,9 @@ export default function BuyerPoCartonsPage() {
       // The scan workspace must not reuse a stale PO SKU from this page.
       const updatedPo = await getManagedPo(buyer.code, orderId, poKey);
       setPo(updatedPo);
-      setNotice(`Carton ${current.cartonNo}: SSCC and SKU assignment deleted. ${updatedPo?.sku
+      setNotice(trUi("Carton {0}: SSCC and SKU assignment deleted. {1} Scan and assign again from Scan RFID / Weight.", current.cartonNo, updatedPo?.sku
         ? 'PO SKU remains assigned; the next scanned SKU must match the PO.'
-        : 'The provisional PO SKU is available for a new first scan.'} Scan and assign again from Scan RFID / Weight.`);
+        : 'The provisional PO SKU is available for a new first scan.'));
       await load(paginationRef.current.page, paginationRef.current.size);
     } catch (e) {
       setReassignError(e?.response?.data?.message || e?.message || 'Could not unassign SSCC and SKU. Please refresh the PO and try again.');
@@ -168,24 +171,24 @@ export default function BuyerPoCartonsPage() {
       setReassignBusy(false);
     }
   };
-  const columns = isLulu ? [
+  const columns = isSsccCartonWorkflow ? [
     { key: 'cartonIdentity', label: 'SSCC-18', minWidth: 175,
       render: (row) => <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{v(row.cartonIdentity)}</Typography> },
     { key: 'labelConfirmedSku', label: 'SKU', minWidth: 150,
       render: (row) => <Typography sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{v(row.labelConfirmedSku)}</Typography> },
-    { key: 'plannedQty', label: 'Qty', minWidth: 75 },
+    { key: 'plannedQty', label: trUi("Qty"), minWidth: 75 },
     { key: 'rfidVerifiedQty', label: 'RFID', minWidth: 108,
-      render: (row) => <Tooltip arrow title={`RFID: ${row.rfidStatus || 'PENDING'} · Matched EPC / Expected Qty · Wrong SKU: ${row.rfidWrongSkuQty ?? 0}`}>
+      render: (row) => <Tooltip arrow title={trUi("RFID: {0} · Matched EPC / Expected Qty · Wrong SKU: {1}", row.rfidStatus || 'PENDING', row.rfidWrongSkuQty ?? 0)}>
         <Stack direction="row" alignItems="center" spacing={0.5} sx={{ whiteSpace: 'nowrap' }}>
           {statusIcon(row.rfidStatus)}
           <Typography sx={{ fontSize: 12, fontWeight: 750, fontVariantNumeric: 'tabular-nums' }}>{row.rfidMatchedQty ?? (row.rfidStatus === RFID_CHECK_RESULT.PASS ? row.rfidVerifiedQty : null) ?? '—'}/{row.plannedQty ?? '—'}</Typography>
         </Stack>
       </Tooltip> },
-    { key: 'weightKg', label: 'Weight (kg)', minWidth: 126,
+    { key: 'weightKg', label: trUi("Weight (kg)"), minWidth: 126,
       render: (row) => {
         const gw = Number(po?.grossWeightKg);
         const expected = row.expectedWeightKg ?? (gw > 0 ? gw * Number(row.plannedQty || 0) : null);
-        return <Tooltip arrow title={`Weight: ${row.weightStatus || 'PENDING'} · Expected ${expected == null ? '—' : Number(expected).toFixed(3)} kg`}>
+        return <Tooltip arrow title={trUi("Weight: {0} · Expected {1} kg", row.weightStatus || 'PENDING', expected == null ? '—' : Number(expected).toFixed(3))}>
           <Stack direction="row" alignItems="center" spacing={0.5} sx={{ whiteSpace: 'nowrap' }}>
             {row.weightKg != null ? statusIcon(row.weightStatus) : <AccessTimeRounded color="disabled" sx={{ fontSize: 16 }} />}
             <Typography sx={{ fontSize: 12, fontWeight: 750, fontVariantNumeric: 'tabular-nums' }}>
@@ -194,24 +197,24 @@ export default function BuyerPoCartonsPage() {
           </Stack>
         </Tooltip>;
       } },
-    { key: 'finalCheck', label: 'Final', minWidth: 100,
+    { key: 'finalCheck', label: trUi("Final"), minWidth: 100,
       render: (row) => <StatusChip status={finalStatus(row)} /> },
-    { key: 'actions', label: 'Action', minWidth: 112,
+    { key: 'actions', label: trUi("Action"), minWidth: 112,
       render: (row) => <Stack direction="row" spacing={0.25} alignItems="center">
-        <Tooltip arrow title={`View Carton ${row.cartonNo} details`}>
-          <IconButton size="small" aria-label={`View Carton ${row.cartonNo} details`}
+        <Tooltip arrow title={trUi("View Carton {0} details", row.cartonNo)}>
+          <IconButton size="small" aria-label={trUi("View Carton {0} details", row.cartonNo)}
             onClick={(event) => { event.stopPropagation(); openCarton(row); }}>
             <VisibilityOutlined fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip arrow title={canReassignIdentity(row)
-          ? 'Re-assign: delete existing SSCC and SKU assignment'
+          ? trUi("Re-assign: delete existing SSCC and SKU assignment")
           : finalStatus(row) !== FINAL_INSPECTION_RESULT.PENDING
-            ? 'Completed cartons cannot be Re-assigned.'
-            : 'Assign SSCC first or check your access permission.'}>
+            ? trUi("Completed cartons cannot be Re-assigned.")
+            : trUi("Assign SSCC first or check your access permission.")}>
           <span>
             <IconButton size="small" color="primary" disabled={!canReassignIdentity(row)}
-              aria-label={`Re-assign SSCC and SKU for Carton ${row.cartonNo}`}
+              aria-label={trUi("Re-assign SSCC and SKU for Carton {0}", row.cartonNo)}
               onClick={(event) => {
                 event.stopPropagation();
                 setError(''); setNotice(''); setReassignError(''); setReassignCarton(row);
@@ -222,11 +225,11 @@ export default function BuyerPoCartonsPage() {
         </Tooltip>
       </Stack> }
   ] : [
-    { key: 'cartonNo', label: 'Carton No.', minWidth: 100, render: (r) => <Typography fontWeight={900} color="primary.main">{v(r.cartonNo)}</Typography> },
-    { key: 'plannedQty', label: 'Target Qty', minWidth: 90 },
-    { key: 'scannedQty', label: 'Scanned Qty', minWidth: 95 },
+    { key: 'cartonNo', label: trUi("Carton No."), minWidth: 100, render: (r) => <Typography fontWeight={900} color="primary.main">{v(r.cartonNo)}</Typography> },
+    { key: 'plannedQty', label: trUi("Target Qty"), minWidth: 90 },
+    { key: 'scannedQty', label: trUi("Scanned Qty"), minWidth: 95 },
     { key: 'cartonIdentity', label: 'SSCC-18', minWidth: 170 },
-    { key: 'status', label: 'Status', minWidth: 130, render: (r) => <StatusChip status={r.status || CARTON_STATUS.READY_TO_PACK} /> }
+    { key: 'status', label: trUi("Status"), minWidth: 130, render: (r) => <StatusChip status={r.status || CARTON_STATUS.READY_TO_PACK} /> }
   ];
 
   const poBreadcrumbs = (
@@ -239,44 +242,46 @@ export default function BuyerPoCartonsPage() {
 
   return (
     <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
-      <Stack spacing={isLulu ? 0.75 : 1} sx={managementStackSx}>
+      <Stack spacing={isSsccCartonWorkflow ? 0.75 : 1} sx={managementStackSx}>
         <CompactPageHeader
           title={`PO ${v(po?.poNumber)}`}
-          subtitle={isLulu ? 'PO station: Scan / Assign SSCC + SKU → RFID → Weight. One scan button per PO; no PO picking or conveyor.' : 'Cartons are generated on first open; Items are generated only when a Carton is opened.'}
-          breadcrumbs={isLulu ? (
-            !mismatch && canProcess ? (
-              <Stack direction="row" justifyContent="flex-end" alignItems="center">
+          subtitle={isSsccCartonWorkflow ? trUi("PO station: Scan / Assign SSCC + SKU → RFID → Weight. One scan button per PO; no PO picking or conveyor.") : trUi("Cartons are generated on first open; Items are generated only when a Carton is opened.")}
+          breadcrumbs={isSsccCartonWorkflow ? (
+            <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={1}>
+              <Button size="small" variant="outlined" startIcon={<ArrowBack />}
+                onClick={() => navigate(`/buyers/${buyer.slug}/orders/${orderId}`)}>
+                {trUi('All POs')}
+              </Button>
+              {!mismatch && canProcess && (
                 <Button variant="contained" onClick={() => setScanOpen(true)} sx={{ flexShrink: 0 }}>
-                  Scan RFID / Weight
+                  {trUi('Scan RFID / Weight')}
                 </Button>
-              </Stack>
-            ) : null
+              )}
+            </Stack>
           ) : poBreadcrumbs}
-          meta={<Chip size="small" variant="outlined" label={`${state.count} Carton${state.count === 1 ? '' : 's'}`} />}
+          meta={<Chip size="small" variant="outlined" label={trUi("{0} cartons", state.count)} />}
           details={(
             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-              {!isLulu && <CompactStat label="Factory" value={v(po?.factoryCode)} />}
-              <CompactStat label="Style" value={v(po?.styleNumber)} />
-              <CompactStat label="Qty" value={v(po?.totalQty)} />
-              <CompactStat label="Pcs/Ctn" value={v(po?.qtyPerCarton)} />
-              <CompactStat label="Planned Ctn" value={v(po?.plannedCartons)} />
-              <CompactStat label="Destination" value={v(po?.destination)} />
+              {!isSsccCartonWorkflow && <CompactStat label={trUi("Factory")} value={v(po?.factoryCode)} />}
+              <CompactStat label={trUi("Style")} value={v(po?.styleNumber)} />
+              <CompactStat label={trUi("Qty")} value={v(po?.totalQty)} />
+              <CompactStat label={trUi("Pcs/Ctn")} value={v(po?.qtyPerCarton)} />
+              <CompactStat label={trUi("Planned Ctn")} value={v(po?.plannedCartons)} />
+              <CompactStat label={trUi("Destination")} value={v(po?.destination)} />
             </Stack>
           )}
-          dense={isLulu}
+          dense={isSsccCartonWorkflow}
         />
 
-        {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
         {notice ? <Alert severity="success" onClose={() => setNotice('')}>{notice}</Alert> : null}
-        {mismatch && <Alert severity="warning" action={<Button size="small" onClick={() => navigate(`/buyers/${buyer.slug}/orders`)}>Back to Orders</Button>}>
-          This PO belongs to Factory {po.factoryCode}, but your selected Factory is {selectedFactory || 'not set'}. Switch Factory to continue.
-        </Alert>}
-        {!mismatch && isLulu && !canProcess && <Alert severity="info">RFID and Weight processing requires the assigned Weight operator permission. You can inspect cartons here.</Alert>}
-        {isLulu && canProcess && <ThemeProvider theme={scanRfidWeightTheme}><OperationWorkspaceDialog
+        {mismatch && <Alert severity="warning" action={<Button size="small" onClick={() => navigate(`/buyers/${buyer.slug}/orders`)}>{trUi("Back to Orders")}</Button>}>{trUi("\n          This PO belongs to Factory ")}{po.factoryCode}{trUi(", but your selected Factory is ")}{selectedFactory || trUi("not set")}{trUi(". Switch Factory to continue.\n        ")}</Alert>}
+        {!mismatch && isSsccCartonWorkflow && !canProcess && <Alert severity="info">{trUi("RFID and Weight processing requires the assigned Weight operator permission. You can inspect cartons here.")}</Alert>}
+        {isSsccCartonWorkflow && canProcess && <ThemeProvider theme={scanRfidWeightTheme}><OperationWorkspaceDialog
           open={Boolean(scanOpen && !mismatch && po?.id)}
           onClose={closeScan}
-          title={`Carton Weighing · PO ${v(po?.poNumber)}`}
-          subtitle={`Order ${v(order?.orderName)} · Factory ${v(po?.factoryCode)}`}
+          title={trUi("Carton Weighing · PO {0}", v(po?.poNumber))}
+          subtitle={trUi("Order {0} · Factory {1}", v(order?.orderName), v(po?.factoryCode))}
           allowMaximize
           startMaximized
           fitViewport
@@ -291,27 +296,20 @@ export default function BuyerPoCartonsPage() {
             onCartonSaved={() => load(paginationRef.current.page, paginationRef.current.size)}
           />}
         </OperationWorkspaceDialog></ThemeProvider>}
-        {isLulu && <Dialog open={Boolean(reassignCarton)} onClose={closeReassign} maxWidth="sm" fullWidth
+        {isSsccCartonWorkflow && <Dialog open={Boolean(reassignCarton)} onClose={closeReassign} maxWidth="sm" fullWidth
           aria-labelledby="reassign-identity-title">
-          <DialogTitle id="reassign-identity-title">Re-assign SSCC &amp; SKU</DialogTitle>
+          <DialogTitle id="reassign-identity-title">{trUi("Re-assign SSCC & SKU")}</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ mb: 1.5 }}>
-              Delete the current SSCC and SKU assignment for Carton {reassignCarton?.cartonNo}?
-              You will be able to scan and assign them again from Scan RFID / Weight.
-            </DialogContentText>
+            <DialogContentText sx={{ mb: 1.5 }}>{trUi("\n              Delete the current SSCC and SKU assignment for Carton ")}{reassignCarton?.cartonNo}{trUi("?\n              You will be able to scan and assign them again from Scan RFID / Weight.\n            ")}</DialogContentText>
             <Stack spacing={0.5} sx={{ mb: 1.5 }}>
-              <Typography variant="body2"><strong>SSCC-18:</strong> {v(reassignCarton?.cartonIdentity)}</Typography>
-              <Typography variant="body2"><strong>SKU:</strong> {v(reassignCarton?.labelConfirmedSku)}</Typography>
+              <Typography variant="body2"><strong>{trUi("SSCC-18:")}</strong> {v(reassignCarton?.cartonIdentity)}</Typography>
+              <Typography variant="body2"><strong>{trUi("SKU:")}</strong> {v(reassignCarton?.labelConfirmedSku)}</Typography>
             </Stack>
-            <Alert severity="warning" sx={{ mb: 1.5 }}>
-              Re-assign clears unfinished scan / RFID progress and SSCC / SKU so you can scan again.
-              Carton, PO, Qty, Item IDs and historical scan evidence are retained.
-              A carton with completed RFID and Weight cannot be Re-assigned.
-            </Alert>
+            <Alert severity="warning" sx={{ mb: 1.5 }}>{trUi("\n              Re-assign clears unfinished scan / RFID progress and SSCC / SKU so you can scan again.\n              Carton, PO, Qty, Item IDs and historical scan evidence are retained.\n              A carton with completed RFID and Weight cannot be Re-assigned.\n            ")}</Alert>
             {reassignError && <Alert severity="error" sx={{ mb: 1.5 }}>{reassignError}</Alert>}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={closeReassign} disabled={reassignBusy}>Cancel</Button>
+            <Button onClick={closeReassign} disabled={reassignBusy}>{trUi("Cancel")}</Button>
             <Button onClick={submitReassign} color="error" variant="contained"
               disabled={reassignBusy || !canReassignIdentity(reassignCarton)}>
               {reassignBusy ? 'Processing...' : 'OK'}
@@ -322,22 +320,22 @@ export default function BuyerPoCartonsPage() {
           fillAvailableHeight
           filterBar={<TableFilterBar
           fields={[
-            ...(!isLulu ? [{ key: 'cartonNo', label: 'Carton No.' }] : []),
+            ...(!isSsccCartonWorkflow ? [{ key: 'cartonNo', label: trUi("Carton No.") }] : []),
             { key: 'sscc', label: 'SSCC-18' },
-            { key: 'status', label: 'Status' }
+            { key: 'status', label: trUi("Status") }
           ]}
           values={filters}
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onClear={() => setFilters({ cartonNo: '', sscc: '', status: '' })}
         />}
-          title="Cartons"
+          title={trUi("Cartons")}
           {...state}
           rowsPerPage={state.size}
           onRowClick={(row) => navigate(`/buyers/${buyer.slug}/orders/${orderId}/pos/${encodeURIComponent(poKey)}/cartons/${row.id}`)}
           onPageChange={(p) => load(p, paginationRef.current.size)}
           onRowsPerPageChange={(s) => load(0, s)}
           columns={columns}
-          emptyText="No Cartons could be generated for this PO."
+          emptyText={trUi("No Cartons could be generated for this PO.")}
         />}
       </Stack>
     </Box>

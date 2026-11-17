@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -9,21 +11,22 @@ import { BUYER_CODE, ALL_BP_KNOWN_HEADERS, ALL_BP_RETIRED_KEYS, ALL_BP_UI_LABELS
   ALL_BP_IMPORTANT_SOURCE_ORDER, DEFAULT_TABLE_ROWS_PER_PAGE, WORKSPACE_SYSTEM_COLUMN_DEFINITIONS,
   WORKSPACE_DEFAULT_COLUMN_KEYS } from '../../../constants/appConstants';
 import ManagementTable from 'components/ManagementTable';
-import TableFilterBar from 'components/TableFilterBar';
+import ShippingScheduleFilterBar from '../components/ShippingScheduleFilterBar';
 import StatusChip from 'components/StatusChip';
-import PoInspectionProgressCell from '../components/PoInspectionProgressCell';
+import ShippingScheduleQcCell from '../components/ShippingScheduleQcCell';
+import ShippingScheduleQcDetailsDialog from '../components/ShippingScheduleQcDetailsDialog';
 import PoScanProgressCell from '../components/PoScanProgressCell';
 import { calculatedCartonMetrics, canonicalSourceKey, sourceValue, value } from '../domain/allBpWorkspace';
 import { canManageShipping } from 'utils/accessControl';
 import { useSelectedFactory } from 'utils/factorySelection';
-import { exportPoShippingDayExcel, getPoShippingDay, listPoShippingDayPos,
+import { exportPoShippingDayExcel, getPoShippingDay, getPoShippingDayQcReport, listPoShippingDayPos,
   removePoFromShippingDay } from '../services/shipping';
 import ShippingSchedulePoPicker from '../components/ShippingSchedulePoPicker';
 import ShippingScheduleExportDialog from '../components/ShippingScheduleExportDialog';
 
 const errText = (e, fallback) => e?.response?.data?.message || e?.message || fallback;
 const humanDate = (date) => String(date || '').split('-').reverse().join('/');
-const emptyFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '' });
+const emptyFilters = () => ({ poNumber: '', factory: '', style: '', sku: '', destination: '', status: '', inspectionStatus: '', exFtyDate: '', cartonStatus: '', ssccStatus: '', skuStatus: '', rfidStatus: '', scanDate: '' });
 // Preferences in Schedule details are independent: never rewrite All POs' column choices.
 const DETAIL_COLUMN_KEY = 'lululemon_shipping_schedule_detail_columns_v1';
 const loadSelectedColumns = () => {
@@ -47,6 +50,9 @@ const systemColumns = WORKSPACE_SYSTEM_COLUMN_DEFINITIONS.map((column) => ({
 
 /** One Shipping Date, on a dedicated page, with the same read-only PO metrics as All POs. */
 export default function ShippingScheduleDetailPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug, orderId, day } = useParams();
   const navigate = useNavigate();
   const { factoryCode, loading: factoryLoading } = useSelectedFactory(BUYER_CODE.LULULEMON);
@@ -68,11 +74,15 @@ export default function ShippingScheduleDetailPage() {
   const [filters, setFilters] = useState(emptyFilters);
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [table, setTable] = useState(initialTable);
+  const [qcReport, setQcReport] = useState(null);
+  const [qcLoading, setQcLoading] = useState(false);
+  const [qcDetails, setQcDetails] = useState(null);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(loadSelectedColumns);
   const [columnMenuAnchor, setColumnMenuAnchor] = useState(null);
   const knownDates = useMemo(() => [day], [day]);
   const tableRequest = useRef(0);
   const headerRequest = useRef(0);
+  const qcRequest = useRef(0);
   const pagination = useRef({ page: 0, size: DEFAULT_TABLE_ROWS_PER_PAGE });
 
   useEffect(() => {
@@ -112,6 +122,23 @@ export default function ShippingScheduleDetailPage() {
     return () => { headerRequest.current += 1; };
   }, [loadHeader]);
 
+  const loadQcReport = useCallback(async () => {
+    const token = ++qcRequest.current;
+    if (factoryLoading || !factoryCode || !day || !orderId) { setQcReport(null); return; }
+    setQcLoading(true);
+    try {
+      const report = await getPoShippingDayQcReport(orderId, day, factoryCode, debouncedFilters.scanDate);
+      if (token === qcRequest.current) setQcReport(report);
+    } catch (e) {
+      if (token === qcRequest.current) { setQcReport(null); setError(errText(e, 'Unable to load carton QC statistics.')); }
+    } finally { if (token === qcRequest.current) setQcLoading(false); }
+  }, [orderId, day, factoryCode, factoryLoading, debouncedFilters.scanDate]);
+
+  useEffect(() => {
+    loadQcReport();
+    return () => { qcRequest.current += 1; };
+  }, [loadQcReport]);
+
   const loadTable = useCallback(async (page = 0, size = pagination.current.size) => {
     const token = ++tableRequest.current;
     if (factoryLoading || !factoryCode || !day || !orderId) {
@@ -130,7 +157,12 @@ export default function ShippingScheduleDetailPage() {
         destination: debouncedFilters.destination,
         status: debouncedFilters.status,
         inspectionStatus: debouncedFilters.inspectionStatus,
-        exFtyDate: debouncedFilters.exFtyDate
+        exFtyDate: debouncedFilters.exFtyDate,
+        cartonStatus: debouncedFilters.cartonStatus,
+        ssccStatus: debouncedFilters.ssccStatus,
+        skuStatus: debouncedFilters.skuStatus,
+        rfidStatus: debouncedFilters.rfidStatus,
+        scanDate: debouncedFilters.scanDate
       }, safePage, safeSize);
       if (token !== tableRequest.current) return;
       const rows = (result?.content || []).map((row, index) => ({ ...row, __stt: safePage * safeSize + index + 1 }));
@@ -216,7 +248,7 @@ export default function ShippingScheduleDetailPage() {
 
   const remove = async (po) => {
     if (!editable || !po?.id || removing) return;
-    if (!window.confirm(`Remove PO ${po.poNumber || po.id} from Shipping Schedule ${humanDate(day)} only? Original PO and cartons will not be deleted.`)) return;
+    if (!await confirmAction({ kind: 'unassign', entity: 'PO', name: `${po.poNumber || po.id} · ${humanDate(day)}`, warning: 'The original PO and its cartons will not be deleted.' })) return;
     setRemoving(po.id); setError(''); setSuccess('');
     try {
       const result = await removePoFromShippingDay(orderId, day, po.id, factoryCode);
@@ -234,11 +266,11 @@ export default function ShippingScheduleDetailPage() {
     } finally { setRemoving(''); }
   };
 
-  const exportExcel = async (selectedColumns) => {
+  const exportExcel = async (selectedColumns, includeQcColumns = true, includeSsccAssigned = false, includeSkuItemsAssigned = false) => {
     if (exporting || !detail?.pos?.length || !Array.isArray(selectedColumns) || !selectedColumns.length) return;
     setExporting(true); setError(''); setExportError('');
     try {
-      const response = await exportPoShippingDayExcel(orderId, day, factoryCode, BUYER_CODE.LULULEMON, selectedColumns);
+      const response = await exportPoShippingDayExcel(orderId, day, factoryCode, BUYER_CODE.LULULEMON, selectedColumns, filters, includeQcColumns, includeSsccAssigned, includeSkuItemsAssigned);
       const url = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = url; link.download = `Shipping_${day}_${factoryCode}.xlsx`;
@@ -252,19 +284,21 @@ export default function ShippingScheduleDetailPage() {
     } finally { setExporting(false); }
   };
 
+  const qcByPoId = useMemo(() => new Map((qcReport?.pos || []).map((p) => [p.poId, p])), [qcReport]);
   const selected = new Set(Array.isArray(visibleColumnKeys) ? visibleColumnKeys : WORKSPACE_DEFAULT_COLUMN_KEYS);
   const columns = [
-    { key: '__inspection', label: 'Carton / RFID / Weight', minWidth: 228,
-      render: (row) => <PoInspectionProgressCell row={row} /> },
+    { key: '__inspection', label: trUi("Carton / SSCC / SKU / RFID"), minWidth: 280,
+      render: (row) => <ShippingScheduleQcCell summary={qcByPoId.get(row.id)} loading={qcLoading} scanDate={debouncedFilters.scanDate}
+        onDetails={(issue) => setQcDetails({ po: row, issue })} /> },
     ...allWorkflowColumns.filter((column) => selected.has(column.key)),
-    { key: 'plannedShippingDate', label: 'Scheduled Ship Date', minWidth: 155,
+    { key: 'plannedShippingDate', label: trUi("Scheduled Ship Date"), minWidth: 155,
       render: (row) => row.plannedShippingDate
         ? <Chip size="small" color="primary" variant="outlined" label={row.plannedShippingDate} />
-        : <Typography variant="caption" color="text.secondary">Not scheduled</Typography> },
-    ...(editable ? [{ key: '__remove', label: 'Actions', minWidth: 105, render: (row) =>
-      <Tooltip title="Remove from this Shipping Schedule only. Keep original PO and cartons."><span>
+        : <Typography variant="caption" color="text.secondary">{trUi("Not scheduled")}</Typography> },
+    ...(editable ? [{ key: '__remove', label: trUi("Actions"), minWidth: 105, render: (row) =>
+      <Tooltip title={trUi("Remove from this Shipping Schedule only. Keep original PO and cartons.")}><span>
         <IconButton size="small" color="error" disabled={Boolean(removing)} onClick={() => remove(row)}
-          aria-label={`Remove PO ${row.poNumber} from Shipping Schedule`}>
+          aria-label={trUi("Remove PO {0} from Shipping Schedule", row.poNumber)}>
           {removing === row.id ? <CircularProgress size={18} /> : <DeleteOutline fontSize="small" />}
         </IconButton>
       </span></Tooltip> }] : [])
@@ -276,83 +310,75 @@ export default function ShippingScheduleDetailPage() {
     return [...next];
   });
   const refresh = async () => {
-    await Promise.all([loadHeader(), loadTable(pagination.current.page, pagination.current.size)]);
+    await Promise.all([loadHeader(), loadTable(pagination.current.page, pagination.current.size), loadQcReport()]);
   };
 
   return <Box sx={{ p: { xs: 1, md: 1.5 }, ...managementPageSx }}><Stack gap={1.25} sx={managementStackSx}>
     <Stack direction={{ xs: 'column', lg: 'row' }} alignItems={{ lg: 'center' }} justifyContent="space-between" gap={1}>
       <Stack direction="row" alignItems="center" gap={1}>
-        <Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(backPath)}>Shipping Schedules</Button>
-        <Box><Typography variant="h5" fontWeight={850}>Shipping Schedule – {humanDate(day)}</Typography>
-          <Typography variant="caption" color="text.secondary">Factory {factoryCode || '—'} · {detail?.pos?.length ?? '…'} POs</Typography>
+        <Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(backPath)}>{trUi("Shipping Schedules")}</Button>
+        <Box><Typography variant="h5" fontWeight={850}>{trUi("Shipping Schedule – ")}{humanDate(day)}</Typography>
+          <Typography variant="caption" color="text.secondary">{trUi("Factory ")}{factoryCode || '—'} · {detail?.pos?.length ?? '…'}{trUi(" POs")}</Typography>
           {detail && <Chip size="small" color={detail.submitted ? 'success' : 'default'}
-            label={detail.submitted ? (detail.autoSubmitted ? 'Submitted (Auto) · Read-only' : 'Submitted · Read-only')
-              : detail.reopened ? 'Unsubmitted · Editable' : 'Draft · Editable'} /> }
+            label={detail.submitted ? (detail.autoSubmitted ? trUi("Submitted (Auto) · Read-only") : trUi("Submitted · Read-only"))
+              : detail.reopened ? trUi("Unsubmitted · Editable") : trUi("Draft · Editable")} /> }
         </Box>
       </Stack>
       <Stack direction="row" alignItems="center" gap={1} useFlexGap flexWrap="wrap">
         <Button size="small" startIcon={loading || table.loading ? <CircularProgress size={15} /> : <Refresh />}
-          disabled={loading || table.loading} onClick={refresh}>Refresh</Button>
+          disabled={loading || table.loading} onClick={refresh}>{trUi("Refresh")}</Button>
         {editable && <Button size="small" variant="outlined" startIcon={<Add />}
-          disabled={!detail || Boolean(removing)} onClick={() => setAdding(true)}>Add PO</Button>}
+          disabled={!detail || Boolean(removing)} onClick={() => setAdding(true)}>{trUi("Add PO")}</Button>}
         <Button size="small" variant="outlined" startIcon={<ViewColumnOutlined />}
-          onClick={(e) => setColumnMenuAnchor(e.currentTarget)} aria-label="Customize Shipping Schedule PO table columns">
-          Columns {allWorkflowColumns.filter((c) => selected.has(c.key)).length}/{allWorkflowColumns.length}
+          onClick={(e) => setColumnMenuAnchor(e.currentTarget)} aria-label={trUi("Customize Shipping Schedule PO table columns")}>{trUi("\n          Columns ")}{allWorkflowColumns.filter((c) => selected.has(c.key)).length}/{allWorkflowColumns.length}
         </Button>
         <Button size="small" variant="contained"
           startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <FileDownloadOutlined />}
-          disabled={exporting || !detail?.pos?.length} onClick={() => { setExportError(''); setExportDialogOpen(true); }}>Export Excel</Button>
+          disabled={exporting || !detail?.pos?.length} onClick={() => { setExportError(''); setExportDialogOpen(true); }}>{trUi("Export Excel")}</Button>
       </Stack>
     </Stack>
-    {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
-    {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
+    {error && <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert>}
+    {success && <Alert severity="success" onClose={() => setSuccess('')}>{trSystem(success)}</Alert>}
     <ManagementTable
           fillAvailableHeight
-      title="POs in this Shipping Schedule"
-      filterBar={<TableFilterBar fields={[
-        { key: 'poNumber', label: 'PO No.' },
-        { key: 'factory', label: 'Factory' },
-        { key: 'style', label: 'Style' },
-        { key: 'sku', label: 'SKU' },
-        { key: 'destination', label: 'Destination' },
-        { key: 'status', label: 'Workflow Status' },
-        { key: 'inspectionStatus', label: 'QC Progress', options: [
-          { value: 'COMPLETED', label: 'Completed' }, { value: 'INCOMPLETE', label: 'Incomplete' },
-          { value: 'IMPORTING', label: 'Importing' }, { value: 'NOT_STARTED', label: 'Imported / Not Started' }
-        ] },
-        { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' }
-      ]} values={filters} onChange={(key, nextValue) => setFilters((current) => ({ ...current, [key]: nextValue }))}
-        onClear={() => setFilters(emptyFilters())} />}
+      title={trUi("POs in this Shipping Schedule")}
+      filterBar={<ShippingScheduleFilterBar
+        values={filters}
+        onChange={(key, nextValue) => setFilters((current) => ({ ...current, [key]: nextValue }))}
+        onClear={() => setFilters(emptyFilters())}
+      />}
       {...table} rowsPerPage={table.size}
       getRowId={(row) => row.id || row.key}
       onPageChange={(nextPage) => loadTable(nextPage, pagination.current.size)}
       onRowsPerPageChange={(size) => loadTable(0, size)}
       columns={columns}
-      emptyText="No POs in this Shipping Schedule match the current filters."
+      emptyText={trUi("No POs in this Shipping Schedule match the current filters.")}
     />
     <Menu anchorEl={columnMenuAnchor} open={Boolean(columnMenuAnchor)}
       onClose={() => setColumnMenuAnchor(null)} PaperProps={{ sx: { width: 330, maxHeight: 520 } }}>
       <Box sx={{ px: 1.5, py: 1 }}>
-        <Typography fontWeight={800}>Customize Columns</Typography>
-        <Typography variant="caption" color="text.secondary">Choose which columns are shown in this Shipping Schedule PO table.</Typography>
+        <Typography fontWeight={800}>{trUi("Customize Columns")}</Typography>
+        <Typography variant="caption" color="text.secondary">{trUi("Choose which columns are shown in this Shipping Schedule PO table.")}</Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-          <Button size="small" onClick={() => setVisibleColumnKeys(WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumns.has(key)))}>Default</Button>
-          <Button size="small" onClick={() => setVisibleColumnKeys(allWorkflowColumns.map((column) => column.key))}>Show All</Button>
+          <Button size="small" onClick={() => setVisibleColumnKeys(WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => availableColumns.has(key)))}>{trUi("Default")}</Button>
+          <Button size="small" onClick={() => setVisibleColumnKeys(allWorkflowColumns.map((column) => column.key))}>{trUi("Show All")}</Button>
         </Stack>
       </Box>
       <Divider />
       {allWorkflowColumns.map((column) => <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
         <Checkbox size="small" checked={selected.has(column.key)} />
-        <ListItemText primary={column.label} secondary={column.group === 'ALL_BP' ? 'ALL_BP' : 'System'} />
+        <ListItemText primary={column.group === 'ALL_BP' ? column.label : trUi(column.label)} secondary={column.group === 'ALL_BP' ? 'ALL_BP' : trUi('System')} />
       </MenuItem>)}
     </Menu>
+    <ShippingScheduleQcDetailsDialog open={Boolean(qcDetails)} po={qcDetails?.po}
+      report={qcReport} initialIssue={qcDetails?.issue} onClose={() => setQcDetails(null)} />
     <ShippingScheduleExportDialog open={exportDialogOpen} exporting={exporting} error={exportError}
       onClose={() => setExportDialogOpen(false)} onExport={exportExcel} />
     <ShippingSchedulePoPicker open={adding && editable} orderId={orderId} factoryCode={factoryCode}
       lockedDate date={day} knownDates={knownDates} onClose={() => setAdding(false)}
       onSaved={async (date, result) => {
         setAdding(false);
-        await Promise.all([loadHeader(), loadTable(0, pagination.current.size)]);
+        await Promise.all([loadHeader(), loadTable(0, pagination.current.size), loadQcReport()]);
         setSuccess(`Added ${result?.scheduledCount ?? 0} PO(s) to Shipping Schedule ${humanDate(date)}.`);
       }} />
   </Stack></Box>;

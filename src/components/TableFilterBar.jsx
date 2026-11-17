@@ -1,7 +1,9 @@
+import { useT } from '../i18n/LanguageProvider';
 import { Box, Button, MenuItem, TextField } from '@mui/material';
 import { ClearRounded, FilterAltOutlined } from '@mui/icons-material';
 
 export default function TableFilterBar({ fields = [], values = {}, onChange, onClear, disabled = false, sx = {}, minFilterWidth = 150, desktopColumns }) {
+  const trUi = useT();
   const active = fields.some((field) => {
     const value = values?.[field.key];
     return value !== undefined && value !== null && String(value).trim() !== '';
@@ -17,14 +19,14 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
         ...sx
       }}
     >
-      <Box sx={{ flex: '1 1 600px', minWidth: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: desktopColumns ? `repeat(${desktopColumns}, minmax(0,1fr))` : `repeat(auto-fit, minmax(min(100%, ${minFilterWidth}px), 1fr))` }, gap: 0.75 }}>
+      <Box sx={{ flex: '1 1 600px', minWidth: 0, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: desktopColumns ? `repeat(${desktopColumns}, minmax(0,1fr))` : `repeat(auto-fit, minmax(min(100%, ${minFilterWidth}px), 1fr))` }, columnGap: 0.75, rowGap: 2.5 }}>
       {fields.map((field) => (
         <TextField
           key={field.key}
           size="small"
           type={field.type || 'text'}
           select={Boolean(field.options)}
-          label={field.label}
+          label={trUi(field.label)}
           placeholder={field.placeholder}
           value={values?.[field.key] ?? ''}
           onChange={(event) => onChange?.(field.key, event.target.value)}
@@ -32,9 +34,9 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
           InputLabelProps={field.type === 'date' || field.shrinkLabel ? { shrink: true } : undefined}
           sx={{ minWidth: 0 }}
         >
-          {field.options ? [<MenuItem key="__all" value="">All</MenuItem>, ...field.options.map((option) => {
+          {field.options ? [<MenuItem key="__all" value="">{trUi("All")}</MenuItem>, ...field.options.map((option) => {
             const value = typeof option === 'string' ? option : option.value;
-            const label = typeof option === 'string' ? option : option.label;
+            const label = typeof option === 'string' ? option : trUi(option.label);
             return <MenuItem key={value} value={value}>{label}</MenuItem>;
           })] : null}
         </TextField>
@@ -48,7 +50,7 @@ export default function TableFilterBar({ fields = [], values = {}, onChange, onC
         disabled={disabled || !active}
         sx={{ ml: 'auto', whiteSpace: 'nowrap', minWidth: 96 }}
       >
-        {active ? 'Clear filters' : 'Filters'}
+        {active ? trUi("Clear filters") : trUi("Filters")}
       </Button>
     </Box>
   );

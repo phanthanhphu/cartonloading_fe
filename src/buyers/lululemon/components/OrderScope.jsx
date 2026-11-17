@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Autocomplete, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import { Refresh } from '@mui/icons-material';
@@ -25,6 +26,8 @@ async function loadAllOrders(factoryCode) {
 }
 
 export default function OrderScope({ value, onChange, disabled = false, embedded = false, compact = false }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const navigate = useNavigate();
   const { factoryCode, loading: factoryLoading } = useSelectedFactory(BUYER_CODE.LULULEMON);
   const [orders, setOrders] = useState([]);
@@ -56,9 +59,9 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
     onChange(next);
   };
 
-  if (error) return <Alert severity="error" action={<Button color="inherit" size="small" onClick={load}>Retry</Button>}>{error}</Alert>;
-  if (!loading && !orders.length) return <Alert severity="warning" action={canManageSales() ? <Button color="inherit" size="small" onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'orders'))}>Create Order</Button> : null}>
-    {canManageSales() ? createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON) : 'No Order is available for this Factory. Ask Sales or Admin to create an Order.'}
+  if (error) return <Alert severity="error" action={<Button color="inherit" size="small" onClick={load}>{trUi("Retry")}</Button>}>{trSystem(error)}</Alert>;
+  if (!loading && !orders.length) return <Alert severity="warning" action={canManageSales() ? <Button color="inherit" size="small" onClick={() => navigate(buyerPath(BUYER_CODE.LULULEMON, 'orders'))}>{trUi("Create Order")}</Button> : null}>
+    {canManageSales() ? createBuyerOrderFirstMessage(BUYER_CODE.LULULEMON) : trUi("No Order is available for this Factory. Ask Sales or Admin to create an Order.")}
   </Alert>;
 
   const content = (
@@ -75,13 +78,12 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
         autoHighlight
         openOnFocus
         clearOnEscape
-        noOptionsText="No matching orders"
+        noOptionsText={trUi("No matching orders")}
         renderOption={(props, row) => (
           <Box component="li" {...props} key={row.id} sx={{ alignItems: 'flex-start !important', py: '6px !important' }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" fontWeight={750}>{row.orderName}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                Start: {row.orderDate || '—'}{row.endOrderDate ? ` · End: ${row.endOrderDate}` : ''}
+              <Typography variant="caption" color="text.secondary">{trUi("\n                Start: ")}{row.orderDate || '—'}{row.endOrderDate ? trUi(" · End: {0}", row.endOrderDate) : ''}
               </Typography>
             </Box>
           </Box>
@@ -89,8 +91,9 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
         renderInput={(params) => (
           <TextField
             {...params}
-            label={compact ? 'Order' : 'Active Order'}
-            placeholder={compact ? 'Search Order' : 'Search Order...'}
+            InputLabelProps={{ ...params.InputLabelProps, shrink: Boolean(value) || undefined }}
+            label={compact ? trUi("Order") : trUi("Active Order")}
+            placeholder={compact ? trUi("Search Order") : trUi("Search Order...")}
             sx={compact ? {
               bgcolor: '#FFFFFF',
               borderRadius: '4px',
@@ -99,7 +102,7 @@ export default function OrderScope({ value, onChange, disabled = false, embedded
           />
         )}
       />
-      {!embedded ? <Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading || disabled}>Refresh</Button> : null}
+      {!embedded ? <Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading || disabled}>{trUi("Refresh")}</Button> : null}
     </Stack>
   );
 

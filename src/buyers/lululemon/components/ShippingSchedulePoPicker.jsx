@@ -1,10 +1,9 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, Divider, ListItemText, Menu, MenuItem, Stack, Table, TableBody, TableCell,
-  TableContainer, TableHead, TablePagination, TableRow, TextField, Typography
-} from '@mui/material';
+import { Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, ListItemText, Menu, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import { LocalShippingOutlined, ViewColumnOutlined } from '@mui/icons-material';
 import { BUYER_CODE, ALL_BP_KNOWN_HEADERS, ALL_BP_RETIRED_KEYS, ALL_BP_SOURCE_ALIAS,
   PURCHASE_ORDER_STATUS_OPTIONS } from '../../../constants/appConstants';
@@ -13,6 +12,15 @@ import { listManagedPos } from 'services/managementService';
 import { getPoShippingDay, schedulePoShippingDate } from '../services/shipping';
 
 const errText = (e, fallback) => e?.response?.data?.message || e?.message || fallback;
+// Shipping Days auto-lock at 00:00 in Vietnam. New dates must start tomorrow.
+// Use Vietnam's calendar date, never the browser/computer's local timezone.
+const nextAvailableShippingDate = (now = new Date()) => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(now).filter(({ type }) => type !== 'literal')
+    .map(({ type, value }) => [type, Number(value)]));
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day + 1)).toISOString().slice(0, 10);
+};
 const cleanId = (row) => row.id || row.key;
 const firstPage = () => ({ rows: [], count: 0, page: 0, size: 25, loading: false });
 const initialFilters = () => ({ poNumber: '', masterPo: '', style: '', description: '', color: '', qty: '',
@@ -159,8 +167,13 @@ const savedColumns = () => {
 /** Server-side paged PO picker. Selection survives search, column changes and page changes. */
 export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, date = '', lockedDate = false,
   knownDates = [], onClose, onSaved }) {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [shippingDate, setShippingDate] = useState(date || '');
   const [selected, setSelected] = useState([]);
+  const earliestNewDate = nextAvailableShippingDate();
+  const invalidNewDate = !lockedDate && Boolean(shippingDate) && shippingDate < earliestNewDate;
   const [existing, setExisting] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
   const [search, setSearch] = useState('');
@@ -200,7 +213,10 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
   useEffect(() => {
     if (!open) return undefined;
     const token = ++existingRef.current;
-    setExisting([]); setSelected([]);
+    // Changing the date must not discard the user's PO selection.
+    // Only refresh the date-specific existing assignments; creation starts a fresh
+    // selection in the separate dialog-open effect above.
+    setExisting([]);
     setCheckingExisting(Boolean(shippingDate && knownDates.includes(shippingDate)));
     if (!shippingDate || !knownDates.includes(shippingDate)) return undefined;
     getPoShippingDay(orderId, shippingDate, factoryCode).then((result) => {
@@ -294,6 +310,17 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
 
   const save = async () => {
     if (saving || checkingExisting || !shippingDate || !selected.length) return;
+    // Recheck at submit time in case the form stays open over Vietnam midnight.
+    if (!lockedDate && shippingDate < nextAvailableShippingDate()) {
+      setError(trUi('Choose a date after today (Vietnam time).'));
+      return;
+    }
+    if (!await confirmAction({ kind: 'assign', entity: 'Shipping Schedule', name: shippingDate || date || '' })) return;
+    // The user can leave the dialog open while the confirmation is visible.
+    if (!lockedDate && shippingDate < nextAvailableShippingDate()) {
+      setError(trUi('Choose a date after today (Vietnam time).'));
+      return;
+    }
     setSaving(true); setError('');
     try {
       const result = await schedulePoShippingDate(orderId, {
@@ -310,44 +337,39 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
     PaperProps={{ sx: { width: 'min(1520px, 98vw)', height: 'min(825px, 94dvh)', maxWidth: 'none',
       maxHeight: '94dvh', display: 'flex', flexDirection: 'column' } }}>
     <DialogTitle sx={{ fontWeight: 850, py: 1.5 }}>
-      {lockedDate ? 'Add POs to Shipping Schedule' : 'New Shipping Schedule'}
+      {lockedDate ? trUi("Add POs to Shipping Schedule") : trUi("New Shipping Schedule")}
     </DialogTitle>
     <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1,
       minHeight: 0, flex: 1, overflow: 'hidden', px: { xs: 1.5, md: 2 }, py: 1.5 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ sm: 'center' }}>
-        <TextField label="Shipping Date" size="small" type="date" required value={shippingDate}
-          disabled={lockedDate || saving} onChange={(e) => setShippingDate(e.target.value)}
+        <TextField label={trUi("Shipping Date")} size="small" type="date" required value={shippingDate}
+          disabled={lockedDate || saving} onChange={(e) => { setShippingDate(e.target.value); setError(''); }}
+          inputProps={lockedDate ? undefined : { min: earliestNewDate }}
+          error={invalidNewDate}
+          helperText={invalidNewDate ? trUi('Choose a date after today (Vietnam time).') : undefined}
           InputLabelProps={{ shrink: true }} sx={{ minWidth: 195 }} />
-        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-          Select POs not yet assigned to any Shipping Schedule in this Order.
-        </Typography>
-        <Chip size="small" variant="outlined" label={`${selected.length} selected · Max 200`} />
+        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>{trUi("\n          Select POs not yet assigned to any Shipping Schedule in this Order.\n        ")}</Typography>
+        <Chip size="small" variant="outlined" label={trUi("{0} selected · Max 200", selected.length)} />
       </Stack>
-      {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+      {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
       <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-        <TextField size="small" label="Search POs" placeholder="PO, Master PO, Style, SKU…"
+        <TextField size="small" label={trUi("Search POs")} placeholder={trUi("PO, Master PO, Style, SKU…")}
           sx={{ minWidth: 220, flex: '1 1 300px' }}
           value={search} onChange={(e) => setSearch(e.target.value)} />
         <Button variant={filtersOpen ? 'contained' : 'outlined'} size="small"
-          onClick={() => setFiltersOpen((value) => !value)}>
-          Filters{Object.values(filters).some((value) => String(value).trim()) ? ' · Active' : ''}
+          onClick={() => setFiltersOpen((value) => !value)}>{trUi("\n          Filters")}{Object.values(filters).some((value) => String(value).trim()) ? ' · Active' : ''}
         </Button>
         <Button variant="outlined" size="small" startIcon={<ViewColumnOutlined />}
-          onClick={(event) => setColumnMenuAnchor(event.currentTarget)}>
-          Columns {visibleCount}/{allColumns.length}
+          onClick={(event) => setColumnMenuAnchor(event.currentTarget)}>{trUi("\n          Columns ")}{visibleCount}/{allColumns.length}
         </Button>
         <Menu anchorEl={columnMenuAnchor} open={Boolean(columnMenuAnchor)} onClose={() => setColumnMenuAnchor(null)}
           PaperProps={{ sx: { maxHeight: 490, minWidth: 275 } }}>
-          <MenuItem onClick={() => setVisibleColumnKeys(DEFAULT_COLUMN_KEYS.map((key) => `src:${key}`))}>
-            Default columns (8)
-          </MenuItem>
-          <MenuItem onClick={() => setVisibleColumnKeys(allColumns.map((column) => column.key))}>
-            Show all {allColumns.length} columns
-          </MenuItem>
+          <MenuItem onClick={() => setVisibleColumnKeys(DEFAULT_COLUMN_KEYS.map((key) => `src:${key}`))}>{trUi("\n            Default columns (8)\n          ")}</MenuItem>
+          <MenuItem onClick={() => setVisibleColumnKeys(allColumns.map((column) => column.key))}>{trUi("\n            Show all ")}{allColumns.length}{trUi(" columns\n          ")}</MenuItem>
           <Divider />
           {allColumns.map((column) => <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
             <Checkbox size="small" checked={visibleColumns.some((item) => item.key === column.key)} />
-            <ListItemText primary={column.title} secondary={column.group} />
+            <ListItemText primary={column.group === 'ALL_BP' ? column.title : trUi(column.title)} secondary={trUi(column.group)} />
           </MenuItem>)}
         </Menu>
       </Stack>
@@ -370,11 +392,11 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
               <Checkbox size="small" sx={{ padding: '6px' }} checked={allSelected}
                 indeterminate={selectedOnPage > 0 && !allSelected}
                 disabled={checkingExisting || !selectableRows.length || candidates.loading}
-                onChange={togglePage} inputProps={{ 'aria-label': 'Select POs on current page' }} />
+                onChange={togglePage} inputProps={{  'aria-label': trUi('Select POs on current page') }} />
             </TableCell>
             {visibleColumns.map((column) => <TableCell key={column.key}
               sx={{ fontWeight: 800, minWidth: column.minWidth, width: column.minWidth, whiteSpace: 'nowrap' }}>
-              {column.title}
+              {column.group === 'ALL_BP' ? column.title : trUi(column.title)}
             </TableCell>)}
           </TableRow></TableHead>
           <TableBody>
@@ -391,7 +413,7 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
                   <Checkbox size="small" sx={{ padding: '6px' }} checked={selectedIds.has(id)}
                   disabled={excluded || checkingExisting || (!selectedIds.has(id) && selected.length >= 200)}
                   onChange={() => toggle(row)} onClick={(e) => e.stopPropagation()}
-                  inputProps={{ 'aria-label': excluded ? 'Already in this Shipping Date' : `Select ${row.poNumber}` }} />
+                  inputProps={{  'aria-label': excluded ? trUi('Already in this Shipping Date') : trUi('Select PO {0}', row.poNumber) }} />
                 </TableCell>
                 {visibleColumns.map((column) => {
                   const value = column.canonical ? sourceValue(row, column.canonical) : column.value(row);
@@ -399,13 +421,13 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
                   return <TableCell key={column.key} title={text}
                     sx={{ width: column.minWidth, maxWidth: column.minWidth, overflow: 'hidden',
                       textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {text}{excluded && column.canonical === 'PO' ? ' · Already added' : ''}
+                    {text}{excluded && column.canonical === 'PO' ? trUi(" · Already added") : ''}
                   </TableCell>;
                 })}
               </TableRow>;
             })}
             {!candidates.loading && !candidates.rows.length ? <TableRow>
-              <TableCell colSpan={visibleCount + 1} align="center" sx={{ py: 3 }}>No POs found.</TableCell>
+              <TableCell colSpan={visibleCount + 1} align="center" sx={{ py: 3 }}>{trUi("No POs found.")}</TableCell>
             </TableRow> : null}
           </TableBody>
         </Table>
@@ -422,9 +444,9 @@ export default function ShippingSchedulePoPicker({ open, orderId, factoryCode, d
       </Stack> : null}
     </DialogContent>
     <DialogActions sx={{ p: 1.5, flexShrink: 0 }}>
-      <Button disabled={saving} onClick={onClose}>Cancel</Button>
+      <Button disabled={saving} onClick={onClose}>{trUi("Cancel")}</Button>
       <Button variant="contained" startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <LocalShippingOutlined />}
-        disabled={saving || checkingExisting || !shippingDate || !selected.length} onClick={save}>
+        disabled={saving || checkingExisting || !shippingDate || invalidNewDate || !selected.length} onClick={save}>
         {saving ? 'Saving…' : `Save (${selected.length} PO${selected.length === 1 ? '' : 's'})`}
       </Button>
     </DialogActions>

@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../../components/confirmation/ActionConfirmationProvider';
+import { useT } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import { DEFAULT_TABLE_PAGE_SIZE, OPERATION_ROUTE, BARCODE_CARTON_STATUS, COMMON_FILTER, PROGRESS_STATUS, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
@@ -5,29 +7,8 @@ import SortableTable from 'components/SortableTable';
 import { quantityMatchesPlan } from 'buyers/es/domain/workflow';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Paper,
-  Stack,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  Typography
-} from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Paper, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import {
   ArrowBackOutlined,
   AssignmentTurnedInOutlined,
@@ -37,7 +18,7 @@ import {
   QrCodeScannerOutlined,
   RefreshOutlined
 } from '@mui/icons-material';
-import { APP_MESSAGES, createFactoryBarcodeAssignedMessage, createFactoryBarcodeAssignedNextMessage, createFactoryBarcodeAvailableMessage, createFactoryBarcodeReleasedMessage, createQuantityMismatchMessage, createUnassignFactoryBarcodeConfirmMessage } from '../../../../constants/appMessages';
+import { APP_MESSAGES, createFactoryBarcodeAssignedMessage, createFactoryBarcodeAssignedNextMessage, createFactoryBarcodeAvailableMessage, createFactoryBarcodeReleasedMessage, createQuantityMismatchMessage } from '../../../../constants/appMessages';
 
 import {
   assignFactoryBarcodeToCarton,
@@ -77,6 +58,8 @@ const statusChip = (value) => {
 const plannedQuantityOf = (carton) => carton?.cartonPcs ?? carton?.qtyPerCarton ?? null;
 
 export default function BarcodeAssignmentPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
   const { buyerSlug, orderId } = useParams();
   const navigate = useNavigate();
   const buyer = getBuyerBySlug(buyerSlug);
@@ -272,6 +255,7 @@ export default function BarcodeAssignmentPage() {
       return;
     }
 
+    if (!await confirmAction({ kind: 'assign', entity: 'Barcode', name: checkedBarcode.barcode })) return;
     setAssigning(true);
     setDetailError('');
     setDetailNotice('');
@@ -300,7 +284,7 @@ export default function BarcodeAssignmentPage() {
 
   const unassign = async (carton) => {
     if (!buyer?.code || !selectedMaster || !carton?.factoryBarcode || assigning) return;
-    if (!window.confirm(createUnassignFactoryBarcodeConfirmMessage(carton.factoryBarcode, carton.cartonCode || 'this physical carton'))) return;
+    if (!await confirmAction({ kind: 'unassign', entity: 'Barcode', name: `${carton.factoryBarcode} · ${carton.cartonCode || ''}` })) return;
     setAssigning(true);
     setDetailError('');
     try {
@@ -328,18 +312,18 @@ export default function BarcodeAssignmentPage() {
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 }, width: '100%' }}>
       <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ lg: 'center' }} spacing={0.9} sx={{ mb: 0.9 }}>
         <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate(OPERATION_ROUTE.ASSIGN_BARCODE)}>Back</Button>
+          <Button size="small" startIcon={<ArrowBackOutlined />} onClick={() => navigate(OPERATION_ROUTE.ASSIGN_BARCODE)}>{trUi("Back")}</Button>
           <Box>
             <Typography sx={{ fontSize: '0.76rem', color: 'text.secondary' }}>
-              {loadingOrder ? 'Loading Order...' : (order?.orderName || 'Order')}
+              {loadingOrder ? trUi("Loading Order...") : (order?.orderName || 'Order')}
             </Typography>
           </Box>
         </Stack>
         <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap alignItems="center">
           <Chip label={`Expected ${numberText(summary.expected)}`} color="primary" variant="outlined" />
           <Chip label={`Generated ${numberText(summary.generated)}`} variant="outlined" />
-          <Chip label={`Barcode Assigned ${numberText(summary.assigned)} / ${numberText(summary.expected)}`} color={summary.assigned === summary.expected && summary.expected > 0 ? 'success' : 'warning'} variant="outlined" />
-          <Button variant="outlined" startIcon={<RefreshOutlined />} onClick={refresh} disabled={loadingRows || loadingOrder} sx={{ textTransform: 'none' }}>Refresh</Button>
+          <Chip label={trUi("Barcode Assigned {0} / {1}", numberText(summary.assigned), numberText(summary.expected))} color={summary.assigned === summary.expected && summary.expected > 0 ? 'success' : 'warning'} variant="outlined" />
+          <Button variant="outlined" startIcon={<RefreshOutlined />} onClick={refresh} disabled={loadingRows || loadingOrder} sx={{ textTransform: 'none' }}>{trUi("Refresh")}</Button>
         </Stack>
       </Stack>
 
@@ -349,23 +333,21 @@ export default function BarcodeAssignmentPage() {
       <Paper variant="outlined" sx={{ p: 1.15, mb: 0, borderRadius: '2px 2px 0 0', borderBottom: 0, bgcolor: '#FBFCFE' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ lg: 'center' }}>
           <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontWeight: 800, color: '#173B63' }}>Choose the Master row before packing</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Total ctns defines the number of physical cartons. Qty Per Ctn defines the planned pieces inside each carton. Physical cartons stay hidden until you open one Master row.
-            </Typography>
+            <Typography sx={{ fontWeight: 800, color: '#173B63' }}>{trUi("Choose the Master row before packing")}</Typography>
+            <Typography variant="body2" color="text.secondary">{trUi("\n              Total ctns defines the number of physical cartons. Qty Per Ctn defines the planned pieces inside each carton. Physical cartons stay hidden until you open one Master row.\n            ")}</Typography>
           </Box>
           <Box sx={{ flex: 1.4, minWidth: { xs: '100%', lg: 680 } }}>
             <TableFilterBar
               fields={[
                 { key: 'poNumber', label: 'e.s. PO #' },
                 { key: 'articleNumber', label: 'e.s. Article #' },
-                { key: 'styleNumber', label: 'STYLE#' },
-                { key: 'style', label: 'STYLE' },
-                { key: 'assignmentStatus', label: 'Assignment Status', options: [
-                  { value: PROGRESS_STATUS.NOT_STARTED, label: 'Not Started' },
-                  { value: PROGRESS_STATUS.IN_PROGRESS, label: 'In Progress' },
-                  { value: PROGRESS_STATUS.COMPLETED, label: 'Completed' },
-                  { value: BARCODE_CARTON_STATUS.PLAN_MISMATCH, label: 'Plan Mismatch' }
+                { key: 'styleNumber', label: trUi("STYLE#") },
+                { key: 'style', label: trUi("STYLE") },
+                { key: 'assignmentStatus', label: trUi("Assignment Status"), options: [
+                  { value: PROGRESS_STATUS.NOT_STARTED, label: trUi("Not Started") },
+                  { value: PROGRESS_STATUS.IN_PROGRESS, label: trUi("In Progress") },
+                  { value: PROGRESS_STATUS.COMPLETED, label: trUi("Completed") },
+                  { value: BARCODE_CARTON_STATUS.PLAN_MISMATCH, label: trUi("Plan Mismatch") }
                 ] }
               ]}
               values={filters}
@@ -421,13 +403,13 @@ export default function BarcodeAssignmentPage() {
                         disabled={mismatch}
                         sx={{ textTransform: 'none', fontWeight: 800, minWidth: 128 }}
                       >
-                        {mismatch ? 'Fix Plan First' : completed ? 'Review Cartons' : row.assignedCount > 0 ? 'Continue Packing' : 'Start Packing'}
+                        {mismatch ? trUi("Fix Plan First") : completed ? trUi("Review Cartons") : row.assignedCount > 0 ? trUi("Continue Packing") : trUi("Start Packing")}
                       </Button>
                     </TableCell>
                   </TableRow>
                 );
               }) : (
-                <TableRow><TableCell colSpan={14} align="center" sx={{ py: 8, color: 'text.secondary' }}>No Master rows match the selected filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={14} align="center" sx={{ py: 8, color: 'text.secondary' }}>{trUi("No Master rows match the selected filters.")}</TableCell></TableRow>
               )}
             </TableBody>
           </SortableTable>
@@ -450,14 +432,14 @@ export default function BarcodeAssignmentPage() {
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ md: 'center' }}>
             <Box>
-              <Typography sx={{ fontWeight: 900, color: '#103B5C' }}>Assign Barcode for Carton · {selectedMaster?.poNumber || '—'} / {selectedMaster?.articleNumber || '—'}</Typography>
-              <Typography variant="body2" color="text.secondary">Scan or enter a Factory Barcode. After it is accepted, select a physical carton below, enter the actual quantity, then press Final.</Typography>
+              <Typography sx={{ fontWeight: 900, color: '#103B5C' }}>{trUi("Assign Barcode for Carton · ")}{selectedMaster?.poNumber || '—'} / {selectedMaster?.articleNumber || '—'}</Typography>
+              <Typography variant="body2" color="text.secondary">{trUi("Scan or enter a Factory Barcode. After it is accepted, select a physical carton below, enter the actual quantity, then press Final.")}</Typography>
             </Box>
             <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap>
               <Chip size="small" label={`STYLE#: ${selectedMaster?.styleNumber || '—'}`} />
               <Chip size="small" label={`STYLE: ${selectedMaster?.style || '—'}`} />
               <Chip size="small" label={`${selectedMaster?.color || '—'} / ${selectedMaster?.size || '—'}`} />
-              <Chip size="small" color="primary" label={`Total ctns: ${numberText(selectedMaster?.totalCartons)}`} />
+              <Chip size="small" color="primary" label={trUi("Total ctns: {0}", numberText(selectedMaster?.totalCartons))} />
               <Chip size="small" color={assignedInSelected === Number(selectedMaster?.totalCartons || 0) ? 'success' : 'warning'} label={`Assigned: ${numberText(assignedInSelected)} / ${numberText(selectedMaster?.totalCartons)}`} />
             </Stack>
           </Stack>
@@ -469,9 +451,7 @@ export default function BarcodeAssignmentPage() {
             {detailNotice && <Alert severity="success" onClose={() => setDetailNotice('')}>{detailNotice}</Alert>}
 
             {!selectedMaster?.cartonCountMatches && (
-              <Alert severity="error">
-                Carton plan mismatch. Total ctns is {numberText(selectedMaster?.totalCartons)}, but {numberText(selectedMaster?.generatedCartons)} physical cartons are generated. Regenerate Carton Master before packing.
-              </Alert>
+              <Alert severity="error">{trUi("\n                Carton plan mismatch. Total ctns is ")}{numberText(selectedMaster?.totalCartons)}{trUi(", but ")}{numberText(selectedMaster?.generatedCartons)}{trUi(" physical cartons are generated. Regenerate Carton Master before packing.\n              ")}</Alert>
             )}
 
             {loadingCartons ? (
@@ -488,13 +468,13 @@ export default function BarcodeAssignmentPage() {
                       bgcolor: checkedBarcode ? '#F4FBF7' : '#FFFFFF'
                     }}
                   >
-                    <Typography sx={{ mb: 0.75, fontSize: '0.72rem', color: '#64748B', fontWeight: 800 }}>SCAN OR ENTER FACTORY BARCODE</Typography>
+                    <Typography sx={{ mb: 0.75, fontSize: '0.72rem', color: '#64748B', fontWeight: 800 }}>{trUi("SCAN OR ENTER FACTORY BARCODE")}</Typography>
                     {!checkedBarcode ? (
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.8} alignItems={{ sm: 'flex-start' }}>
                         <TextField
                           inputRef={barcodeInputRef}
                           fullWidth
-                          label="Factory Barcode"
+                          label={trUi("Factory Barcode")}
                           value={barcode}
                           onChange={(event) => {
                             setBarcode(event.target.value.replace(/\s/g, ''));
@@ -511,7 +491,7 @@ export default function BarcodeAssignmentPage() {
                             }
                           }}
                           disabled={assigning || checkingBarcode}
-                          placeholder="Scan or enter Factory Barcode"
+                          placeholder={trUi("Scan or enter Factory Barcode")}
                           helperText={APP_MESSAGES.BARCODE_VALIDATE_FIRST_HELPER}
                           sx={{ '& .MuiInputBase-root': { minHeight: 58, fontSize: '1.05rem', fontWeight: 850, letterSpacing: 0.5 } }}
                         />
@@ -523,15 +503,15 @@ export default function BarcodeAssignmentPage() {
                           disabled={!barcode.trim() || checkingBarcode || assigning}
                           sx={{ minWidth: 170, minHeight: 58, textTransform: 'none', fontWeight: 900, bgcolor: '#103B5C' }}
                         >
-                          {checkingBarcode ? 'Checking...' : 'Check Barcode'}
+                          {checkingBarcode ? 'Checking...' : trUi("Check Barcode")}
                         </Button>
                       </Stack>
                     ) : (
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.8} justifyContent="space-between" alignItems={{ sm: 'center' }}>
                         <Stack direction="row" spacing={0.8} alignItems="center" flexWrap="wrap" useFlexGap>
-                          <Chip size="small" icon={<AssignmentTurnedInOutlined />} label="BARCODE READY" color="success" />
+                          <Chip size="small" icon={<AssignmentTurnedInOutlined />} label={trUi("BARCODE READY")} color="success" />
                           <Typography sx={{ fontWeight: 950, color: '#103B5C', letterSpacing: 0.45 }}>{checkedBarcode.barcode}</Typography>
-                          <Typography sx={{ fontSize: '0.76rem', color: '#557085', fontWeight: 700 }}>Select one physical carton below.</Typography>
+                          <Typography sx={{ fontSize: '0.76rem', color: '#557085', fontWeight: 700 }}>{trUi("Select one physical carton below.")}</Typography>
                         </Stack>
                         <Button
                           size="small"
@@ -546,30 +526,26 @@ export default function BarcodeAssignmentPage() {
                           }}
                           disabled={assigning}
                           sx={{ textTransform: 'none', fontWeight: 800 }}
-                        >
-                          Change Barcode
-                        </Button>
+                        >{trUi("\n                          Change Barcode\n                        ")}</Button>
                       </Stack>
                     )}
                   </Paper>
                 ) : (
-                  <Alert severity="success" icon={<CheckCircleOutlined />}>
-                    All {numberText(cartons.length)} physical cartons for this Master row have Factory Barcodes assigned. This Master row is ready for Sales Shipment Planning.
-                  </Alert>
+                  <Alert severity="success" icon={<CheckCircleOutlined />}>{trUi("\n                    All ")}{numberText(cartons.length)}{trUi(" physical cartons for this Master row have Factory Barcodes assigned. This Master row is ready for Sales Shipment Planning.\n                  ")}</Alert>
                 )}
 
                 <Paper variant="outlined" sx={{ borderRadius: '4px', overflow: 'hidden', opacity: checkedBarcode || eligibleCartons.length === 0 ? 1 : 0.72 }}>
                   <Box sx={{ px: 1.2, py: 0.9, bgcolor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={0.4} alignItems={{ sm: 'center' }}>
                       <Box>
-                        <Typography sx={{ fontWeight: 850, color: '#103B5C' }}>Physical Cartons</Typography>
+                        <Typography sx={{ fontWeight: 850, color: '#103B5C' }}>{trUi("Physical Cartons")}</Typography>
                         <Typography sx={{ fontSize: '0.72rem', color: '#64748B' }}>
-                          {checkedBarcode ? 'Choose the carton that will receive this Factory Barcode.' : 'Scan or enter a valid Factory Barcode to enable carton selection.'}
+                          {checkedBarcode ? trUi("Choose the carton that will receive this Factory Barcode.") : trUi("Scan or enter a valid Factory Barcode to enable carton selection.")}
                         </Typography>
                       </Box>
                       <Chip
                         size="small"
-                        label={checkedBarcode ? `${numberText(eligibleCartons.length)} available` : 'Waiting for barcode'}
+                        label={checkedBarcode ? `${numberText(eligibleCartons.length)} available` : trUi("Waiting for barcode")}
                         color={checkedBarcode ? 'primary' : 'default'}
                         variant="outlined"
                       />
@@ -608,15 +584,15 @@ export default function BarcodeAssignmentPage() {
                                 '&.Mui-selected:hover': { bgcolor: '#DFEEFF' }
                               }}
                             >
-                              <TableCell sx={{ fontWeight: 850, color: '#103B5C' }}>Carton {valueText(carton.cartonSequence)} / {valueText(carton.plannedCartons)}</TableCell>
+                              <TableCell sx={{ fontWeight: 850, color: '#103B5C' }}>{trUi("Carton ")}{valueText(carton.cartonSequence)} / {valueText(carton.plannedCartons)}</TableCell>
                               <TableCell>{valueText(carton.cartonNumber)}</TableCell>
                               <TableCell sx={{ fontWeight: 750 }}>{valueText(plannedQuantityOf(carton))}</TableCell>
                               <TableCell sx={{ fontWeight: carton.assignedQuantity != null ? 750 : 400 }}>{valueText(carton.assignedQuantity)}</TableCell>
-                              <TableCell sx={{ fontWeight: assigned ? 850 : 400 }}>{carton.factoryBarcode || 'Not Assigned'}</TableCell>
+                              <TableCell sx={{ fontWeight: assigned ? 850 : 400 }}>{carton.factoryBarcode || trUi("Not Assigned")}</TableCell>
                               <TableCell>
                                 <Chip
                                   size="small"
-                                  label={assigned ? 'PACKED / ASSIGNED' : isSelected ? 'SELECTED' : 'NOT PACKED'}
+                                  label={assigned ? trUi("PACKED / ASSIGNED") : isSelected ? 'SELECTED' : trUi("NOT PACKED")}
                                   color={assigned ? 'success' : isSelected ? 'primary' : 'default'}
                                   variant={assigned || isSelected ? 'filled' : 'outlined'}
                                 />
@@ -634,9 +610,7 @@ export default function BarcodeAssignmentPage() {
                                     }}
                                     disabled={assigning}
                                     sx={{ textTransform: 'none' }}
-                                  >
-                                    Unassign
-                                  </Button>
+                                  >{trUi("\n                                    Unassign\n                                  ")}</Button>
                                 ) : eligible ? (
                                   <Button
                                     size="small"
@@ -651,10 +625,10 @@ export default function BarcodeAssignmentPage() {
                                     disabled={!checkedBarcode || assigning}
                                     sx={{ textTransform: 'none', fontWeight: 800, minWidth: 92 }}
                                   >
-                                    {isSelected ? 'Selected' : checkedBarcode ? 'Select' : 'Scan first'}
+                                    {isSelected ? 'Selected' : checkedBarcode ? 'Select' : trUi("Scan first")}
                                   </Button>
                                 ) : (
-                                  <Typography variant="caption" color="text.secondary">Locked</Typography>
+                                  <Typography variant="caption" color="text.secondary">{trUi("Locked")}</Typography>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -681,15 +655,14 @@ export default function BarcodeAssignmentPage() {
                   >
                     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ md: 'center' }} sx={{ mb: 1.1 }}>
                       <Box>
-                        <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 800 }}>SELECTED PHYSICAL CARTON</Typography>
-                        <Typography sx={{ fontSize: '1.2rem', color: '#103B5C', fontWeight: 950 }}>
-                          Carton {valueText(selectedCarton.cartonSequence)} / {valueText(selectedCarton.plannedCartons || selectedMaster?.totalCartons)}
+                        <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 800 }}>{trUi("SELECTED PHYSICAL CARTON")}</Typography>
+                        <Typography sx={{ fontSize: '1.2rem', color: '#103B5C', fontWeight: 950 }}>{trUi("\n                          Carton ")}{valueText(selectedCarton.cartonSequence)} / {valueText(selectedCarton.plannedCartons || selectedMaster?.totalCartons)}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">{selectedCarton.cartonCode || 'Physical carton'} · CTN No. {valueText(selectedCarton.cartonNumber)}</Typography>
+                        <Typography variant="body2" color="text.secondary">{selectedCarton.cartonCode || trUi("Physical carton")}{trUi(" · CTN No. ")}{valueText(selectedCarton.cartonNumber)}</Typography>
                       </Box>
                       <Stack direction="row" spacing={0.6} flexWrap="wrap" useFlexGap>
                         <Chip label={`Barcode: ${checkedBarcode.barcode}`} color="success" variant="outlined" sx={{ fontWeight: 800 }} />
-                        <Chip label={`Planned Qty: ${valueText(plannedQuantity)} pcs`} color="primary" sx={{ fontWeight: 850 }} />
+                        <Chip label={trUi("Planned Qty: {0} pcs", valueText(plannedQuantity))} color="primary" sx={{ fontWeight: 850 }} />
                       </Stack>
                     </Stack>
 
@@ -700,7 +673,7 @@ export default function BarcodeAssignmentPage() {
                         <TextField
                           inputRef={actualInputRef}
                           fullWidth
-                          label="Actual Qty in Carton"
+                          label={trUi("Actual Qty in Carton")}
                           type="number"
                           value={actualQuantity}
                           onChange={(event) => {
@@ -711,20 +684,18 @@ export default function BarcodeAssignmentPage() {
                           inputProps={{ min: 1, step: 'any' }}
                           error={quantityMismatch}
                           helperText={quantityMismatch
-                            ? `Quantity Mismatch — Planned ${valueText(plannedQuantity)} pcs, Actual ${valueText(actualQuantity)} pcs.`
-                            : `Enter the packed quantity for the selected carton. It must match Planned Qty: ${valueText(plannedQuantity)} pcs.`}
+                            ? trUi("Quantity Mismatch — Planned {0} pcs, Actual {1} pcs.", valueText(plannedQuantity), valueText(actualQuantity))
+                            : trUi("Enter the packed quantity for the selected carton. It must match Planned Qty: {0} pcs.", valueText(plannedQuantity))}
                           sx={{ '& .MuiInputBase-root': { minHeight: 58, fontSize: '1.1rem', fontWeight: 850 } }}
                         />
                         {quantityMismatch && (
-                          <Alert severity="error" sx={{ mt: 1 }}>
-                            Quantity Mismatch. Final is blocked until Actual Qty matches Planned Qty.
-                          </Alert>
+                          <Alert severity="error" sx={{ mt: 1 }}>{trUi("\n                            Quantity Mismatch. Final is blocked until Actual Qty matches Planned Qty.\n                          ")}</Alert>
                         )}
                       </Box>
 
                       <TextField
                         fullWidth
-                        label="Production Line (optional)"
+                        label={trUi("Production Line (optional)")}
                         value={productionLine}
                         onChange={(event) => setProductionLine(event.target.value)}
                         disabled={assigning}
@@ -742,9 +713,7 @@ export default function BarcodeAssignmentPage() {
                         }}
                         disabled={assigning}
                         sx={{ mr: { sm: 'auto' }, textTransform: 'none', fontWeight: 800 }}
-                      >
-                        Choose Another Carton
-                      </Button>
+                      >{trUi("\n                        Choose Another Carton\n                      ")}</Button>
                       <Button
                         variant="contained"
                         size="large"
@@ -765,7 +734,7 @@ export default function BarcodeAssignmentPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeMaster} disabled={assigning || checkingBarcode}>Close</Button>
+          <Button onClick={closeMaster} disabled={assigning || checkingBarcode}>{trUi("Close")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

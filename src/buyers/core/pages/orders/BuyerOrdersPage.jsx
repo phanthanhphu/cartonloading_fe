@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,7 +23,7 @@ import {
 } from '@mui/material';
 import { Add, DeleteOutline, DeleteForeverOutlined, EditOutlined, FolderOpenOutlined, Refresh } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
-import { APP_MESSAGES, createDeleteOrderConfirmMessage } from '../../../../constants/appMessages';
+import { APP_MESSAGES } from '../../../../constants/appMessages';
 
 import ManagementTable from 'components/ManagementTable';
 import { CompactPageHeader } from 'components/CompactPageHeader';
@@ -56,6 +58,9 @@ const todayLocal = () => {
 };
 
 export default function BuyerOrdersPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { buyerSlug } = useParams();
   const navigate = useNavigate();
   const buyer = getBuyerBySlug(buyerSlug);
@@ -166,6 +171,7 @@ export default function BuyerOrdersPage() {
   const openOrder = (row) => navigate(`/buyers/${buyer.slug}/orders/${row.id}`);
 
   const save = async (form) => {
+    if (!await confirmAction({ kind: dialog?.record?.id ? 'update' : 'create', entity: 'Order', name: form?.orderName || '' })) return;
     setSaveError(''); setOrderSaving(true);
     try {
       if (dialog?.record?.id) await updateManagedOrder(buyerCode, dialog.record.id, { ...form, factoryCode: isLululemon ? (dialog.record.factoryCode || form.factoryCode) : undefined });
@@ -178,7 +184,7 @@ export default function BuyerOrdersPage() {
   };
 
   const remove = async (row) => {
-    if (!row || !window.confirm(createDeleteOrderConfirmMessage(row.orderName))) return;
+    if (!row || !await confirmAction({ kind: 'delete', entity: 'Order', name: row.orderName })) return;
     try {
       await deleteManagedOrder(buyerCode, row.id);
       await load(paginationRef.current.page, paginationRef.current.size);
@@ -190,23 +196,23 @@ export default function BuyerOrdersPage() {
   if (!buyer) return <Alert severity="error">{APP_MESSAGES.BUYER_NOT_FOUND}</Alert>;
 
   const columns = [
-    { key: '__stt', label: 'STT', minWidth: 64 },
-    ...(isLululemon ? [{ key: 'factoryCode', label: 'Factory', minWidth: 90, render: (row) => row.factoryCode || 'UNASSIGNED' }] : []),
-    { key: 'orderName', label: 'Order', minWidth: 190, render: (row) => <Typography fontWeight={900}>{row.orderName}</Typography> },
-    { key: 'orderDate', label: 'Start Order', render: (row) => formatDate(row.orderDate) },
-    ...(!isLululemon ? [{ key: 'endOrderDate', label: 'End Order', render: (row) => formatDate(row.endOrderDate) }] : []),
-    { key: 'status', label: 'Status', status: true },
-    { key: 'createdBy', label: 'Created By' },
+    { key: '__stt', label: trUi("STT"), minWidth: 64 },
+    ...(isLululemon ? [{ key: 'factoryCode', label: trUi("Factory"), minWidth: 90, render: (row) => row.factoryCode || 'UNASSIGNED' }] : []),
+    { key: 'orderName', label: trUi("Order"), minWidth: 190, render: (row) => <Typography fontWeight={900}>{row.orderName}</Typography> },
+    { key: 'orderDate', label: trUi("Start Order"), render: (row) => formatDate(row.orderDate) },
+    ...(!isLululemon ? [{ key: 'endOrderDate', label: trUi("End Order"), render: (row) => formatDate(row.endOrderDate) }] : []),
+    { key: 'status', label: trUi("Status"), status: true },
+    { key: 'createdBy', label: trUi("Created By") },
     {
       key: 'actions',
-      label: 'Actions',
+      label: trUi("Actions"),
       minWidth: writable ? (isLululemonAdmin && purgeEnabled ? 174 : 132) : 56,
       render: (row) => (
         <Stack direction="row" spacing={0.25} alignItems="center" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title="Open Order Workspace"><IconButton size="small" color="primary" onClick={() => openOrder(row)}><FolderOpenOutlined fontSize="small" /></IconButton></Tooltip>
-          {writable ? <Tooltip title="Edit Order"><IconButton size="small" onClick={() => { setSaveError(''); setDialog({ record: row }); }}><EditOutlined fontSize="small" /></IconButton></Tooltip> : null}
-          {writable && !(isLululemonAdmin && purgeEnabled) ? <Tooltip title="Delete empty Order"><IconButton size="small" color="error" onClick={() => remove(row)}><DeleteOutline fontSize="small" /></IconButton></Tooltip> : null}
-          {isLululemonAdmin && purgeEnabled ? <Tooltip title="Delete Order and ALL related data (TEST ONLY)"><IconButton size="small" color="error" onClick={() => openPurge(row)}><DeleteForeverOutlined fontSize="small" /></IconButton></Tooltip> : null}
+          <Tooltip title={trUi("Open Order Workspace")}><IconButton size="small" color="primary" onClick={() => openOrder(row)}><FolderOpenOutlined fontSize="small" /></IconButton></Tooltip>
+          {writable ? <Tooltip title={trUi("Edit Order")}><IconButton size="small" onClick={() => { setSaveError(''); setDialog({ record: row }); }}><EditOutlined fontSize="small" /></IconButton></Tooltip> : null}
+          {writable && !(isLululemonAdmin && purgeEnabled) ? <Tooltip title={trUi("Delete empty Order")}><IconButton size="small" color="error" onClick={() => remove(row)}><DeleteOutline fontSize="small" /></IconButton></Tooltip> : null}
+          {isLululemonAdmin && purgeEnabled ? <Tooltip title={trUi("Delete Order and ALL related data (TEST ONLY)")}><IconButton size="small" color="error" onClick={() => openPurge(row)}><DeleteForeverOutlined fontSize="small" /></IconButton></Tooltip> : null}
         </Stack>
       )
     }
@@ -216,26 +222,24 @@ export default function BuyerOrdersPage() {
     <Box sx={{ p: { xs: 0.75, md: 1 }, ...managementPageSx }}>
       <Stack spacing={1} sx={managementStackSx}>
         {isLululemon && factoryError && <Alert severity="error">{factoryError}</Alert>}
-        {isLululemon && !factoryLoading && !factoryCode && !factoryError && <Alert severity="warning">
-          No active Factory assigned for LULULEMON. Ask Admin to assign a Factory before creating Orders or importing Excel.
-        </Alert>}
+        {isLululemon && !factoryLoading && !factoryCode && !factoryError && <Alert severity="warning">{trUi("\n          No active Factory assigned for LULULEMON. Ask Admin to assign a Factory before creating Orders or importing Excel.\n        ")}</Alert>}
         <CompactPageHeader
-          title="Orders"
-          subtitle={isLululemon ? `Buyer ${buyer.label} · Factory ${factoryCode || "Not assigned"}. Create an Order, import Excel All_BP inside, then open PO to scan.` : "Orders are isolated inside this Buyer. Open an Order to manage PO → Carton → Item."}
+          title={trUi("Orders")}
+          subtitle={isLululemon ? trUi("Buyer {0} · Factory {1}. Create an Order, import Excel All_BP inside, then open PO to scan.", buyer.label, factoryCode || "Not assigned") : trUi("Orders are isolated inside this Buyer. Open an Order to manage PO → Carton → Item.")}
           breadcrumbs={!isLululemon ? (
             <Breadcrumbs separator="/">
-              <Link component={RouterLink} underline="hover" color="inherit" to="/dashboard">Dashboard</Link>
+              <Link component={RouterLink} underline="hover" color="inherit" to="/dashboard">{trUi("Dashboard")}</Link>
               <Typography color="text.primary">{buyer.label}</Typography>
             </Breadcrumbs>
           ) : null}
           meta={<Chip size="small" variant="outlined" label={`${state.count} Order${state.count === 1 ? '' : 's'}`} />}
           actions={(<>
-            <Button size="small" startIcon={<Refresh />} onClick={() => load(paginationRef.current.page, paginationRef.current.size)} disabled={state.loading}>Refresh</Button>
-            {writable && (!isLululemon || factoryCode) ? <Button size="small" variant="contained" startIcon={<Add />} onClick={() => { setSaveError(''); setDialog({ record: null }); }}>New Order</Button> : null}
+            <Button size="small" startIcon={<Refresh />} onClick={() => load(paginationRef.current.page, paginationRef.current.size)} disabled={state.loading}>{trUi("Refresh")}</Button>
+            {writable && (!isLululemon || factoryCode) ? <Button size="small" variant="contained" startIcon={<Add />} onClick={() => { setSaveError(''); setDialog({ record: null }); }}>{trUi("New Order")}</Button> : null}
           </>)}
         />
 
-        {error ? <Alert severity="error" onClose={() => setError('')}>{error}</Alert> : null}
+        {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
 
         
 
@@ -243,12 +247,12 @@ export default function BuyerOrdersPage() {
           fillAvailableHeight
           filterBar={<TableFilterBar
           fields={[
-            { key: 'orderDate', label: 'Start Order', type: 'date' },
-            { key: 'orderName', label: 'Order' },
-            ...(!isLululemon ? [{ key: 'factory', label: 'Factory' }] : []),
-            { key: 'supplier', label: 'Supplier' },
-            { key: 'createdBy', label: 'Created By' },
-            { key: 'status', label: 'Status' }
+            { key: 'orderDate', label: trUi("Start Order"), type: 'date' },
+            { key: 'orderName', label: trUi("Order") },
+            ...(!isLululemon ? [{ key: 'factory', label: trUi("Factory") }] : []),
+            { key: 'supplier', label: trUi("Supplier") },
+            { key: 'createdBy', label: trUi("Created By") },
+            { key: 'status', label: trUi("Status") }
           ]}
           values={filters}
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
@@ -261,30 +265,30 @@ export default function BuyerOrdersPage() {
           onPageChange={(page) => load(page, paginationRef.current.size)}
           onRowsPerPageChange={(size) => load(0, size)}
           columns={columns}
-          emptyText={writable ? 'No Orders yet. Click New Order to start.' : 'No Orders are available for this Buyer.'}
+          emptyText={writable ? trUi("No Orders yet. Click New Order to start.") : trUi("No Orders are available for this Buyer.")}
         />
 
         <Dialog open={Boolean(purgeOrder)} onClose={() => { if (!purging) setPurgeOrder(null); }} maxWidth="sm" fullWidth>
-          <DialogTitle color="error.main">Remove Order + All Data · TEST ONLY</DialogTitle>
+          <DialogTitle color="error.main">{trUi("Remove Order + All Data · TEST ONLY")}</DialogTitle>
           <DialogContent>
             <Stack spacing={1.5} sx={{ mt: 1 }}>
-              <Alert severity="error">This permanently deletes the Order and its PO Picking, Carton, Item, Shipping, Weight, RFID and QC records. Audit logs and shared device configuration are preserved. This cannot be undone.</Alert>
-              <DialogContentText>Buyer: <b>{buyerCode}</b> · Order: <b>{purgeOrder?.orderName}</b></DialogContentText>
+              <Alert severity="error">{trUi("This permanently deletes the Order and its PO Picking, Carton, Item, Shipping, Weight, RFID and QC records. Audit logs and shared device configuration are preserved. This cannot be undone.")}</Alert>
+              <DialogContentText>{trUi("Buyer: ")}<b>{buyerCode}</b>{trUi(" · Order: ")}<b>{purgeOrder?.orderName}</b></DialogContentText>
               {purgePreview ? <>
-                <Typography variant="subtitle2">Records matched: {Object.values(purgePreview.counts || {}).reduce((total, n) => total + Number(n || 0), 1)}</Typography>
+                <Typography variant="subtitle2">{trUi("Records matched: ")}{Object.values(purgePreview.counts || {}).reduce((total, n) => total + Number(n || 0), 1)}</Typography>
                 {Object.entries(purgePreview.counts || {}).filter(([, n]) => n > 0).map(([name, n]) => (
                   <Typography variant="body2" key={name}>{name}: {n}</Typography>
                 ))}
-                {purgePreview.activeCapture ? <Alert severity="warning">An RFID PDA capture is active. Stop the capture before deleting this Order.</Alert> : null}
-              </> : <Typography variant="body2">Loading matching records…</Typography>}
-              <Typography variant="body2">Type <b>DELETE {purgeOrder?.orderName}</b> to confirm.</Typography>
-              <TextField fullWidth size="small" label="Confirmation" autoComplete="off" value={purgeConfirm} onChange={(e) => setPurgeConfirm(e.target.value)} />
+                {purgePreview.activeCapture ? <Alert severity="warning">{trUi("An RFID PDA capture is active. Stop the capture before deleting this Order.")}</Alert> : null}
+              </> : <Typography variant="body2">{trUi("Loading matching records…")}</Typography>}
+              <Typography variant="body2">{trUi("Type ")}<b>{trUi("DELETE ")}{purgeOrder?.orderName}</b>{trUi(" to confirm.")}</Typography>
+              <TextField fullWidth size="small" label={trUi("Confirmation")} autoComplete="off" value={purgeConfirm} onChange={(e) => setPurgeConfirm(e.target.value)} />
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button disabled={purging} onClick={() => setPurgeOrder(null)}>Cancel</Button>
+            <Button disabled={purging} onClick={() => setPurgeOrder(null)}>{trUi("Cancel")}</Button>
             <Button color="error" variant="contained" disabled={purging || !purgePreview || purgePreview.activeCapture || purgeConfirm !== `DELETE ${purgeOrder?.orderName}`} onClick={purgeTestData}>
-              {purging ? 'Deleting…' : 'Permanently Delete Everything'}
+              {purging ? 'Deleting…' : trUi("Permanently Delete Everything")}
             </Button>
           </DialogActions>
         </Dialog>
@@ -296,6 +300,8 @@ export default function BuyerOrdersPage() {
 }
 
 function OrderDialog({ record, factoryCode, buyerCode, isLululemon = false, onClose, onSave, saveError, saving }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [form, setForm] = useState({
     orderDate: record?.orderDate || todayLocal(),
     endOrderDate: isLululemon ? null : (record?.endOrderDate || todayLocal()),
@@ -325,25 +331,25 @@ function OrderDialog({ record, factoryCode, buyerCode, isLululemon = false, onCl
   const isDuplicate = isLululemon && nameCheck.name === form.orderName.trim() && nameCheck.duplicate;
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle fontWeight={900}>{record ? 'Edit Order' : 'Create Order'}</DialogTitle>
+      <DialogTitle fontWeight={900}>{record ? trUi("Edit Order") : trUi("Create Order")}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
-          {isLululemon && <TextField disabled label="Factory" value={form.factoryCode || ''}/>}
+          {isLululemon && <TextField disabled label={trUi("Factory")} value={form.factoryCode || ''}/>}
           {saveError && <Alert severity="error">{saveError}</Alert>}
-          {isLululemon && !form.factoryCode && <Alert severity="warning">Assign/select a Factory in the header before creating an Order.</Alert>}
-          <TextField autoFocus label="Order Name" value={form.orderName}
+          {isLululemon && !form.factoryCode && <Alert severity="warning">{trUi("Assign/select a Factory in the header before creating an Order.")}</Alert>}
+          <TextField autoFocus label={trUi("Order Name")} value={form.orderName}
             onChange={(e) => { setForm({ ...form, orderName: e.target.value }); setNameCheck({ name: '', duplicate: false, checking: false }); }}
             onBlur={verifyName} error={Boolean(isDuplicate)}
-            helperText={isDuplicate ? `Order name already exists in Factory ${form.factoryCode}.` : undefined} />
+            helperText={isDuplicate ? trUi("Order name already exists in Factory {0}.", form.factoryCode) : undefined} />
           {!isLululemon && <>
-            <TextField required type="date" label="Start Order" InputLabelProps={{ shrink: true }} value={form.orderDate} onChange={(e) => setForm({ ...form, orderDate: e.target.value, endOrderDate: form.endOrderDate < e.target.value ? e.target.value : form.endOrderDate })} />
-            <TextField required type="date" label="End Order" InputLabelProps={{ shrink: true }} value={form.endOrderDate} inputProps={{ min: form.orderDate || undefined }} onChange={(e) => setForm({ ...form, endOrderDate: e.target.value })} />
+            <TextField required type="date" label={trUi("Start Order")} InputLabelProps={{ shrink: true }} value={form.orderDate} onChange={(e) => setForm({ ...form, orderDate: e.target.value, endOrderDate: form.endOrderDate < e.target.value ? e.target.value : form.endOrderDate })} />
+            <TextField required type="date" label={trUi("End Order")} InputLabelProps={{ shrink: true }} value={form.endOrderDate} inputProps={{ min: form.orderDate || undefined }} onChange={(e) => setForm({ ...form, endOrderDate: e.target.value })} />
           </>}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={saving}>Cancel</Button>
-        <Button variant="contained" onClick={() => onSave(form)} disabled={saving || isDuplicate || !form.orderName.trim() || (!isLululemon && (!form.orderDate || !form.endOrderDate || form.endOrderDate < form.orderDate)) || (isLululemon && !form.factoryCode)}>{saving ? 'Saving…' : 'Save Order'}</Button>
+        <Button onClick={onClose} disabled={saving}>{trUi("Cancel")}</Button>
+        <Button variant="contained" onClick={() => onSave(form)} disabled={saving || isDuplicate || !form.orderName.trim() || (!isLululemon && (!form.orderDate || !form.endOrderDate || form.endOrderDate < form.orderDate)) || (isLululemon && !form.factoryCode)}>{saving ? 'Saving…' : trUi("Save Order")}</Button>
       </DialogActions>
     </Dialog>
   );

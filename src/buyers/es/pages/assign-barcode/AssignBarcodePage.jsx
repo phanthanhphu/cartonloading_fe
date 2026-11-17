@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
@@ -31,6 +32,8 @@ const statusSx = (value) => {
 };
 
 export default function AssignBarcodePage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const navigate = useNavigate();
   const buyers = useMemo(() => getAccessibleBuyers(readStoredUser()), []);
   const selectedBuyer = readSelectedBuyer();
@@ -102,20 +105,20 @@ export default function AssignBarcodePage() {
 
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
-      {error ? <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> : null}
+      {error ? <Alert severity="error" sx={{ mb: 1 }}>{trSystem(error)}</Alert> : null}
 
       <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#FFFFFF' }}>
         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={0.8} alignItems={{ lg: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
-          <TextField size="small" label="Search Order" value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { lg: 260 } }} />
-          <TextField select size="small" label="Barcode Assignment Status" value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 170 } }}>
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value={PROGRESS_STATUS.NOT_STARTED}>Not Started</MenuItem>
-            <MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>In Progress</MenuItem>
-            <MenuItem value={PROGRESS_STATUS.COMPLETED}>Completed</MenuItem>
+          <TextField size="small" label={trUi("Search Order")} value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { lg: 260 } }} />
+          <TextField select size="small" label={trUi("Barcode Assignment Status")} value={assignmentStatus} onChange={(event) => setAssignmentStatus(event.target.value)} sx={{ minWidth: { lg: 170 } }}>
+            <MenuItem value="">{trUi("All")}</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.NOT_STARTED}>{trUi("Not Started")}</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>{trUi("In Progress")}</MenuItem>
+            <MenuItem value={PROGRESS_STATUS.COMPLETED}>{trUi("Completed")}</MenuItem>
           </TextField>
-          <Button variant="contained" startIcon={<SearchOutlined />} onClick={applySearch} disabled={loading}>Search</Button>
-          <Button variant="outlined" startIcon={<RestartAltOutlined />} onClick={resetSearch} disabled={loading}>Reset</Button>
-          <Button variant="outlined" startIcon={<RefreshOutlined />} onClick={load} disabled={loading}>Refresh</Button>
+          <Button variant="contained" startIcon={<SearchOutlined />} onClick={applySearch} disabled={loading}>{trUi("Search")}</Button>
+          <Button variant="outlined" startIcon={<RestartAltOutlined />} onClick={resetSearch} disabled={loading}>{trUi("Reset")}</Button>
+          <Button variant="outlined" startIcon={<RefreshOutlined />} onClick={load} disabled={loading}>{trUi("Refresh")}</Button>
         </Stack>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 0.75, p: 0.85, borderBottom: '1px solid #E7EDF3', bgcolor: '#F8FAFC' }}>
@@ -148,7 +151,7 @@ export default function AssignBarcodePage() {
               {loading ? (
                 <TableRow><TableCell colSpan={9} align="center" sx={{ py: 5 }}><CircularProgress size={24} /></TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 5, color: 'text.secondary' }}>No Orders match the selected barcode assignment filter.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 5, color: 'text.secondary' }}>{trUi("No Orders match the selected barcode assignment filter.")}</TableCell></TableRow>
               ) : rows.map((row, index) => (
                 <TableRow key={row.id} hover>
                   <TableCell align="center" sx={{ width: 56, color: '#64748B', fontWeight: 650 }}>{page * pageSize + index + 1}</TableCell>
@@ -170,7 +173,7 @@ export default function AssignBarcodePage() {
                       onClick={() => buyer && navigate(`/assign-barcode/${buyer.slug}/${row.id}`)}
                       sx={{ minWidth: 145, textTransform: 'none', fontWeight: 750 }}
                     >
-                      {row.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'Review Assignment' : 'Assign Barcode'}
+                      {row.assignmentStatus === PROGRESS_STATUS.COMPLETED ? trUi("Review Assignment") : trUi("Assign Barcode")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -181,8 +184,8 @@ export default function AssignBarcodePage() {
 
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1} sx={{ px: 1, py: 0.75, borderTop: '1px solid #DCE4EC' }}>
           <Stack direction="row" spacing={1.2} alignItems="center">
-            <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Showing {from}-{to} of {total}</Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>Rows</Typography>
+            <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{trUi("Showing ")}{from}-{to} of {total}</Typography>
+            <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>{trUi("Rows")}</Typography>
             <Select size="small" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} sx={{ height: 30, minWidth: 72 }}>
               {COMMON_PAGE_SIZE_OPTIONS.map((size) => <MenuItem key={size} value={size}>{size}</MenuItem>)}
             </Select>

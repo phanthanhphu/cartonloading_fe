@@ -96,7 +96,14 @@ const words = (value) => String(value || '')
   .replace(/[_-]+/g, ' ').trim().split(/\s+/).filter(Boolean)
   .map((part) => ACRONYMS.has(part.toUpperCase()) ? part.toUpperCase() : part.toLowerCase());
 
-export const auditActionLabel = (code) => AUDIT_ACTION_LABELS[code] || words(code).join(' ').replace(/^./, (ch) => ch.toUpperCase()) || 'Unknown activity';
+export const auditActionLabel = (code, description = '') => {
+  // Both "remove PO" and "delete Shipping Date" use one legacy action code.
+  // Distinguish their display using the persisted event description, never by mutating the action.
+  if (code === 'LULULEMON_PO_SHIPPING_PLAN_REMOVE' && /^Deleted Shipping Date\b/i.test(String(description))) {
+    return 'Deleted shipping date';
+  }
+  return AUDIT_ACTION_LABELS[code] || words(code).join(' ').replace(/^./, (ch) => ch.toUpperCase()) || 'Unknown activity';
+};
 export const auditModuleLabel = (code) => AUDIT_MODULE_LABELS[code] || words(code).join(' ').replace(/^./, (ch) => ch.toUpperCase()) || 'Other';
 export const auditFieldLabel = (key) => FIELD_LABELS[key] || words(key).join(' ').replace(/^./, (ch) => ch.toUpperCase()) || String(key);
 
@@ -113,11 +120,12 @@ export const auditDateTime = (value) => {
   return match ? `${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}` : String(value);
 };
 
-export const auditValueText = (value) => {
+export const auditValueText = (value, t = (label) => label) => {
   if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.length ? value.map(auditValueText).join(', ') : 'Empty';
-  if (typeof value === 'object') return Object.entries(value).map(([key, val]) => `${auditFieldLabel(key)}: ${auditValueText(val)}`).join('; ') || 'Empty';
+  if (typeof value === 'boolean') return t(value ? 'Yes' : 'No');
+  if (Array.isArray(value)) return value.length ? value.map((item) => auditValueText(item, t)).join(', ') : t('Empty');
+  if (typeof value === 'object') return Object.entries(value).map(([key, val]) => `${t(auditFieldLabel(key))}: ${auditValueText(val, t)}`).join('; ') || t('Empty');
+  // Keep arbitrary user-supplied data and stored identifiers exactly as recorded.
   return String(value);
 };
 

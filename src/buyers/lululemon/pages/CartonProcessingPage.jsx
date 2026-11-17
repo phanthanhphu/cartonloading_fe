@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Chip, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
@@ -18,6 +19,7 @@ const numberText = (value) => (value === undefined || value === null || !Number.
  * No conveyor, Shipping, PO Picking, wizard screen, or blocking scan modal.
  */
 export default function CartonProcessingPage({ orderId = '', poId = '', poNumber = '', carton, grossWeightKg, initialSscc = '', onCartonSaved, onClose }) {
+  const trUi = useT();
   const { factoryCode, loading: factoryLoading, error: factoryError } = useSelectedFactory(BUYER_CODE.LULULEMON);
   const [summary, setSummary] = useState(null);
   const [scan, setScan] = useState({ sscc: '', sku: '' });
@@ -110,81 +112,79 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
   if (!cartonId) return null;
   return <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '4px', borderColor: 'primary.light' }}>
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} gap={1} sx={{ mb: 1.5 }}>
-      <Box><Typography fontWeight={900} variant="h6">Carton {carton.cartonNo} · Assign SSCC / RFID / Weight</Typography>
-        <Typography variant="body2" color="text.secondary">PO {poNumber} · Factory {factoryCode || '—'} · Process this selected Carton only</Typography></Box>
+      <Box><Typography fontWeight={900} variant="h6">{trUi("Carton ")}{carton.cartonNo}{trUi(" · Assign SSCC / RFID / Weight")}</Typography>
+        <Typography variant="body2" color="text.secondary">PO {poNumber}{trUi(" · Factory ")}{factoryCode || '—'}{trUi(" · Process this selected Carton only")}</Typography></Box>
       <Stack direction="row" gap={1} alignItems="center">
-        <Button variant="outlined" size="small" startIcon={<Refresh/>} onClick={() => refreshSummary().catch((e) => setError(messageOf(e)))}>Refresh</Button>
-        <Button size="small" onClick={onClose}>Close</Button>
+        <Button variant="outlined" size="small" startIcon={<Refresh/>} onClick={() => refreshSummary().catch((e) => setError(messageOf(e)))}>{trUi("Refresh")}</Button>
+        <Button size="small" onClick={onClose}>{trUi("Close")}</Button>
       </Stack>
     </Stack>
     <Stack direction="row" gap={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-      <Chip color="primary" variant="outlined" label={`Expected Qty: ${plannedQty} pcs`} />
-      <Chip variant="outlined" label={`Expected Weight: ${numberText(expected)} kg`} />
+      <Chip color="primary" variant="outlined" label={trUi("Expected Qty: {0} pcs", plannedQty)} />
+      <Chip variant="outlined" label={trUi("Expected Weight: {0} kg", numberText(expected))} />
       <Chip variant="outlined" label={`Allowed: ${numberText(allowedMin)} – ${numberText(allowedMax)} kg`} />
-      <Chip variant="outlined" label={`SSCC: ${active?.carton?.sscc18 || carton.cartonIdentity || 'Not assigned'}`} />
+      <Chip variant="outlined" label={`SSCC: ${active?.carton?.sscc18 || carton.cartonIdentity || trUi("Not assigned")}`} />
       <Chip variant="outlined" color={rfidStatus === RFID_CHECK_RESULT.PASS ? 'success' : rfidStatus === RFID_CHECK_RESULT.FAILED ? 'error' : 'default'} label={`RFID: ${rfidStatus || 'PENDING'}`} />
       <Chip variant="outlined" color={weightStatus === WEIGHING_RESULT.PASS ? 'success' : weightStatus === WEIGHING_RESULT.FAILED ? 'error' : 'default'} label={`Weight: ${weightStatus || 'PENDING'}`} />
     </Stack>
     <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mb: 1.5 }}>
       {assignedScaleStations.length ? <TextField select SelectProps={{ native: true }} size="small"
-        label="Assigned Scale Station" value={stationCode} onChange={(e) => setStationCode(e.target.value)}
+        label={trUi("Assigned Scale Station")} value={stationCode} onChange={(e) => setStationCode(e.target.value)}
         disabled={Boolean(active)} sx={{ minWidth: 215 }}>
-        <option value="">Select assigned Station</option>
+        <option value="">{trUi("Select assigned Station")}</option>
         {assignedScaleStations.map((item) => <option key={item.stationCode} value={item.stationCode}>{item.stationCode}</option>)}
-      </TextField> : <TextField label="Station Code" size="small" placeholder="Assigned station / test station"
+      </TextField> : <TextField label={trUi("Station Code")} size="small" placeholder={trUi("Assigned station / test station")}
         value={stationCode} onChange={(e) => setStationCode(e.target.value)}
         disabled={Boolean(active)} sx={{ minWidth: 215 }}/>} 
-      <Typography variant="caption" color="text.secondary">Choose your assigned station before starting RFID. It stays fixed through Weight.</Typography>
+      <Typography variant="caption" color="text.secondary">{trUi("Choose your assigned station before starting RFID. It stays fixed through Weight.")}</Typography>
     </Stack>
-    {Boolean(carton.weightStatus) && !active && <Alert severity="info" sx={{ mb: 1 }}>This carton already has a saved Weight result ({carton.weightStatus}). To scan again, an authorized supervisor must reopen the record in History. Existing results are kept.</Alert>}
+    {Boolean(carton.weightStatus) && !active && <Alert severity="info" sx={{ mb: 1 }}>{trUi("This carton already has a saved Weight result (")}{carton.weightStatus}{trUi("). To scan again, an authorized supervisor must reopen the record in History. Existing results are kept.")}</Alert>}
     {(factoryError || error) && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError('')}>{factoryError || error}</Alert>}
     {note && <Alert severity="info" sx={{ mb: 1 }} onClose={() => setNote('')}>{note}</Alert>}
     {!active ? <Box sx={{ maxWidth: 700 }}>
-      <Typography fontWeight={800} sx={{ mb: 1 }}><QrCodeScanner sx={{ verticalAlign: 'middle', mr: 0.8 }}/>1. Scan / Assign SSCC + SKU</Typography>
+      <Typography fontWeight={800} sx={{ mb: 1 }}><QrCodeScanner sx={{ verticalAlign: 'middle', mr: 0.8 }}/>{trUi("1. Scan / Assign SSCC + SKU")}</Typography>
       <Stack spacing={1}>
-        <TextField inputRef={ssccRef} autoFocus size="small" label="SSCC-18 (or GS1 (00) barcode)" value={scan.sscc}
+        <TextField inputRef={ssccRef} autoFocus size="small" label={trUi("SSCC-18 (or GS1 (00) barcode)")} value={scan.sscc}
           onChange={(e) => setScan((s) => ({ ...s, sscc: e.target.value }))}
           onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) { e.preventDefault(); skuRef.current?.focus(); } }}/>
-        <TextField inputRef={skuRef} size="small" label="SKU on carton label" value={scan.sku}
+        <TextField inputRef={skuRef} size="small" label={trUi("SKU on carton label")} value={scan.sku}
           onChange={(e) => setScan((s) => ({ ...s, sku: e.target.value }))}
           onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) { e.preventDefault(); identify(); } }}/>
         <Button variant="contained" onClick={identify} disabled={busy || factoryLoading || !stationCode.trim() || Boolean(carton.weightStatus) || !factoryCode || !scan.sscc.trim() || !scan.sku.trim()}>
-          {carton.cartonIdentity ? 'Confirm SSCC + SKU' : 'Assign SSCC + Confirm SKU'}</Button>
-        <Typography variant="caption" color="text.secondary">Selected Carton {carton.cartonNo} has Qty {plannedQty}. SSCC will only be assigned to this row, never another FIFO carton. Already-assigned SSCCs are verified; duplicates across POs are rejected.</Typography>
+          {carton.cartonIdentity ? trUi("Confirm SSCC + SKU") : trUi("Assign SSCC + Confirm SKU")}</Button>
+        <Typography variant="caption" color="text.secondary">{trUi("Selected Carton ")}{carton.cartonNo}{trUi(" has Qty ")}{plannedQty}{trUi(". SSCC will only be assigned to this row, never another FIFO carton. Already-assigned SSCCs are verified; duplicates across POs are rejected.")}</Typography>
       </Stack>
     </Box> : <Stack spacing={1.5}>
       <Divider/>
       <Box>
-        <Typography fontWeight={800} sx={{ mb: 1 }}><SensorsOutlined sx={{ verticalAlign: 'middle', mr: 0.8 }}/>2. RFID Scan</Typography>
+        <Typography fontWeight={800} sx={{ mb: 1 }}><SensorsOutlined sx={{ verticalAlign: 'middle', mr: 0.8 }}/>{trUi("2. RFID Scan")}</Typography>
         <CartonRfidPanel key={active.carton.id} orderId={active.carton.orderId} poId={active.carton.poId}
           carton={active.carton} factoryCode={factoryCode} stationCode={stationCode.trim()} onSessionChange={setRfid}/>
       </Box>
       <Divider/>
       <Box>
-        <Typography fontWeight={800} sx={{ mb: 1 }}><ScaleOutlined sx={{ verticalAlign: 'middle', mr: 0.8 }}/>3. Weight — Manual Save</Typography>
-        {rfid?.status === RFID_CHECK_RESULT.FAILED && <Alert severity="warning" sx={{ mb: 1 }}>RFID FAILED. Weight may be recorded, but Final PASS requires RFID PASS and Weight PASS.</Alert>}
+        <Typography fontWeight={800} sx={{ mb: 1 }}><ScaleOutlined sx={{ verticalAlign: 'middle', mr: 0.8 }}/>{trUi("3. Weight — Manual Save")}</Typography>
+        {rfid?.status === RFID_CHECK_RESULT.FAILED && <Alert severity="warning" sx={{ mb: 1 }}>{trUi("RFID FAILED. Weight may be recorded, but Final PASS requires RFID PASS and Weight PASS.")}</Alert>}
         <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 1 }}>
           <Chip label={`Expected: ${numberText(expected)} kg`} />
           <Chip label={`Min: ${numberText(allowedMin)} kg`} />
           <Chip label={`Max: ${numberText(allowedMax)} kg`} />
         </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-<Chip label={`Scale station: ${stationCode || "—"}`} variant="outlined"/>
-          <TextField label="Actual Weight (kg)" size="small" type="number" value={actualWeightKg}
+<Chip label={trUi("Scale station: {0}", stationCode || "—")} variant="outlined"/>
+          <TextField label={trUi("Actual Weight (kg)")} size="small" type="number" value={actualWeightKg}
             disabled={Boolean(saved)} onChange={(e) => setActualWeightKg(e.target.value)} inputProps={{ min: 0, step: 0.001 }}/>
-          <Button variant="contained" onClick={saveWeight} disabled={busy || !isFinished(rfid?.status) || Boolean(saved) || !(Number(actualWeightKg) > 0) || !stationCode.trim()}>
-            Save Weight</Button>
+          <Button variant="contained" onClick={saveWeight} disabled={busy || !isFinished(rfid?.status) || Boolean(saved) || !(Number(actualWeightKg) > 0) || !stationCode.trim()}>{trUi("\n            Save Weight")}</Button>
           {saved && <Chip color={saved.carton.weightStatus === WEIGHING_RESULT.PASS ? 'success' : 'error'} label={`Weight ${saved.carton.weightStatus}`}/>}
         </Stack>
-        {!isFinished(rfid?.status) && <Typography variant="caption" color="text.secondary">Finish RFID scan before entering Weight result. PLC auto-save is not enabled.</Typography>}
-        {saved && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Expected {numberText(saved.event.expectedWeightKg)} kg ±{numberText(saved.event.toleranceKg)} kg · Actual {numberText(saved.event.actualWeightKg)} kg</Typography>}
+        {!isFinished(rfid?.status) && <Typography variant="caption" color="text.secondary">{trUi("Finish RFID scan before entering Weight result. PLC auto-save is not enabled.")}</Typography>}
+        {saved && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{trUi("\n          Expected ")}{numberText(saved.event.expectedWeightKg)}{trUi(" kg ±")}{numberText(saved.event.toleranceKg)}{trUi(" kg · Actual ")}{numberText(saved.event.actualWeightKg)} kg</Typography>}
       </Box>
       {saved && <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
-          <Box><Typography fontWeight={900}>FINAL {finalStatus === FINAL_INSPECTION_RESULT.PASS ? 'PASS' : 'FAILED / HOLD'}</Typography>
-            <Typography variant="caption" color="text.secondary">Processed {summary?.processed ?? '—'}/{summary?.total ?? '—'} · Remaining {summary?.remaining ?? '—'} · RFID and Weight must both PASS.</Typography></Box>
-          <Button variant="contained" startIcon={<CheckCircleOutline/>} onClick={markNext}>{summary?.end ? 'END · Back to Carton List' : 'Next Carton · Back to List'}</Button>
+          <Box><Typography fontWeight={900}>{trUi("FINAL ")}{finalStatus === FINAL_INSPECTION_RESULT.PASS ? 'PASS' : trUi("FAILED / HOLD")}</Typography>
+            <Typography variant="caption" color="text.secondary">{trUi("Processed ")}{summary?.processed ?? '—'}/{summary?.total ?? '—'}{trUi(" · Remaining ")}{summary?.remaining ?? '—'}{trUi(" · RFID and Weight must both PASS.")}</Typography></Box>
+          <Button variant="contained" startIcon={<CheckCircleOutline/>} onClick={markNext}>{summary?.end ? trUi("END · Back to Carton List") : trUi("Next Carton · Back to List")}</Button>
         </Stack>
       </Paper>}
     </Stack>}

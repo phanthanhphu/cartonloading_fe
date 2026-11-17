@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -32,6 +34,9 @@ const initialForm = (d) => ({
 
 /** Multi-factory RFID registry. Each Reader may be shared, but capture locks by ADB Serial. */
 export default function RfidDevicesPage({ factoryCode = null }) {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const { codes: factoryCodes } = useActiveFactories({ realtime: false });
   const permittedFactories = useMemo(() => factoryCodes.filter(canWeighFactory), [factoryCodes]);
   const [devices, setDevices] = useState([]);
@@ -85,7 +90,9 @@ export default function RfidDevicesPage({ factoryCode = null }) {
     catch (e) { setError(displayError(e)); }
     finally { setBusy(false); }
   };
-  const save = () => action(async () => {
+  const save = async () => {
+    if (!await confirmAction({ kind: isNew ? 'create' : 'update', entity: 'RFID Reader', name: selected?.serial || newSerial || '' })) return;
+    return action(async () => {
     if (!selected?.serial) throw new Error('Enter the Reader ADB Serial first. Connect it to the backend host and authorize ADB.');
     if (selected.capturing) throw new Error('STOP and release this reader before changing its Factory.');
     if (form.factories.some((factory) => !permittedFactories.includes(factory))) throw new Error('Factory access denied.');
@@ -105,14 +112,15 @@ export default function RfidDevicesPage({ factoryCode = null }) {
     });
     if (form.defaultFactory && form.factories.includes(form.defaultFactory))
       await makeFactoryDefaultRfidPda(selected.serial, form.defaultFactory);
-    setNotice(`${form.label || selected.serial}: ${form.factories.length ? `assigned to ${form.factories.join(', ')}` : 'unassigned'} successfully.`);
+    setNotice(trUi("{0}: {1} successfully.", form.label || selected.serial, form.factories.length ? `assigned to ${form.factories.join(', ')}` : 'unassigned'));
     setEditSerial(null); setIsNew(false);
-  });
+    });
+  };
 
   const remove = () => action(async () => {
     if (!deleteSerial) throw new Error('Select a Reader to delete.');
     await deleteManagedRfidPda(deleteSerial);
-    setNotice(`Removed Reader ${deleteSerial} registration (history retained). If connected through ADB, it will remain in the list as DETECTED.`);
+    setNotice(trUi("Removed Reader {0} registration (history retained). If connected through ADB, it will remain in the list as DETECTED.", deleteSerial));
     setDeleteSerial(null);
   });
 
@@ -122,51 +130,47 @@ export default function RfidDevicesPage({ factoryCode = null }) {
       throw new Error('Confirm physical STOP and enter a reason of at least 8 characters.');
     await recoverManagedRfidPda(selected.serial, recoveryReason.trim());
     setPhysicalStopConfirmed(false); setRecoveryReason('');
-    setNotice(`Reader ${selected.serial} reservation released. Check the carton RFID session before rescan.`);
+    setNotice(trUi("Reader {0} reservation released. Check the carton RFID session before rescan.", selected.serial));
     setEditSerial(null);
   });
 
-  if (!isAdmin()) return <Alert severity="warning">Only ADMIN can manage RFID Readers and assign Factories.</Alert>;
-  if (!permittedFactories.length) return <Alert severity="warning">You do not have permission to manage any Factory.</Alert>;
+  if (!isAdmin()) return <Alert severity="warning">{trUi("Only ADMIN can manage RFID Readers and assign Factories.")}</Alert>;
+  if (!permittedFactories.length) return <Alert severity="warning">{trUi("You do not have permission to manage any Factory.")}</Alert>;
 
   return (
     <Box className="lululemon-compact-v16" sx={{ px: { xs: 0.5, md: 1 }, py: 0.8 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent="space-between" gap={1}>
         <Box>
-          <Typography variant="h6" fontWeight={850}>RFID Reader Management</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Each Reader may serve multiple Factories. Only one carton capture can use a Reader at a time.
-          </Typography>
+          <Typography variant="h6" fontWeight={850}>{trUi("RFID Reader Management")}</Typography>
+          <Typography variant="body2" color="text.secondary">{trUi("\n            Each Reader may serve multiple Factories. Only one carton capture can use a Reader at a time.\n          ")}</Typography>
         </Box>
         <Stack direction="row" gap={1}>
-          <Button size="small" startIcon={<Add />} variant="contained" disabled={busy} onClick={openCreate}>Add Reader</Button>
-          <Button size="small" startIcon={<Refresh />} variant="outlined" disabled={busy} onClick={() => action(reload)}>
-            Refresh Readers
-          </Button>
+          <Button size="small" startIcon={<Add />} variant="contained" disabled={busy} onClick={openCreate}>{trUi("Add Reader")}</Button>
+          <Button size="small" startIcon={<Refresh />} variant="outlined" disabled={busy} onClick={() => action(reload)}>{trUi("\n            Refresh Readers\n          ")}</Button>
         </Stack>
       </Stack>
       <Paper variant="outlined" sx={{ mt: 0.9, p: 1.05, borderRadius: '4px' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} gap={0.8} sx={{ mb: 0.9 }}>
-          <TextField size="small" fullWidth label="Search Reader / ADB Serial" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <TextField size="small" fullWidth label={trUi("Search Reader / ADB Serial")} value={search} onChange={(e) => setSearch(e.target.value)} />
           {factoryCode ? <Button size="small" variant="outlined" onClick={() => setShowAvailable((current) => !current)}>
-              {showAvailable ? `Only ${factoryCode} Readers` : 'Find / Assign Existing Reader'}
-            </Button> : <TextField size="small" select label="Factory" value={factoryFilter} onChange={(e) => setFactoryFilter(e.target.value)} sx={{ minWidth: 185 }}>
-              <MenuItem value="ALL">All Factories</MenuItem>
+              {showAvailable ? trUi("Only {0} Readers", factoryCode) : trUi("Find / Assign Existing Reader")}
+            </Button> : <TextField size="small" select label={trUi("Factory")} value={factoryFilter} onChange={(e) => setFactoryFilter(e.target.value)} sx={{ minWidth: 185 }}>
+              <MenuItem value="ALL">{trUi("All Factories")}</MenuItem>
               {permittedFactories.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
-              <MenuItem value="UNASSIGNED">Unassigned</MenuItem>
+              <MenuItem value="UNASSIGNED">{trUi("Unassigned")}</MenuItem>
             </TextField>}
         </Stack>
-        {!devices.length && <Alert severity="info">No registered RFID Readers. Connect PDA through ADB, authorize USB debugging, then Refresh Readers.</Alert>}
+        {!devices.length && <Alert severity="info">{trUi("No registered RFID Readers. Connect PDA through ADB, authorize USB debugging, then Refresh Readers.")}</Alert>}
         <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '4px', maxHeight: 'min(69vh, 760px)' }}>
           <Table size="small" stickyHeader>
             <TableHead><TableRow>
-              <TableCell sx={{ width: 60 }}>STT</TableCell>
-              <TableCell>Reader Name</TableCell>
-              <TableCell>ADB Serial</TableCell>
-              <TableCell>Connection</TableCell>
-              <TableCell>Assigned Factory</TableCell>
-              <TableCell>State</TableCell>
-              <TableCell align="right">Action</TableCell>
+              <TableCell sx={{ width: 60 }}>{trUi("STT")}</TableCell>
+              <TableCell>{trUi("Reader Name")}</TableCell>
+              <TableCell>{trUi("ADB Serial")}</TableCell>
+              <TableCell>{trUi("Connection")}</TableCell>
+              <TableCell>{trUi("Assigned Factory")}</TableCell>
+              <TableCell>{trUi("State")}</TableCell>
+              <TableCell align="right">{trUi("Action")}</TableCell>
             </TableRow></TableHead>
             <TableBody>
               {filtered.map((d, idx) => {
@@ -181,45 +185,44 @@ export default function RfidDevicesPage({ factoryCode = null }) {
                       {factories.length ? factories.map((factory) => <Chip key={factory} size="small" label={factory}
                         color={isDefault(d, factory) ? 'primary' : 'default'}
                         icon={isDefault(d, factory) ? <Star /> : undefined}/>)
-                        : <Chip size="small" label="Unassigned" variant="outlined"/>}
+                        : <Chip size="small" label={trUi("Unassigned")} variant="outlined"/>}
                     </Stack>
                   </TableCell>
                   <TableCell><Chip size="small" color={d.capturing ? 'warning' : d.configured ? 'success' : 'default'}
-                    label={d.capturing ? 'SCANNING / RESERVED' : !d.registered ? 'DETECTED · NOT REGISTERED' : d.configured ? 'READY' : 'NEEDS CALIBRATION'}/></TableCell>
+                    label={d.capturing ? trUi("SCANNING / RESERVED") : !d.registered ? trUi("DETECTED · NOT REGISTERED") : d.configured ? 'READY' : trUi("NEEDS CALIBRATION")}/></TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                       <Button size="small" startIcon={<EditOutlined />} variant="outlined"
-                        onClick={(event) => { event.stopPropagation(); openAssignment(d); }}>Edit / Assign</Button>
+                        onClick={(event) => { event.stopPropagation(); openAssignment(d); }}>{trUi("Edit / Assign")}</Button>
                       {d.registered && <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutline />}
                         disabled={d.capturing || busy}
-                        onClick={(event) => { event.stopPropagation(); setDeleteSerial(d.serial); }}>Delete</Button>}
+                        onClick={(event) => { event.stopPropagation(); setDeleteSerial(d.serial); }}>{trUi("Delete")}</Button>}
                     </Stack>
                   </TableCell>
                 </TableRow>;
               })}
-              {!filtered.length && <TableRow><TableCell colSpan={7} align="center">No Readers match your filters.</TableCell></TableRow>}
+              {!filtered.length && <TableRow><TableCell colSpan={7} align="center">{trUi("No Readers match your filters.")}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </TableContainer>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          {filtered.length} / {devices.length} Readers{factoryCode && !showAvailable ? ` assigned to ${factoryCode}` : ''}. Factory assignments are shared; a busy Reader cannot be edited or deleted.
-        </Typography>
+          {filtered.length} / {devices.length}{trUi(" Readers")}{factoryCode && !showAvailable ? ` assigned to ${factoryCode}` : ''}{trUi(". Factory assignments are shared; a busy Reader cannot be edited or deleted.\n        ")}</Typography>
       </Paper>
 
       {editSerial && <Paper variant="outlined" sx={{ p: 2, mt: 1.5, borderRadius: '4px' }}>
-        <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>ADMIN · {isNew ? 'Add RFID Reader' : 'Edit RFID Reader / Assign Factories'}</Typography>
+        <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>{trUi("ADMIN · ")}{isNew ? trUi("Add RFID Reader") : trUi("Edit RFID Reader / Assign Factories")}</Typography>
           <Stack gap={1.5} sx={{ pt: 0.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Cable fontSize="small"/>
               <Typography fontWeight={750}>{selected?.serial || '—'}</Typography>
               <Chip size="small" color={selected?.online ? 'success' : 'default'} label={selected?.online ? DEVICE_CONNECTION_STATE.CONNECTED : 'OFFLINE'}/>
             </Box>
-            {isNew && <TextField size="small" fullWidth label="ADB Serial" value={newSerial} disabled={busy}
-              onChange={(e) => setNewSerial(e.target.value)} helperText="The physical Reader must be discoverable via adb devices on the backend host."/>}
-            {selected?.capturing && <Alert severity="warning">Reader is reserved for an RFID scan. Finish the session before changing Factory assignment.</Alert>}
-            <TextField size="small" fullWidth label="Reader Name" value={form.label} disabled={busy || selected?.capturing}
+            {isNew && <TextField size="small" fullWidth label={trUi("ADB Serial")} value={newSerial} disabled={busy}
+              onChange={(e) => setNewSerial(e.target.value)} helperText={trUi("The physical Reader must be discoverable via adb devices on the backend host.")}/>}
+            {selected?.capturing && <Alert severity="warning">{trUi("Reader is reserved for an RFID scan. Finish the session before changing Factory assignment.")}</Alert>}
+            <TextField size="small" fullWidth label={trUi("Reader Name")} value={form.label} disabled={busy || selected?.capturing}
               onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}/>
-            <Typography variant="subtitle2" fontWeight={800}>Assign Factories (multiple)</Typography>
+            <Typography variant="subtitle2" fontWeight={800}>{trUi("Assign Factories (multiple)")}</Typography>
             <Stack direction="row" flexWrap="wrap" gap={0.3}>
               {permittedFactories.map((factory) => <FormControlLabel key={factory} label={factory}
                 control={<Checkbox size="small" checked={form.factories.includes(factory)}
@@ -230,51 +233,49 @@ export default function RfidDevicesPage({ factoryCode = null }) {
                     defaultFactory: !e.target.checked && prev.defaultFactory === factory ? '' : prev.defaultFactory
                   }))}/>}/>)}
             </Stack>
-            <TextField size="small" select fullWidth label="Set default for Factory (optional)"
+            <TextField size="small" select fullWidth label={trUi("Set default for Factory (optional)")}
               value={form.defaultFactory} disabled={busy || selected?.capturing || !form.factories.length}
               onChange={(e) => setForm((prev) => ({ ...prev, defaultFactory: e.target.value }))}>
-              <MenuItem value="">Keep current defaults</MenuItem>
+              <MenuItem value="">{trUi("Keep current defaults")}</MenuItem>
               {form.factories.map((factory) => <MenuItem key={factory} value={factory}>{factory}</MenuItem>)}
             </TextField>
-            <Typography variant="caption" color="text.secondary">
-              A Reader can be assigned to multiple Factories. Default is configured separately for each Factory.
-            </Typography>
+            <Typography variant="caption" color="text.secondary">{trUi("\n              A Reader can be assigned to multiple Factories. Default is configured separately for each Factory.\n            ")}</Typography>
             <Divider/>
-            <Typography variant="subtitle2" fontWeight={800}>RFID Control V2 · START / STOP coordinates</Typography>
-            <Typography variant="caption" color="text.secondary">You may assign a Factory now and calibrate later. START is disabled until all four coordinates are configured.</Typography>
+            <Typography variant="subtitle2" fontWeight={800}>{trUi("RFID Control V2 · START / STOP coordinates")}</Typography>
+            <Typography variant="caption" color="text.secondary">{trUi("You may assign a Factory now and calibrate later. START is disabled until all four coordinates are configured.")}</Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
               {['startX', 'startY', 'stopX', 'stopY'].map((field) => <TextField key={field} size="small" type="number" fullWidth
                 label={field.toUpperCase()} value={form[field]} disabled={busy || selected?.capturing}
                 onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}/>)}
             </Stack>
             {selected?.capturing && <Paper variant="outlined" sx={{ p: 1.5, borderColor: 'warning.main' }}>
-              <Typography fontWeight={800} fontSize={13}>Emergency ADMIN recovery</Typography>
-              <Typography variant="caption">Only after physically stopping the PDA. Releasing the lock does not import EPC or change RFID PASS/FAIL.</Typography>
-              <TextField size="small" multiline fullWidth label="Recovery reason (8–500 characters)" sx={{ mt: 1 }}
+              <Typography fontWeight={800} fontSize={13}>{trUi("Emergency ADMIN recovery")}</Typography>
+              <Typography variant="caption">{trUi("Only after physically stopping the PDA. Releasing the lock does not import EPC or change RFID PASS/FAIL.")}</Typography>
+              <TextField size="small" multiline fullWidth label={trUi("Recovery reason (8–500 characters)")} sx={{ mt: 1 }}
                 value={recoveryReason} onChange={(e) => setRecoveryReason(e.target.value)} inputProps={{ maxLength: 500 }}/>
               <FormControlLabel control={<Checkbox checked={physicalStopConfirmed}
-                onChange={(e) => setPhysicalStopConfirmed(e.target.checked)}/>} label="I verified Inventory STOPPED on the PDA"/>
+                onChange={(e) => setPhysicalStopConfirmed(e.target.checked)}/>} label={trUi("I verified Inventory STOPPED on the PDA")}/>
               <Button size="small" color="error" variant="outlined" disabled={busy || !physicalStopConfirmed || recoveryReason.trim().length < 8}
-                onClick={recover}>Release Reserved Reader</Button>
+                onClick={recover}>{trUi("Release Reserved Reader")}</Button>
             </Paper>}
           </Stack>
         <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 1.5 }}>
-          <Button disabled={busy} onClick={closeAssignment}>Cancel</Button>
+          <Button disabled={busy} onClick={closeAssignment}>{trUi("Cancel")}</Button>
           <Button variant="contained" disabled={busy || selected?.capturing || (isNew && !newSerial.trim())} onClick={save}>
-            {isNew ? 'Add Reader' : 'Save Changes'}
+            {isNew ? trUi("Add Reader") : trUi("Save Changes")}
           </Button>
         </Stack>
       </Paper>}
       {deleteSerial && <Paper variant="outlined" sx={{ mt: 1.5, p: 2, borderRadius: '4px', borderColor: 'error.main' }}>
-        <Typography variant="subtitle1" fontWeight={800}>Delete RFID Reader?</Typography>
-          <Typography>Remove configuration and Factory assignments for <strong>{deleteSerial}</strong>?</Typography>
-          <Alert severity="info" sx={{ mt: 1 }}>Only configuration and Factory assignments are deleted, not EPC/history. If still physically connected, the Reader remains listed as DETECTED until disconnected.</Alert>
+        <Typography variant="subtitle1" fontWeight={800}>{trUi("Delete RFID Reader?")}</Typography>
+          <Typography>{trUi("Remove configuration and Factory assignments for ")}<strong>{deleteSerial}</strong>?</Typography>
+          <Alert severity="info" sx={{ mt: 1 }}>{trUi("Only configuration and Factory assignments are deleted, not EPC/history. If still physically connected, the Reader remains listed as DETECTED until disconnected.")}</Alert>
         <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 1.5 }}>
-          <Button disabled={busy} onClick={() => setDeleteSerial(null)}>Cancel</Button>
-          <Button variant="contained" color="error" disabled={busy} onClick={remove}>Delete Reader</Button>
+          <Button disabled={busy} onClick={() => setDeleteSerial(null)}>{trUi("Cancel")}</Button>
+          <Button variant="contained" color="error" disabled={busy} onClick={remove}>{trUi("Delete Reader")}</Button>
         </Stack>
       </Paper>}
-      {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mt: 1 }}>{trSystem(error)}</Alert>}
       {notice && <Alert severity="success" sx={{ mt: 1 }}>{notice}</Alert>}
     </Box>
   );

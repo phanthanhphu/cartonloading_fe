@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -42,6 +43,8 @@ const cartonRfidDisplay = (row) => {
 
 /** Read the persisted latest attempt only when an operator expands Show More. */
 function RfidInspectionEvidence({ row, orderId, poId }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [session, setSession] = useState(null);
   const [fetchError, setFetchError] = useState('');
   useEffect(() => {
@@ -62,35 +65,35 @@ function RfidInspectionEvidence({ row, orderId, poId }) {
   const expected = Number(session?.expectedQty ?? row.plannedQty ?? 0);
   return <Stack spacing={0.6} sx={{ mt: 0.6 }}>
     {fetchError && <Alert severity="warning" sx={{ py: 0 }}>{fetchError}</Alert>}
-    {!session && !fetchError && <Typography variant="caption">Loading RFID evidence…</Typography>}
+    {!session && !fetchError && <Typography variant="caption">{trUi("Loading RFID evidence…")}</Typography>}
     {session && <>
       <Stack direction="row" gap={0.5} useFlexGap flexWrap="wrap" alignItems="center">
         <Chip size="small" color={statusColor(session.status)} label={`RFID ${session.status || 'PENDING'}`} />
-        <Chip size="small" variant="outlined" label={`Matched ${matched}/${expected}`} />
-        {matched < expected && <Chip size="small" color="error" variant="outlined" label={`Missing ${expected - matched}`} />}
-        {matched > expected && <Chip size="small" color="error" variant="outlined" label={`Excess ${matched - expected}`} />}
-        {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={`Wrong SKU ${wrong}${invalid.length ? ` (incl. ${invalid.length} unsupported)` : ''}`} />}
-        {cross > 0 && <Chip size="small" color="error" variant="outlined" label={`Cross-carton ${cross}`} />}
-        {invalid.length > 0 && <Chip size="small" color="error" variant="outlined" label={`Invalid ${invalid.length}`} />}
-        <Chip size="small" variant="outlined" label={`Read events ${session.readCount ?? 0}`} />
+        <Chip size="small" variant="outlined" label={trUi("Matched {0}/{1}", matched, expected)} />
+        {matched < expected && <Chip size="small" color="error" variant="outlined" label={trUi("Missing {0}", expected - matched)} />}
+        {matched > expected && <Chip size="small" color="error" variant="outlined" label={trUi("Excess {0}", matched - expected)} />}
+        {wrong > 0 && <Chip size="small" color="error" variant="outlined" label={trUi("Wrong SKU {0}{1}", wrong, invalid.length ? ` (incl. ${invalid.length} unsupported)` : '')} />}
+        {cross > 0 && <Chip size="small" color="error" variant="outlined" label={trUi("Cross-carton {0}", cross)} />}
+        {invalid.length > 0 && <Chip size="small" color="error" variant="outlined" label={trUi("Invalid {0}", invalid.length)} />}
+        <Chip size="small" variant="outlined" label={trUi("Read events {0}", session.readCount ?? 0)} />
       </Stack>
       {session.status === RFID_CHECK_RESULT.FAILED && <Alert severity="error" sx={{ py: 0 }}>
-        <b>RFID FAILED.</b> {session.reason || 'Quantity, SKU or EPC validation failed.'}
+        <b>{trUi("RFID FAILED.")}</b> {session.reason || trUi("Quantity, SKU or EPC validation failed.")}
       </Alert>}
       <TableContainer sx={{ maxHeight: 190, overflowY: 'auto' }}>
-        <Table size="small" aria-label="RFID scan evidence" sx={{ '& .MuiTableCell-root': { py: 0.35, fontSize: 11 } }}>
-          <TableHead><TableRow><TableCell>STT</TableCell><TableCell>EPC / Raw Tag</TableCell><TableCell>Detected SKU</TableCell><TableCell>Result</TableCell></TableRow></TableHead>
+        <Table size="small" aria-label={trUi("RFID scan evidence")} sx={{ '& .MuiTableCell-root': { py: 0.35, fontSize: 11 } }}>
+          <TableHead><TableRow><TableCell>{trUi("STT")}</TableCell><TableCell>{trUi("EPC / Raw Tag")}</TableCell><TableCell>{trUi("Detected SKU")}</TableCell><TableCell>{trUi("Result")}</TableCell></TableRow></TableHead>
           <TableBody>
             {[...epcs, ...invalid].map((tag, index) => <TableRow key={`${tag.epc || tag.raw}-${index}`}>
               <TableCell>{index + 1}</TableCell>
               <TableCell sx={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>{tag.epc || tag.raw}</TableCell>
               <TableCell>{tag.sku || '—'}</TableCell>
               <TableCell sx={{ color: tag.status === 'MATCH' ? 'success.main' : 'error.main', fontWeight: 750 }}>
-                {tag.status === 'MATCH' ? 'MATCH' : tag.status === 'WRONG_SKU' ? 'WRONG SKU'
-                  : tag.status === 'DUPLICATE_CARTON' ? 'CROSS-CARTON' : `WRONG SKU — UNSUPPORTED${tag.reason ? ': ' + tag.reason : ''}`}
+                {tag.status === 'MATCH' ? 'MATCH' : tag.status === 'WRONG_SKU' ? trUi("WRONG SKU")
+                  : tag.status === 'DUPLICATE_CARTON' ? trUi("CROSS-CARTON") : trUi("WRONG SKU — UNSUPPORTED{0}", tag.reason ? ': ' + tag.reason : '')}
               </TableCell>
             </TableRow>)}
-            {!epcs.length && !invalid.length && <TableRow><TableCell colSpan={4} align="center">No EPCs recorded.</TableCell></TableRow>}
+            {!epcs.length && !invalid.length && <TableRow><TableCell colSpan={4} align="center">{trUi("No EPCs recorded.")}</TableCell></TableRow>}
           </TableBody>
         </Table>
       </TableContainer>
@@ -151,6 +154,8 @@ const pickerCellValue = (column, carton, po, factoryCode) => {
 };
 
 export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON, orderId, po, poKey, factoryCode, onCartonSaved, dialogReady = true }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [sscc, setSscc] = useState('');
   const [sku, setSku] = useState('');
   const [cartonId, setCartonId] = useState('');
@@ -464,7 +469,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
 
   const identify = async () => {
     if (busy || loading || active || !factoryCode) return;
-    if (!/^\d{18}$/.test(normalizedSscc)) { setError('Scan an SSCC-18 or GS1 (00) + SSCC-18.'); return; }
+    if (!/^\d{18}$/.test(normalizedSscc)) { setError(trUi("Scan an SSCC-18 or GS1 (00) + SSCC-18.")); return; }
     if (!ssccVerified || ssccListOutOfDate) {
       setError(ssccRejected ? ssccPrecheck.message : ssccListOutOfDate
         ? 'SSCC assignment changed since this PO was loaded. Refresh the PO before continuing.'
@@ -472,8 +477,8 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       ssccRef.current?.focus();
       return;
     }
-    if (!sku.trim()) { setError('Scan the SKU on the carton label.'); skuRef.current?.focus(); return; }
-    if (!stationCode.trim()) { setError('Select the assigned Scale station first.'); return; }
+    if (!sku.trim()) { setError(trUi("Scan the SKU on the carton label.")); skuRef.current?.focus(); return; }
+    if (!stationCode.trim()) { setError(trUi("Select the assigned Scale station first.")); return; }
     // A NEW SSCC always requires an explicit Carton No. selection; no FIFO
     // fallback, including the case where there is only one unassigned carton.
     const row = existingCarton || (cartonId ? unassigned.find((c) => c.id === cartonId) : null);
@@ -484,7 +489,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       return;
     }
     if (cartonId && existingCarton && existingCarton.id !== cartonId) {
-      setError('The scanned SSCC belongs to a different Carton No.'); return;
+      setError(trUi("The scanned SSCC belongs to a different Carton No.")); return;
     }
     setBusy(true); setError(''); setNotice('');
     try {
@@ -495,7 +500,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       lastScaleEvent.current = null; setScaleArmed(false); setSimulatorTestKg('');
       setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); setResetReason('');
       setRfidMountKey((key) => key + 1);
-      setNotice(`Carton ${identified.carton.cartonNo}: SSCC/SKU confirmed. Scan RFID first, then Scale auto-captures a NEW reading.`);
+      setNotice(trUi("Carton {0}: SSCC/SKU confirmed. Scan RFID first, then Scale auto-captures a NEW reading.", identified.carton.cartonNo));
       await reload(); onCartonSaved?.();
     } catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
@@ -504,7 +509,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   const unassignIdentity = async () => {
     if (!activeCarton?.id || busy || !canUnassignNewIdentity) return;
     if (unassignReason.trim().length < 3) {
-      setError('Enter a reason (at least 3 characters) before unassigning.'); return;
+      setError(trUi("Enter a reason (at least 3 characters) before unassigning.")); return;
     }
     setBusy(true); setError('');
     try {
@@ -513,7 +518,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       // remain mounted and the PO can immediately select the carton again.
       setSscc(''); setSku(''); setCartonId(''); setCartonQuery(''); setActive(null); setRfid(null);
       setSavedWeight(null); setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); setResetReason('');
-      setNotice(`Carton ${activeCarton.cartonNo}: SSCC and SKU unassigned. The Items are now PENDING; ready to scan again.`);
+      setNotice(trUi("Carton {0}: SSCC and SKU unassigned. The Items are now PENDING; ready to scan again.", activeCarton.cartonNo));
       await reload(); onCartonSaved?.();
       window.requestAnimationFrame(() => ssccRef.current?.focus());
     } catch (e) { setError(errText(e)); }
@@ -533,13 +538,13 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     const value = String(simulatorTestKg).trim();
     const num = Number(value);
     if (!/^\d+(?:\.\d{1,3})?$/.test(value) || !Number.isFinite(num) || num <= 0 || num > 10000) {
-      setError('Enter a test weight greater than 0 and at most 10000 kg (maximum 3 decimal places).');
+      setError(trUi("Enter a test weight greater than 0 and at most 10000 kg (maximum 3 decimal places)."));
       return;
     }
     setSendingTestKg(true); setError('');
     try {
       await sendSimulatorWeight(stationCode, num);
-      setNotice(`New ${num.toFixed(3)} kg simulator event sent for carton ${activeCarton.cartonNo}. Waiting for automatic capture…`);
+      setNotice(trUi("New {0} kg simulator event sent for carton {1}. Waiting for automatic capture…", num.toFixed(3), activeCarton.cartonNo));
       // The existing polling effect claims this event and preserves normal
       // RFID, tolerance, FINAL PASS/FAILED and audit rules on the backend.
     } catch (e) { setError(errText(e)); }
@@ -581,7 +586,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             lastScaleEvent.current = reading.eventId;
             if (cancelled) return;
             setSavedWeight(saved);
-            setNotice(`Carton ${activeCarton.cartonNo}: RFID ${rfidResult} · Scale ${Number(reading.weightKg).toFixed(3)} kg · Weight ${saved.carton.weightStatus} · Final ${rfidResult === RFID_CHECK_RESULT.PASS && saved.carton.weightStatus === WEIGHING_RESULT.PASS ? 'PASS' : 'FAILED'}.`);
+            setNotice(trUi("Carton {0}: RFID {1} · Scale {2} kg · Weight {3} · Final {4}.", activeCarton.cartonNo, rfidResult, Number(reading.weightKg).toFixed(3), saved.carton.weightStatus, rfidResult === RFID_CHECK_RESULT.PASS && saved.carton.weightStatus === WEIGHING_RESULT.PASS ? 'PASS' : 'FAILED'));
             await reload(); onCartonSaved?.();
           } catch (e) {
             const message = errText(e);
@@ -594,7 +599,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               if (/Weight already saved/i.test(message)) {
                 // POST may have committed but response was lost. Show a useful
                 // warning instead of silently swallowing the request.
-                setError('Weight may already have been saved. Refresh the carton before retrying.');
+                setError(trUi("Weight may already have been saved. Refresh the carton before retrying."));
               } else if (!/already used or replaced|already used or belongs to another carton/i.test(message)) {
                 setError(message);
               }
@@ -620,10 +625,10 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   const resetRfid = async () => {
     if (!activeCarton?.id || busy || savedWeight || weightResult || !done(rfidResult)) return;
     if (rfidResult === RFID_CHECK_RESULT.PASS && !admin) {
-      setError('Only Admin may reopen a PASS RFID inspection.'); return;
+      setError(trUi("Only Admin may reopen a PASS RFID inspection.")); return;
     }
     if (rfidResult === RFID_CHECK_RESULT.PASS && resetReason.trim().length < 5) {
-      setError('Enter at least 5 characters describing why RFID PASS must be reopened.'); return;
+      setError(trUi("Enter at least 5 characters describing why RFID PASS must be reopened.")); return;
     }
     setBusy(true); setError('');
     try {
@@ -637,7 +642,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       setActive((previous) => previous ? { ...previous, carton: { ...previous.carton,
         rfidStatus: 'SCANNING', rfidSessionId: fresh.id, rfidVerifiedQty: null } } : previous);
       setResetPanel(''); setResetReason('');
-      setNotice(`Carton ${activeCarton.cartonNo}: new RFID inspection started. Previous result remains in history.`);
+      setNotice(trUi("Carton {0}: new RFID inspection started. Previous result remains in history.", activeCarton.cartonNo));
       await reload(); onCartonSaved?.();
     } catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
@@ -645,14 +650,14 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
 
   const resetWeight = async () => {
     if (!activeCarton?.id || busy || (!weightResult && !savedWeight)) return;
-    if (!admin) { setError('Only Admin may reopen a saved weight.'); return; }
-    if (resetReason.trim().length < 3) { setError('Enter a reason of at least 3 characters.'); return; }
+    if (!admin) { setError(trUi("Only Admin may reopen a saved weight.")); return; }
+    if (resetReason.trim().length < 3) { setError(trUi("Enter a reason of at least 3 characters.")); return; }
     setBusy(true); setError('');
     try {
       const reopened = await reopenProcessingManualWeight({ sscc: activeCarton.sscc18, reason: resetReason.trim() });
       setActive((previous) => previous ? { ...previous, carton: reopened } : previous);
       setSavedWeight(null); setScaleReading(null); lastScaleEvent.current = null; setResetPanel(''); setResetReason('');
-      setNotice(`Carton ${activeCarton.cartonNo}: weight reopened. Use a NEW weight reading after RFID finishes.`);
+      setNotice(trUi("Carton {0}: weight reopened. Use a NEW weight reading after RFID finishes.", activeCarton.cartonNo));
       await reload(); onCartonSaved?.();
     } catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
@@ -670,7 +675,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   const openRecall = (row) => {
     if (busy) return;
     if (activeCarton && (!done(rfidResult) || !done(weightResult))) {
-      setError('Finish the active carton before recalling a different FAILED carton.');
+      setError(trUi("Finish the active carton before recalling a different FAILED carton."));
       return;
     }
     setError(''); setRecallReason(''); setRecallTarget(row);
@@ -694,7 +699,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       setSavedWeight(null); setShowEnd(false);
       setResetPanel(''); setResetReason(''); setConfirmUnassign(false);
       setUnassignReason(''); setRfidMountKey((key) => key + 1);
-      setNotice(`Carton ${reopened.carton.cartonNo} recalled. Start a NEW RFID scan, then send Scale weight. Previous results remain in History.`);
+      setNotice(trUi("Carton {0} recalled. Start a NEW RFID scan, then send Scale weight. Previous results remain in History.", reopened.carton.cartonNo));
       setRecallTarget(null); setRecallReason('');
       await reload(); onCartonSaved?.();
     } catch (e) { setError(errText(e)); }
@@ -715,22 +720,22 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
           <Typography variant="subtitle2" fontWeight={900} color={failure ? 'error.main' : 'success.main'}>{title}</Typography>
         </Stack>
         <Chip size="small" variant="outlined" color={rows.length ? failure ? 'error' : 'success' : 'default'}
-          label={`${rows.length} carton · ${rows.reduce((acc, row) => acc + Number(row.plannedQty || 0), 0)} pcs`} />
+          label={trUi("{0} carton · {1} pcs", rows.length, rows.reduce((acc, row) => acc + Number(row.plannedQty || 0), 0))} />
       </Stack>
       <TableContainer sx={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', overflowX: 'auto',
         bgcolor: '#FFFFFF' }}>
-      <Table stickyHeader size="small" aria-label={`${title} carton results`} sx={{ minWidth: 730, tableLayout: 'fixed', width: '100%',
+      <Table stickyHeader size="small" aria-label={trUi("{0} carton results", title)} sx={{ minWidth: 730, tableLayout: 'fixed', width: '100%',
         '& .MuiTableCell-root': { px: 0.7, py: 0.55, verticalAlign: 'middle', borderColor: 'divider' },
         '& .MuiChip-root': { height: 21, fontSize: 10.5, fontWeight: 800 },
         '& .MuiTableRow-root': { height: 43 } }}>
         <TableHead><TableRow sx={{ bgcolor: 'action.hover' }}>
-          <TableCell align="center" sx={{ width: '6%', fontSize: 11, fontWeight: 900 }}>STT</TableCell>
+          <TableCell align="center" sx={{ width: '6%', fontSize: 11, fontWeight: 900 }}>{trUi("STT")}</TableCell>
           <TableCell sx={{ width: '12%', fontSize: 11, fontWeight: 900 }}>PO</TableCell>
           <TableCell sx={{ width: '27%', fontSize: 11, fontWeight: 900 }}>SSCC-18</TableCell>
           <TableCell sx={{ width: '17%', fontSize: 11, fontWeight: 900 }}>SKU</TableCell>
           <TableCell sx={{ width: '12%', fontSize: 11, fontWeight: 900 }}>RFID</TableCell>
-          <TableCell sx={{ width: '15%', fontSize: 11, fontWeight: 900 }}>Weight</TableCell>
-          <TableCell align="center" sx={{ width: '11%', fontSize: 11, fontWeight: 900 }}>Actions</TableCell>
+          <TableCell sx={{ width: '15%', fontSize: 11, fontWeight: 900 }}>{trUi("Weight")}</TableCell>
+          <TableCell align="center" sx={{ width: '11%', fontSize: 11, fontWeight: 900 }}>{trUi("Actions")}</TableCell>
         </TableRow></TableHead>
         <TableBody>
           {rows.map((row, index) => {
@@ -745,12 +750,12 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
                   <Typography sx={{ fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>{po?.poNumber || '—'}</Typography>
                 </TableCell>
                 <TableCell>
-                  <Tooltip arrow title={row.cartonIdentity || 'No SSCC assigned'}>
+                  <Tooltip arrow title={row.cartonIdentity || trUi("No SSCC assigned")}>
                     <Typography sx={{ fontSize: 10.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{row.cartonIdentity || '—'}</Typography>
                   </Tooltip>
                 </TableCell>
                 <TableCell>
-                  <Tooltip arrow title={row.labelConfirmedSku || po?.sku || 'SKU not confirmed'}>
+                  <Tooltip arrow title={row.labelConfirmedSku || po?.sku || trUi("SKU not confirmed")}>
                     <Typography sx={{ fontSize: 10.5, whiteSpace: 'nowrap' }}>{row.labelConfirmedSku || po?.sku || '—'}</Typography>
                   </Tooltip>
                 </TableCell>
@@ -765,7 +770,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
                   </Tooltip>
                 </TableCell>
                 <TableCell>
-                  <Tooltip arrow title={`Weight: ${row.weightStatus || 'PENDING'} · Expected: ${kg(row.expectedWeightKg)} kg`}>
+                  <Tooltip arrow title={trUi("Weight: {0} · Expected: {1} kg", row.weightStatus || 'PENDING', kg(row.expectedWeightKg))}>
                     <Stack direction="row" spacing={0.35} alignItems="center" sx={{ whiteSpace: 'nowrap' }}>
                       {statusIcon(row.weightStatus)}
                       <Typography sx={{ fontSize: 11.5, fontWeight: 850, fontVariantNumeric: 'tabular-nums' }}>
@@ -776,14 +781,14 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
                 </TableCell>
                 <TableCell align="center">
                   <Stack direction="row" justifyContent="center" alignItems="center" spacing={0.25} sx={{ whiteSpace: 'nowrap' }}>
-                    {failure && canRecall && <Tooltip arrow title="Recall FAILED carton: RFID then Weight">
-                      <span><IconButton size="small" color="warning" aria-label={`Recall Carton ${row.cartonNo}`}
+                    {failure && canRecall && <Tooltip arrow title={trUi("Recall FAILED carton: RFID then Weight")}>
+                      <span><IconButton size="small" color="warning" aria-label={trUi("Recall Carton {0}", row.cartonNo)}
                         onClick={() => openRecall(row)} disabled={busy} sx={{ p: 0.55 }}>
                         <ReplayRounded sx={{ fontSize: 19 }} />
                       </IconButton></span>
                     </Tooltip>}
-                    <Tooltip arrow title={expanded ? 'Hide carton details' : 'View carton details'}>
-                      <IconButton size="small" color="primary" aria-label={`${expanded ? 'Hide' : 'View'} Carton ${row.cartonNo} details`}
+                    <Tooltip arrow title={expanded ? trUi("Hide carton details") : trUi("View carton details")}>
+                      <IconButton size="small" color="primary" aria-label={trUi("{0} Carton {1} details", expanded ? 'Hide' : 'View', row.cartonNo)}
                         aria-expanded={expanded}
                         onClick={() => setResultDetailsOpen((old) => ({ ...old, [row.id]: !old[row.id] }))} sx={{ p: 0.55 }}>
                         {expanded ? <VisibilityOffOutlined sx={{ fontSize: 19 }} /> : <VisibilityOutlined sx={{ fontSize: 19 }} />}
@@ -794,17 +799,17 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               </TableRow>
               {expanded && <TableRow sx={{ bgcolor: 'action.hover' }}><TableCell colSpan={7}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 0.5 }}>
-                  <Typography variant="caption"><b>Carton No. / Qty:</b> {row.cartonNo ?? '—'} / {row.plannedQty ?? '—'} pcs</Typography>
-                  <Typography variant="caption"><b>Expected / Actual:</b> {kg(row.expectedWeightKg)} / {kg(row.weightKg)} kg</Typography>
-                  <Typography variant="caption"><b>Allowed weight:</b> {row.expectedWeightKg == null ? '—' : `${kg(Number(row.expectedWeightKg) - Number(row.weightToleranceKg || 0))}–${kg(Number(row.expectedWeightKg) + Number(row.weightToleranceKg || 0))} kg`}</Typography>
-                  <Typography variant="caption"><b>RFID:</b> {cartonRfidDisplay(row).label} Matched / Expected · {row.rfidStatus || 'PENDING'}</Typography>
+                  <Typography variant="caption"><b>{trUi("Carton No. / Qty:")}</b> {row.cartonNo ?? '—'} / {row.plannedQty ?? '—'} pcs</Typography>
+                  <Typography variant="caption"><b>{trUi("Expected / Actual:")}</b> {kg(row.expectedWeightKg)} / {kg(row.weightKg)} kg</Typography>
+                  <Typography variant="caption"><b>{trUi("Allowed weight:")}</b> {row.expectedWeightKg == null ? '—' : `${kg(Number(row.expectedWeightKg) - Number(row.weightToleranceKg || 0))}–${kg(Number(row.expectedWeightKg) + Number(row.weightToleranceKg || 0))} kg`}</Typography>
+                  <Typography variant="caption"><b>{trUi("RFID:")}</b> {cartonRfidDisplay(row).label}{trUi(" Matched / Expected · ")}{row.rfidStatus || 'PENDING'}</Typography>
                 </Box>
                 <RfidInspectionEvidence row={row} orderId={orderId} poId={poId} />
               </TableCell></TableRow>}
             </Fragment>;
           })}
           {!rows.length && <TableRow><TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 1.5 }}>
-            {failure ? 'No FINAL FAILED cartons.' : 'No FINAL PASS cartons yet.'}
+            {failure ? trUi("No FINAL FAILED cartons.") : trUi("No FINAL PASS cartons yet.")}
           </TableCell></TableRow>}
         </TableBody>
       </Table>
@@ -826,21 +831,21 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     {/* One compact device bar; carton workflow and separate PASS / FAILED tables below stay unchanged. */}
     <ConveyorSimControl factoryCode={factoryCode} notice={notice}
       endAction={summary?.end && !active
-        ? <Button size="small" variant="contained" onClick={() => setShowEnd(true)}>END</Button>
+        ? <Button size="small" variant="contained" onClick={() => setShowEnd(true)}>{trUi("END")}</Button>
         : null} />
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ py: 0, minHeight: 30,
       '& .MuiAlert-message': { py: 0.35, maxHeight: 46, overflowY: 'auto' },
-      '& .MuiAlert-icon': { py: 0.35 }, '& .MuiAlert-action': { py: 0 } }}>{error}</Alert>}
+      '& .MuiAlert-icon': { py: 0.35 }, '& .MuiAlert-action': { py: 0 } }}>{trSystem(error)}</Alert>}
     <Paper variant="outlined" sx={{ borderRadius: '2px', overflow: 'visible', position: 'relative', borderColor: '#DFE7F2',
       boxShadow: '0 4px 16px rgba(15,23,42,0.03)' }}>
       <Box sx={{ p: { xs: 1, md: 0.75 }, position: 'relative' }}>
         <Stack direction="row" gap={0.7} alignItems="center" sx={{ mb: 2 }}>
           <QrCodeScannerOutlined color="primary" fontSize="small" />
-          <Typography variant="subtitle2" fontWeight={900}>1. Carton Identification</Typography>
+          <Typography variant="subtitle2" fontWeight={900}>{trUi("1. Carton Identification")}</Typography>
         </Stack>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.65} alignItems="stretch">
-          <TextField inputRef={ssccRef} autoFocus fullWidth label="Carton SSCC-18" InputLabelProps={{ shrink: true }}
-            placeholder="Scan SSCC-18" value={sscc}
+          <TextField inputRef={ssccRef} autoFocus fullWidth label={trUi("Carton SSCC-18")} InputLabelProps={{ shrink: true }}
+            placeholder={trUi("Scan SSCC-18")} value={sscc}
             onChange={(e) => {
               setSscc(e.target.value.replace(/\s+/g, ''));
               setSsccPrecheck({ sscc: '', status: 'idle', cartonId: null, message: '' });
@@ -850,12 +855,12 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             }}
             onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) {
               e.preventDefault();
-              if (!validSscc) setError('Scan a valid SSCC-18 or GS1 (00) + SSCC-18.');
+              if (!validSscc) setError(trUi("Scan a valid SSCC-18 or GS1 (00) + SSCC-18."));
               else if (!ssccVerified) {
                 if (ssccRejected) setError(ssccPrecheck.message);
                 // Validation effect opens the Carton picker / focuses SKU when ready.
               } else if (ssccListOutOfDate) {
-                setError('SSCC assignment changed. Refresh Cartons before continuing.');
+                setError(trUi("SSCC assignment changed. Refresh Cartons before continuing."));
               } else if (existingCarton) skuRef.current?.focus();
               else { setPickerDismissedFor(''); setCartonPickerOpen(true); }
             } }}
@@ -863,30 +868,25 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             disabled={Boolean(active) || busy} size="small"
             InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeScannerOutlined color="primary" /></InputAdornment>,
               sx: { fontSize: 16, fontWeight: 800, letterSpacing: 0.5 } }} sx={{ flex: 1.2, '& .MuiOutlinedInput-root': { minHeight: { xs: 48, md: 40 } } }} />
-          <TextField inputRef={skuRef} fullWidth label="Scan SKU" InputLabelProps={{ shrink: true }}
-            placeholder={needCartonChoice && !chosenCarton ? 'Select carton first' : 'Scan SKU'} value={sku}
+          <TextField inputRef={skuRef} fullWidth label={trUi("Scan SKU")} InputLabelProps={{ shrink: true }}
+            placeholder={needCartonChoice && !chosenCarton ? trUi("Select carton first") : trUi("Scan SKU")} value={sku}
             onChange={(e) => { setSku(e.target.value.replace(/\s+/g, '')); setError(''); }}
             onKeyDown={(e) => { if (e.key === KEYBOARD_KEY.ENTER) { e.preventDefault(); identify(); } }}
             disabled={Boolean(active) || busy || !ssccVerified || ssccListOutOfDate || (needCartonChoice && !chosenCarton)} size="small"
             InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeScannerOutlined color="primary" /></InputAdornment>,
               sx: { fontSize: 16, fontWeight: 800, letterSpacing: 0.35 } }} sx={{ flex: 1, '& .MuiOutlinedInput-root': { minHeight: { xs: 48, md: 40 } } }} />
           <Button variant="contained" size="small" onClick={identify} disabled={busy || loading || Boolean(active) || !ssccVerified || ssccListOutOfDate || !sku.trim() || !stationCode.trim() || (needCartonChoice && !chosenCarton)}
-            sx={{ minWidth: 146, whiteSpace: 'nowrap' }}>{busy ? 'Saving…' : 'Assign / Identify'}</Button>
+            sx={{ minWidth: 146, whiteSpace: 'nowrap' }}>{busy ? 'Saving…' : trUi("Assign / Identify")}</Button>
         </Stack>
-        {ssccListOutOfDate && <Alert severity="warning" sx={{ mt: 0.5, py: 0 }}>
-          SSCC assignment differs from the loaded Carton list. Refresh Cartons and rescan before continuing.
-        </Alert>}
+        {ssccListOutOfDate && <Alert severity="warning" sx={{ mt: 0.5, py: 0 }}>{trUi("\n          SSCC assignment differs from the loaded Carton list. Refresh Cartons and rescan before continuing.\n        ")}</Alert>}
         {needCartonChoice && !chosenCarton && <Stack direction="row" alignItems="center" gap={0.5} sx={{ mt: 0.35 }}>
           <Button size="small" variant="text" sx={{ minHeight: 26, whiteSpace: 'nowrap' }}
-            onClick={() => { setPickerDismissedFor(''); setCartonPickerOpen(true); }}>
-            Select Carton ({unassigned.length})
+            onClick={() => { setPickerDismissedFor(''); setCartonPickerOpen(true); }}>{trUi("\n            Select Carton (")}{unassigned.length})
           </Button>
         </Stack>}
-        {chosenCarton && !active && <Typography variant="caption" color="success.main" sx={{ mt: 0.2, display: 'block' }}>
-          Carton {chosenCarton.cartonNo} · {chosenCarton.plannedQty} pcs
+        {chosenCarton && !active && <Typography variant="caption" color="success.main" sx={{ mt: 0.2, display: 'block' }}>{trUi("\n          Carton ")}{chosenCarton.cartonNo} · {chosenCarton.plannedQty} pcs
         </Typography>}
-        {!stationCode && <Alert severity="warning" sx={{ mt: 0.6, py: 0 }}>
-          No Scale assigned for Factory {factoryCode}.
+        {!stationCode && <Alert severity="warning" sx={{ mt: 0.6, py: 0 }}>{trUi("\n          No Scale assigned for Factory ")}{factoryCode}.
         </Alert>}
         {active && <Stack spacing={0.45} sx={{ mt: 0.25 }}>
           <Box sx={{ pt: 0.4, mt: 0.25, borderTop: '1px solid #E7EDF5' }}>
@@ -894,70 +894,54 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               <Stack direction="row" alignItems="center" gap={0.65} flexWrap="wrap" useFlexGap>
                 <Button size="small" variant="outlined" color="warning" startIcon={<LinkOff />}
                   disabled={!canUnassignNewIdentity || busy}
-                  onClick={() => { setResetPanel('assign'); setConfirmUnassign(true); setResetReason(''); }}>
-                  Reset Assign
-                </Button>
+                  onClick={() => { setResetPanel('assign'); setConfirmUnassign(true); setResetReason(''); }}>{trUi("\n                  Reset Assign\n                ")}</Button>
                 <Button size="small" variant="outlined" startIcon={<RestartAltRounded />}
                   disabled={busy || Boolean(weightResult) || Boolean(savedWeight) || !done(rfidResult) || (rfidResult === RFID_CHECK_RESULT.PASS && !admin)}
-                  onClick={() => { setConfirmUnassign(false); setResetPanel('rfid'); setResetReason(''); }}>
-                  Reset RFID
-                </Button>
+                  onClick={() => { setConfirmUnassign(false); setResetPanel('rfid'); setResetReason(''); }}>{trUi("\n                  Reset RFID\n                ")}</Button>
                 {weightResult && admin && <Button size="small" variant="outlined" startIcon={<ScaleOutlined />}
                   disabled={busy || !active}
-                  onClick={() => { setConfirmUnassign(false); setResetPanel('weight'); setResetReason(''); }}>
-                  Reopen Weight
-                </Button>}
+                  onClick={() => { setConfirmUnassign(false); setResetPanel('weight'); setResetReason(''); }}>{trUi("\n                  Reopen Weight\n                ")}</Button>}
               </Stack>
               <Button size="small" variant="contained" disabled={!savedWeight && !summary?.end}
                 onClick={() => { if (summary?.end) setShowEnd(true); else nextCarton(); }}>
-                {summary?.end ? 'END' : 'Next Carton'}
+                {summary?.end ? 'END' : trUi("Next Carton")}
               </Button>
             </Stack>
           </Box>
           {resetPanel === 'rfid' && <Paper variant="outlined" sx={{ p: 1, borderRadius: '2px', borderColor: 'warning.light' }}>
-            <Typography variant="body2" fontWeight={850}>Reset RFID — Carton {activeCarton.cartonNo}</Typography>
-            <Typography variant="caption" color="text.secondary" display="block">
-              A completed attempt stays in history. Stop / finish an active capture before resetting. Saved Weight must be reopened first.
-            </Typography>
+            <Typography variant="body2" fontWeight={850}>{trUi("Reset RFID — Carton ")}{activeCarton.cartonNo}</Typography>
+            <Typography variant="caption" color="text.secondary" display="block">{trUi("\n              A completed attempt stays in history. Stop / finish an active capture before resetting. Saved Weight must be reopened first.\n            ")}</Typography>
             {rfidResult === RFID_CHECK_RESULT.PASS && <TextField size="small" fullWidth sx={{ my: 0.7 }}
-              label="Admin reason (minimum 5 characters)" value={resetReason}
+              label={trUi("Admin reason (minimum 5 characters)")} value={resetReason}
               onChange={(e) => setResetReason(e.target.value)} inputProps={{ maxLength: 250 }} />}
             <Stack direction="row" gap={0.8} sx={{ mt: 0.7 }}>
               <Button size="small" color="warning" variant="contained" disabled={busy || (rfidResult === RFID_CHECK_RESULT.PASS && resetReason.trim().length < 5)}
-                onClick={resetRfid}>Confirm Reset RFID</Button>
-              <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>Cancel</Button>
+                onClick={resetRfid}>{trUi("Confirm Reset RFID")}</Button>
+              <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>{trUi("Cancel")}</Button>
             </Stack>
           </Paper>}
           {resetPanel === 'weight' && weightResult && admin && <Paper variant="outlined" sx={{ p: 1, borderRadius: '2px', borderColor: 'info.light' }}>
-            <Typography variant="body2" fontWeight={850}>Reset Weight — Carton {activeCarton.cartonNo}</Typography>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Admin can reopen a saved weight; previous result remains in history.
-            </Typography>
+            <Typography variant="body2" fontWeight={850}>{trUi("Reset Weight — Carton ")}{activeCarton.cartonNo}</Typography>
+            <Typography variant="caption" color="text.secondary" display="block">{trUi("\n              Admin can reopen a saved weight; previous result remains in history.\n            ")}</Typography>
             {weightResult && admin && <TextField size="small" fullWidth sx={{ my: 0.7 }}
-              label="Reason (minimum 3 characters)" value={resetReason}
+              label={trUi("Reason (minimum 3 characters)")} value={resetReason}
               onChange={(e) => setResetReason(e.target.value)} inputProps={{ maxLength: 250 }} />}
             <Stack direction="row" gap={0.8} sx={{ mt: 0.7 }}>
               <Button size="small" variant="contained" color="warning" onClick={resetWeight}
-                disabled={busy || (Boolean(weightResult) && (!admin || resetReason.trim().length < 3))}>
-                Confirm Reopen Weight
-              </Button>
-              <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>Cancel</Button>
+                disabled={busy || (Boolean(weightResult) && (!admin || resetReason.trim().length < 3))}>{trUi("\n                Confirm Reopen Weight\n              ")}</Button>
+              <Button size="small" onClick={() => { setResetPanel(''); setResetReason(''); }} disabled={busy}>{trUi("Cancel")}</Button>
             </Stack>
           </Paper>}
           {confirmUnassign && resetPanel === 'assign' && canUnassignNewIdentity && <Paper variant="outlined" sx={{ p: 1, borderColor: 'error.light', borderRadius: '2px' }}>
-            <Typography variant="body2" fontWeight={800}>Unassign Carton {activeCarton.cartonNo}?</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Clear its SSCC and SKU assignment from the existing Item slots; keep all Item IDs and PO master SKU.
-            </Typography>
+            <Typography variant="body2" fontWeight={800}>{trUi("Unassign Carton ")}{activeCarton.cartonNo}?</Typography>
+            <Typography variant="caption" color="text.secondary">{trUi("\n              Clear its SSCC and SKU assignment from the existing Item slots; keep all Item IDs and PO master SKU.\n            ")}</Typography>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={0.7} sx={{ mt: 0.7 }}>
-              <TextField size="small" fullWidth label="Reason" placeholder="e.g. Wrong carton selected"
+              <TextField size="small" fullWidth label={trUi("Reason")} placeholder={trUi("e.g. Wrong carton selected")}
                 value={unassignReason} onChange={(e) => setUnassignReason(e.target.value)}
                 disabled={busy} inputProps={{ maxLength: 250 }} />
               <Button color="error" variant="contained" onClick={unassignIdentity}
-                disabled={busy || unassignReason.trim().length < 3} sx={{ whiteSpace: 'nowrap' }}>
-                Confirm Unassign
-              </Button>
-              <Button variant="outlined" disabled={busy} onClick={() => { setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); }}>Cancel</Button>
+                disabled={busy || unassignReason.trim().length < 3} sx={{ whiteSpace: 'nowrap' }}>{trUi("\n                Confirm Unassign\n              ")}</Button>
+              <Button variant="outlined" disabled={busy} onClick={() => { setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); }}>{trUi("Cancel")}</Button>
             </Stack>
           </Paper>}
         </Stack>}
@@ -967,46 +951,46 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1fr) minmax(0,1fr)' },
       gap: { xs: 0.8, md: 0.7 }, alignItems: 'stretch',
       flex: '0 0 auto', minHeight: 0, minWidth: 0 }}>
-      <Box component="section" aria-label="RFID Scanning" sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
+      <Box component="section" aria-label={trUi("RFID Scanning")} sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
         borderRadius: '2px', bgcolor: '#fff', minWidth: 0, boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
         display: 'flex', flexDirection: 'column', gap: 0.35, overflow: 'visible' }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" gap={0.5} sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={0.55} alignItems="center" sx={{ minWidth: 0 }}>
             <Sensors color="primary" sx={{ fontSize: 19 }}/>
-            <Typography variant="subtitle2" fontWeight={900} noWrap>2. RFID Scanning</Typography>
+            <Typography variant="subtitle2" fontWeight={900} noWrap>{trUi("2. RFID Scanning")}</Typography>
           </Stack>
           <Chip size="small" color={rfidResult === 'SCANNING' ? 'info' : statusColor(rfidResult)}
-            label={rfidResult ? `RFID ${rfidResult}` : active ? 'CONNECTING' : 'WAITING FOR CARTON'}
+            label={rfidResult ? `RFID ${rfidResult}` : active ? 'CONNECTING' : trUi("WAITING FOR CARTON")}
             sx={{ flexShrink: 0, height: 23 }}/>
         </Stack>
         {active ? <CartonRfidPanel key={`${activeCarton.id}-${rfidMountKey}`} deferStart compact orderId={orderId} poId={poId} carton={activeCarton}
           stationCode={stationCode} factoryCode={factoryCode} onSessionChange={handleRfidSessionChange} />
           : <Box sx={{ py: 1.1, px: 0.8, textAlign: 'center', borderRadius: '2px', border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}>
             <QrCodeScannerOutlined color="disabled" sx={{ fontSize: 23, mb: 0.2 }}/>
-            <Typography variant="body2" fontWeight={850} color="text.secondary">Waiting for carton</Typography>
+            <Typography variant="body2" fontWeight={850} color="text.secondary">{trUi("Waiting for carton")}</Typography>
           </Box>}
       </Box>
-      <Box component="section" aria-label="Weight" sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
+      <Box component="section" aria-label={trUi("Weight")} sx={{ p: { xs: 0.85, md: 0.75 }, border: '1px solid', borderColor: '#DAE5F2',
         borderRadius: '2px', bgcolor: '#fff', minWidth: 0, boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
         display: 'flex', flexDirection: 'column', gap: 0.65, overflow: 'visible' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" gap={0.5}>
           <Stack direction="row" gap={0.55} alignItems="center">
             <ScaleOutlined color="primary" sx={{ fontSize: 19 }}/>
-            <Typography variant="subtitle2" fontWeight={900} noWrap>3. Weight</Typography>
+            <Typography variant="subtitle2" fontWeight={900} noWrap>{trUi("3. Weight")}</Typography>
           </Stack>
           <Chip size="small" color={statusColor(weightResult)}
-            label={weightResult ? `${weightResult} · SAVED` : active ? done(rfidResult) ? 'WAITING FOR SCALE' : 'WAITING FOR RFID' : 'WAITING FOR SSCC'}
+            label={weightResult ? `${weightResult} · SAVED` : active ? done(rfidResult) ? trUi("WAITING FOR SCALE") : trUi("WAITING FOR RFID") : trUi("WAITING FOR SSCC")}
             sx={{ flexShrink: 0, height: 23 }}/>
         </Stack>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 0.9fr) minmax(0, 1.1fr)', gap: 0.65 }}>
           <Box sx={{ px: 0.9, py: 0.6, border: '1px solid', borderColor: 'divider', borderRadius: '2px', bgcolor: '#F8FAFC' }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={850}>TARGET</Typography>
+            <Typography variant="caption" color="text.secondary" fontWeight={850}>{trUi("TARGET")}</Typography>
             <Typography sx={{ fontSize: 19, fontWeight: 950, lineHeight: 1.25, whiteSpace: 'nowrap' }}>
               {active ? `${kg(expected)} kg` : '—'}
             </Typography>
           </Box>
           <Box sx={{ px: 0.9, py: 0.6, border: '1px solid', borderColor: 'divider', borderRadius: '2px', bgcolor: '#F8FAFC' }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={850}>ALLOWED RANGE</Typography>
+            <Typography variant="caption" color="text.secondary" fontWeight={850}>{trUi("ALLOWED RANGE")}</Typography>
             <Typography sx={{ fontSize: 14, fontWeight: 900, lineHeight: 1.7, whiteSpace: 'nowrap' }}>
               {active ? `${kg(minWeight)}–${kg(maxWeight)} kg` : '—'}
             </Typography>
@@ -1017,7 +1001,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
           <Box sx={{ py: 0.65, px: 0.8, border: '1px solid', borderColor: weightResult === WEIGHING_RESULT.PASS ? 'success.main' : weightResult === WEIGHING_RESULT.FAILED ? 'error.main' : 'primary.light',
             borderRadius: '2px', bgcolor: weightResult === WEIGHING_RESULT.PASS ? 'success.lighter' : weightResult === WEIGHING_RESULT.FAILED ? 'error.lighter' : 'background.paper',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={900}>ACTUAL WEIGHT</Typography>
+            <Typography variant="caption" color="text.secondary" fontWeight={900}>{trUi("ACTUAL WEIGHT")}</Typography>
             <Typography sx={{ fontSize: 26, lineHeight: 1.15, fontWeight: 950, letterSpacing: -0.5, fontVariantNumeric: 'tabular-nums' }}>
               {weightResult ? kg(savedWeight?.event?.actualWeightKg ?? savedWeight?.carton?.actualWeightKg ?? activeCarton?.actualWeightKg)
                 : done(rfidResult) && scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR && !scaleReading?.consumed && scaleReading?.weightKg != null ? kg(scaleReading.weightKg) : '—'}
@@ -1025,67 +1009,62 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             </Typography>
           </Box>
           {!weightResult && <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, justifyContent: 'center' }}>
-            <Typography variant="caption" fontWeight={850} color="text.secondary">SCALE</Typography>
+            <Typography variant="caption" fontWeight={850} color="text.secondary">{trUi("SCALE")}</Typography>
             <Chip size="small" color={scaleReading?.status === 'OFFLINE' ? 'error' : stationCode ? 'info' : 'default'}
-              label={!stationCode ? 'NOT ASSIGNED' : scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'SIMULATED / CONNECTED' : scaleReading?.status || 'WAITING FOR SCALE'} />
+              label={!stationCode ? trUi("NOT ASSIGNED") : scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? trUi("SIMULATED / CONNECTED") : scaleReading?.status || trUi("WAITING FOR SCALE")} />
             {scaleReading?.status === 'OFFLINE' &&
               <Typography variant="caption" color="error.main" sx={{ lineHeight: 1.3 }}>
-                {scaleReading?.error || 'Scale disconnected'}
+                {scaleReading?.error || trUi("Scale disconnected")}
               </Typography>}
             {[DEVICE_CONNECTION_TYPE.MODBUS_TCP, DEVICE_CONNECTION_TYPE.DELTA_SERIAL].includes(scaleReading?.mode) && scaleReading?.weightKg != null &&
-              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
-                Live: <b>{kg(scaleReading.weightKg)} kg</b>
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>{trUi("\n                Live: ")}<b>{kg(scaleReading.weightKg)} kg</b>
               </Typography>}
           </Box>}
         </Box>
         {admin && active && done(rfidResult) && !weightResult && isAssignedSimulator &&
           <Stack direction="row" gap={0.7} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-            <TextField size="small" type="number" label="Test weight (kg)" value={simulatorTestKg}
+            <TextField size="small" type="number" label={trUi("Test weight (kg)")} value={simulatorTestKg}
               onChange={(event) => setSimulatorTestKg(event.target.value)} disabled={!scaleArmed || sendingTestKg}
               inputProps={{ min: 0.001, max: 10000, step: 0.001 }}
               sx={{ width: 170, '& .MuiInputBase-root': { height: 36 } }}/>
             <Button size="small" variant="outlined" disabled={!scaleArmed || sendingTestKg || !simulatorTestKg.trim()}
               onClick={publishSimulatorTestWeight}>
-              {sendingTestKg ? 'Sending…' : 'Send test weight'}
+              {sendingTestKg ? 'Sending…' : trUi("Send test weight")}
             </Button>
-            {!scaleArmed && <Typography variant="caption" color="text.secondary">Arming scale for this carton…</Typography>}
+            {!scaleArmed && <Typography variant="caption" color="text.secondary">{trUi("Arming scale for this carton…")}</Typography>}
           </Stack>}
       </Box>
     </Box>
-    {showEnd && summary?.end && <Alert severity="success">END · All {summary.total} cartons processed. FINAL PASS: {summary.passed} · FINAL FAILED: {summary.failed}. Review FAILED cartons before closing the PO.</Alert>}
+    {showEnd && summary?.end && <Alert severity="success">{trUi("END · All ")}{summary.total}{trUi(" cartons processed. FINAL PASS: ")}{summary.passed}{trUi(" · FINAL FAILED: ")}{summary.failed}{trUi(". Review FAILED cartons before closing the PO.")}</Alert>}
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1fr) minmax(0,1fr)' },
       gap: { xs: 0.8, md: 0.7 }, alignItems: 'stretch', flex: { md: '1 1 0' }, minHeight: { md: 135 }, overflow: 'hidden' }}>
-      {resultTable('FINAL PASS', passRows, false)}
-      {resultTable('FINAL FAILED', failedRows, true)}
+      {resultTable(trUi("FINAL PASS"), passRows, false)}
+      {resultTable(trUi("FINAL FAILED"), failedRows, true)}
     </Box>
-    {loading && <Stack direction="row" spacing={1} alignItems="center"><CircularProgress size={16}/><Typography variant="caption">Loading cartons…</Typography></Stack>}
+    {loading && <Stack direction="row" spacing={1} alignItems="center"><CircularProgress size={16}/><Typography variant="caption">{trUi("Loading cartons…")}</Typography></Stack>}
     <Dialog open={Boolean(recallTarget)} onClose={busy ? undefined : () => { setRecallTarget(null); setRecallReason(''); }}
       aria-labelledby="lulu-recall-failed-title" fullWidth maxWidth="xs"
       PaperProps={{ sx: { borderRadius: '2px' } }}>
-      <DialogTitle id="lulu-recall-failed-title" sx={{ fontWeight: 850, pb: 0.5 }}>
-        Recall FAILED Carton {recallTarget?.cartonNo ?? '—'}
+      <DialogTitle id="lulu-recall-failed-title" sx={{ fontWeight: 850, pb: 0.5 }}>{trUi("\n        Recall FAILED Carton ")}{recallTarget?.cartonNo ?? '—'}
       </DialogTitle>
       <DialogContent>
-        <Typography variant="body2" sx={{ mb: 1 }}>
-          SSCC: <b>{recallTarget?.cartonIdentity ?? '—'}</b>
+        <Typography variant="body2" sx={{ mb: 1 }}>{trUi("\n          SSCC: ")}<b>{recallTarget?.cartonIdentity ?? '—'}</b>
         </Typography>
         <Stack direction="row" spacing={1} sx={{ mb: 1.3 }}>
           <Chip size="small" label={`RFID: ${recallTarget?.rfidStatus || '—'}`} color={statusColor(recallTarget?.rfidStatus)} />
           <Chip size="small" label={`Weight: ${recallTarget?.weightStatus || '—'}`} color={statusColor(recallTarget?.weightStatus)} />
         </Stack>
-        <Alert severity="warning" sx={{ mb: 1.3 }}>
-          Recall will reopen both RFID and Weight for this FAILED carton. Previous history is retained. Finish RFID (PASS or FAILED), then send a new Scale weight.
-        </Alert>
-        {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError('')}>{error}</Alert>}
-        <TextField size="small" fullWidth autoFocus multiline minRows={2} label="Reason for Recall (required)"
-          placeholder="e.g. RFID mismatch / wrong weight, verify again" value={recallReason}
+        <Alert severity="warning" sx={{ mb: 1.3 }}>{trUi("\n          Recall will reopen both RFID and Weight for this FAILED carton. Previous history is retained. Finish RFID (PASS or FAILED), then send a new Scale weight.\n        ")}</Alert>
+        {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError('')}>{trSystem(error)}</Alert>}
+        <TextField size="small" fullWidth autoFocus multiline minRows={2} label={trUi("Reason for Recall (required)")}
+          placeholder={trUi('e.g. RFID mismatch / wrong weight, verify again')} value={recallReason}
           onChange={(e) => setRecallReason(e.target.value)} inputProps={{ maxLength: 250 }} />
       </DialogContent>
       <DialogActions sx={{ px: 2.5, pb: 1.8 }}>
-        <Button disabled={busy} onClick={() => { setRecallTarget(null); setRecallReason(''); }}>Cancel</Button>
+        <Button disabled={busy} onClick={() => { setRecallTarget(null); setRecallReason(''); }}>{trUi("Cancel")}</Button>
         <Button variant="contained" color="warning" startIcon={busy ? <CircularProgress size={16} /> : <ReplayRounded />}
           disabled={busy || recallReason.trim().length < 5} onClick={confirmRecall}>
-          {busy ? 'Recalling…' : 'Confirm Recall'}
+          {busy ? 'Recalling…' : trUi("Confirm Recall")}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1093,45 +1072,37 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       aria-labelledby="lulu-carton-select-title" fullWidth maxWidth="xl"
       PaperProps={{ sx: { borderRadius: '2px', width: 'min(96vw, 1450px)', height: 'min(82dvh, 710px)',
         maxHeight: 'calc(100dvh - 32px)', display: 'flex', overflow: 'hidden' } }}>
-      <DialogTitle id="lulu-carton-select-title" sx={{ px: 2, py: 1.2, fontWeight: 800, borderBottom: '1px solid #E2E8F0' }}>
-        Select Carton · PO {po?.poNumber || '—'}
-        <Typography sx={{ mt: 0.25, fontWeight: 400, fontSize: 12.5, color: 'text.secondary' }}>
-          New SSCC {normalizedSscc || '—'} · Select the matching Carton by its planned QTY and Carton No.
-        </Typography>
+      <DialogTitle id="lulu-carton-select-title" sx={{ px: 2, py: 1.2, fontWeight: 800, borderBottom: '1px solid #E2E8F0' }}>{trUi("\n        Select Carton · PO ")}{po?.poNumber || '—'}
+        <Typography sx={{ mt: 0.25, fontWeight: 400, fontSize: 12.5, color: 'text.secondary' }}>{trUi("\n          New SSCC ")}{normalizedSscc || '—'}{trUi(" · Select the matching Carton by its planned QTY and Carton No.\n        ")}</Typography>
       </DialogTitle>
       <Box sx={{ px: 1.5, pt: 1.1, pb: 0.9, flexShrink: 0, borderBottom: '1px solid #E2E8F0' }}>
         <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ md: 'center' }} gap={0.75} justifyContent="space-between">
           <Stack direction="row" gap={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
             <Chip size="small" variant="outlined" color="primary"
-              label={`${filteredUnassigned.length} of ${unassigned.length} unassigned cartons`} />
-            <Typography variant="caption" color="text.secondary">QTY = planned pcs per carton</Typography>
+              label={trUi("{0} of {1} unassigned cartons", filteredUnassigned.length, unassigned.length)} />
+            <Typography variant="caption" color="text.secondary">{trUi("QTY = planned pcs per carton")}</Typography>
           </Stack>
           <Stack direction="row" gap={0.7} alignItems="center" flexWrap="wrap" useFlexGap>
-            <TextField inputRef={cartonQueryRef} autoFocus size="small" label="Search cartons / PO / Style"
-              placeholder="Search..." value={cartonQuery} onChange={(e) => setCartonQuery(e.target.value)}
+            <TextField inputRef={cartonQueryRef} autoFocus size="small" label={trUi("Search cartons / PO / Style")}
+              placeholder={trUi("Search...")} value={cartonQuery} onChange={(e) => setCartonQuery(e.target.value)}
               sx={{ width: { xs: '100%', sm: 270 } }} />
             <Button variant={pickerMoreFilters ? 'contained' : 'outlined'} size="small"
-              startIcon={<FilterListOutlined />} onClick={() => setPickerMoreFilters((open) => !open)}>
-              Filters
-            </Button>
+              startIcon={<FilterListOutlined />} onClick={() => setPickerMoreFilters((open) => !open)}>{trUi("\n              Filters\n            ")}</Button>
             <Button variant="outlined" size="small" startIcon={<ViewColumnOutlined />}
-              onClick={(event) => setPickerColumnsAnchor(event.currentTarget)}>
-              Columns {pickerVisibleColumns.length}/{pickerColumnsCatalog.length}
+              onClick={(event) => setPickerColumnsAnchor(event.currentTarget)}>{trUi("\n              Columns ")}{pickerVisibleColumns.length}/{pickerColumnsCatalog.length}
             </Button>
             <Menu anchorEl={pickerColumnsAnchor} open={Boolean(pickerColumnsAnchor)}
               onClose={() => setPickerColumnsAnchor(null)}
               PaperProps={{ sx: { width: 290, maxHeight: 'min(65dvh, 450px)' } }}>
-              <MenuItem disabled sx={{ opacity: '1 !important', fontWeight: 850 }}>Visible Columns</MenuItem>
-              <MenuItem onClick={() => setPickerColumnKeys([...CARTON_PICKER_DEFAULT_COLUMNS])}>
-                Restore default columns
-              </MenuItem>
+              <MenuItem disabled sx={{ opacity: '1 !important', fontWeight: 850 }}>{trUi("Visible Columns")}</MenuItem>
+              <MenuItem onClick={() => setPickerColumnKeys([...CARTON_PICKER_DEFAULT_COLUMNS])}>{trUi("\n                Restore default columns\n              ")}</MenuItem>
               <Divider />
               {pickerColumnsCatalog.map((column) => <MenuItem dense key={column.key}
                 onClick={() => togglePickerColumn(column.key)}>
                 <Checkbox size="small" edge="start" disableRipple
                   checked={pickerVisibleColumns.some((visible) => visible.key === column.key)}
                   tabIndex={-1} sx={{ py: 0.25 }} />
-                <ListItemText primary={column.label} primaryTypographyProps={{ fontSize: 13 }} />
+                <ListItemText primary={trUi(column.label)} primaryTypographyProps={{ fontSize: 13 }} />
               </MenuItem>)}
             </Menu>
           </Stack>
@@ -1147,22 +1118,20 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               label={label} value={pickerFilters[key]} onChange={(event) => setPickerFilter(key, event.target.value)} />)}
           </Box>
           <Stack direction="row" justifyContent="flex-end" sx={{ mt: 0.65 }}>
-            <Button size="small" onClick={() => { setPickerFilters({ ...PICKER_FILTER_EMPTY }); setCartonQuery(''); }}>
-              Clear Filters
-            </Button>
+            <Button size="small" onClick={() => { setPickerFilters({ ...PICKER_FILTER_EMPTY }); setCartonQuery(''); }}>{trUi("\n              Clear Filters\n            ")}</Button>
           </Stack>
         </Collapse>
       </Box>
       <DialogContent dividers sx={{ p: 1, minHeight: 0, flex: '1 1 auto', overflow: 'hidden' }}>
-        {unassigned.length === 0 ? <Alert severity="warning">No unassigned Carton remains in this PO. Check its SSCC or refresh the PO.</Alert> :
+        {unassigned.length === 0 ? <Alert severity="warning">{trUi("No unassigned Carton remains in this PO. Check its SSCC or refresh the PO.")}</Alert> :
           <TableContainer sx={{ height: '100%', overflow: 'auto', borderRadius: '2px', border: '1px solid #E2E8F0' }}>
-            <Table stickyHeader size="small" aria-label="Choose an unassigned Carton from current PO"
+            <Table stickyHeader size="small" aria-label={trUi("Choose an unassigned Carton from current PO")}
               sx={{ minWidth: pickerVisibleColumns.reduce((width, column) => width + column.minWidth, 125),
                 '& .MuiTableCell-root': { py: 0.7, px: 1, whiteSpace: 'nowrap', borderColor: 'divider' } }}>
               <TableHead><TableRow>
                 {pickerVisibleColumns.map((column) => <TableCell key={column.key}
-                  sx={{ fontWeight: 800, minWidth: column.minWidth, bgcolor: '#F8FAFC' }}>{column.label}</TableCell>)}
-                <TableCell sx={{ fontWeight: 800, width: 145, bgcolor: '#F8FAFC' }} align="right">Actions</TableCell>
+                  sx={{ fontWeight: 800, minWidth: column.minWidth, bgcolor: '#F8FAFC' }}>{trUi(column.label)}</TableCell>)}
+                <TableCell sx={{ fontWeight: 800, width: 145, bgcolor: '#F8FAFC' }} align="right">{trUi("Actions")}</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {filteredUnassigned.map((row) => <TableRow hover key={row.id}>
@@ -1176,22 +1145,19 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
                   </TableCell>)}
                   <TableCell align="right">
                     <Button size="small" variant="outlined" onClick={() => chooseCarton(row.id)}
-                      aria-label={`Choose Carton ${row.cartonNo}, ${row.plannedQty} pcs`} sx={{ whiteSpace: 'nowrap' }}>
-                      Choose Ctn {row.cartonNo}
+                      aria-label={trUi("Choose Carton {0}, {1} pcs", row.cartonNo, row.plannedQty)} sx={{ whiteSpace: 'nowrap' }}>{trUi("\n                      Choose Ctn ")}{row.cartonNo}
                     </Button>
                   </TableCell>
                 </TableRow>)}
                 {!filteredUnassigned.length && <TableRow><TableCell colSpan={pickerVisibleColumns.length + 1}
-                  align="center" sx={{ py: 3 }}>No cartons match the current filters.</TableCell></TableRow>}
+                  align="center" sx={{ py: 3 }}>{trUi("No cartons match the current filters.")}</TableCell></TableRow>}
               </TableBody>
             </Table>
           </TableContainer>}
       </DialogContent>
       <DialogActions sx={{ px: 2, py: 1.1, borderTop: '1px solid #E2E8F0' }}>
-        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-          Only unassigned cartons in this PO · Choose assigns the exact Carton ID, not just the PO.
-        </Typography>
-        <Button size="small" variant="outlined" onClick={closeCartonPicker}>Close</Button>
+        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>{trUi("\n          Only unassigned cartons in this PO · Choose assigns the exact Carton ID, not just the PO.\n        ")}</Typography>
+        <Button size="small" variant="outlined" onClick={closeCartonPicker}>{trUi("Close")}</Button>
       </DialogActions>
     </Dialog>
   </Stack>;

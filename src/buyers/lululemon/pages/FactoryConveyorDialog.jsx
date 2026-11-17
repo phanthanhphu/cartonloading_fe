@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import { DEVICE_CONNECTION_STATE, DEVICE_CONNECTION_TYPE } from '../../../constants/appConstants';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -63,6 +65,9 @@ const sameConveyorConfiguration = (actual, requested) => actual && requested &&
 
 /** Factory-owned conveyor configuration: one record per Factory, no second PLC connection. */
 export default function FactoryConveyorDialog({ open, factoryCode, factoryName, onClose, onSaved }) {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const [devices, setDevices] = useState([]);
   const [scales, setScales] = useState([]);
   const [connection, setConnection] = useState(connectionDraft([], []));
@@ -150,7 +155,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
           && row.factoryCode === factoryCode && row.deviceCode === found[0]?.deviceCode) : null;
         setObservedStatus(current || null);
       }).catch(() => { /* The configuration remains usable if the snapshot API is unavailable. */ });
-    }).catch((e) => { if (active) { setLoadFailed(true); setError(`Cannot load saved Factory devices: ${errorText(e)}`); } })
+    }).catch((e) => { if (active) { setLoadFailed(true); setError(trUi("Cannot load saved Factory devices: {0}", errorText(e))); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [open, factoryCode]);
@@ -254,7 +259,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
       const data = payload();
       if (data.mode !== DEVICE_CONNECTION_TYPE.SIMULATOR) {
         setNoticeSeverity('info');
-        setNotice('REAL PLC profile: the current Backend supports configuration only. No live connection test or motor command was performed.');
+        setNotice(trUi("REAL PLC profile: the current Backend supports configuration only. No live connection test or motor command was performed."));
         return;
       }
       const result = await testConveyorConnection(data);
@@ -262,12 +267,13 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
       setTestResult(result);
       setObservedStatus({ state: result.fault ? 'FAULT' : result.motorRunning ? 'RUNNING' : 'STOPPED',
         detail: 'Manual Test succeeded', observedAt: new Date().toISOString() });
-      setNotice(`ModbusPal CONNECTED / READ ONLY · Motor ${result.motorRunning ? 'RUNNING' : 'STOPPED'} · Fault ${result.fault ? 'ON' : 'OFF'}. No motor command sent.`);
+      setNotice(trUi("ModbusPal CONNECTED / READ ONLY · Motor {0} · Fault {1}. No motor command sent.", result.motorRunning ? 'RUNNING' : 'STOPPED', result.fault ? 'ON' : 'OFF'));
     } catch (e) { setTestFailed(true); setError(errorText(e)); }
     finally { setBusy(false); }
   };
   const doSave = async () => {
     if (!canModify || !editing) return;
+    if (!await confirmAction({ kind: existing ? 'update' : 'create', entity: 'Conveyor', name: form?.deviceCode || factoryCode || '' })) return;
     setBusy(true); setError(''); setSaveError(''); setNotice('');
     let saveAcknowledged = false;
     try {
@@ -363,7 +369,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
       await new Promise((resolve) => setTimeout(resolve, 700));
       await simulateConveyorSignal(existing.deviceCode, 'WEIGHT_SENSOR', false);
       setLabStatus(await testConveyorConnection(payload()));
-      setNoticeSeverity('success'); setNotice('RFID and Weight sensor test pulses sent to ModbusPal. No carton result created.');
+      setNoticeSeverity('success'); setNotice(trUi("RFID and Weight sensor test pulses sent to ModbusPal. No carton result created."));
     } catch (e) { setLabError(errorText(e)); }
     finally {
       let cleanupFailed = false;
@@ -380,7 +386,7 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
     setLabBusy(true); setLabError('');
     try {
       const result = await simulateConveyorWeight(existing.deviceCode, labWeight, stable);
-      setNotice(`${result.weightKg} kg · Stable=${stable ? 1 : 0} written to allowlisted ModbusPal only.`);
+      setNotice(trUi("{0} kg · Stable={1} written to allowlisted ModbusPal only.", result.weightKg, stable ? 1 : 0));
     } catch (e) { setLabError(errorText(e)); }
     finally { setLabBusy(false); }
   };
@@ -391,137 +397,133 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
         <Stack direction="row" alignItems="center" gap={1}>
           <SettingsEthernet color="primary" />
           <Box>
-            <Typography variant="h6" fontWeight={800}>Conveyor Configuration</Typography>
-            <Typography variant="caption" color="text.secondary">Factory: {factoryName || factoryCode} ({factoryCode})</Typography>
+            <Typography variant="h6" fontWeight={800}>{trUi("Conveyor Configuration")}</Typography>
+            <Typography variant="caption" color="text.secondary">{trUi("Factory: ")}{factoryName || factoryCode} ({factoryCode})</Typography>
           </Box>
         </Stack>
         <Stack direction="row" alignItems="center" spacing={0.5}>
           <Button size="small" variant="text" startIcon={<HelpOutline fontSize="small" />}
-            aria-label={showSetupHelp ? 'Hide conveyor configuration help' : 'Show conveyor configuration help'}
+            aria-label={showSetupHelp ? trUi("Hide conveyor configuration help") : trUi("Show conveyor configuration help")}
             onClick={() => setShowSetupHelp((previous) => !previous)}
             sx={{ minWidth: 0, whiteSpace: 'nowrap' }}>
-            {showSetupHelp ? 'Hide help' : 'Help'}
+            {showSetupHelp ? trUi("Hide help") : 'Help'}
           </Button>
-          <Tooltip title="Close"><span><IconButton disabled={busy || labBusy} onClick={close}><Close /></IconButton></span></Tooltip>
+          <Tooltip title={trUi("Close")}><span><IconButton disabled={busy || labBusy} onClick={close}><Close /></IconButton></span></Tooltip>
         </Stack>
       </Stack>
     </DialogTitle>
     <DialogContent dividers>
-      {loading ? <Stack py={4} gap={1} alignItems="center"><CircularProgress /><Typography>Loading conveyor settings…</Typography></Stack> : <Stack gap={2} sx={{ pt: 1 }}>
-        {duplicate && <Alert severity="error">Multiple PLC or Conveyor records exist for this Factory. Configuration is locked; an Admin must review legacy records without deleting them automatically.</Alert>}
-        {error && <Alert severity="error">{error}</Alert>}
+      {loading ? <Stack py={4} gap={1} alignItems="center"><CircularProgress /><Typography>{trUi("Loading conveyor settings…")}</Typography></Stack> : <Stack gap={2} sx={{ pt: 1 }}>
+        {duplicate && <Alert severity="error">{trUi("Multiple PLC or Conveyor records exist for this Factory. Configuration is locked; an Admin must review legacy records without deleting them automatically.")}</Alert>}
+        {error && <Alert severity="error">{trSystem(error)}</Alert>}
         {saveError && <Alert severity="error">{saveError}</Alert>}
         {notice && <Alert severity={noticeSeverity}>{notice}</Alert>}
         {!duplicate && !loadFailed && <>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="subtitle1" fontWeight={800}>{editing ? (existing ? 'Edit Conveyor' : 'Configure Conveyor') : 'Saved device information'}</Typography>
+            <Typography variant="subtitle1" fontWeight={800}>{editing ? (existing ? trUi("Edit Conveyor") : trUi("Configure Conveyor")) : trUi("Saved device information")}</Typography>
             <Chip size="small" variant="outlined"
               color={saveError ? 'error' : editing ? 'warning' : testFailed ? 'error' : testResult ? 'success' : observedStatus?.state === DEVICE_CONNECTION_STATE.DISCONNECTED || observedStatus?.state === 'FAULT' ? 'error'
                 : [DEVICE_CONNECTION_STATE.CONNECTED, 'RUNNING', 'STOPPED'].includes(observedStatus?.state) ? 'success' : existing ? 'primary' : 'default'}
-              label={saveError ? 'Save not confirmed' : editing ? 'Unsaved changes' : testFailed ? 'Test failed' : testResult ? 'Connected · just tested'
-                : observedStatus?.state === DEVICE_CONNECTION_STATE.DISCONNECTED ? 'Disconnected · last checked'
-                : observedStatus?.state === 'FAULT' ? 'Fault · last checked'
-                : [DEVICE_CONNECTION_STATE.CONNECTED, 'RUNNING', 'STOPPED'].includes(observedStatus?.state) ? 'Connected · last checked'
-                : existing ? 'Configured · not live-tested' : 'Not configured'} />
+              label={saveError ? trUi("Save not confirmed") : editing ? trUi("Unsaved changes") : testFailed ? trUi("Test failed") : testResult ? trUi("Connected · just tested")
+                : observedStatus?.state === DEVICE_CONNECTION_STATE.DISCONNECTED ? trUi("Disconnected · last checked")
+                : observedStatus?.state === 'FAULT' ? trUi("Fault · last checked")
+                : [DEVICE_CONNECTION_STATE.CONNECTED, 'RUNNING', 'STOPPED'].includes(observedStatus?.state) ? trUi("Connected · last checked")
+                : existing ? trUi("Configured · not live-tested") : trUi("Not configured")} />
           </Stack>
-          {editing && !plc && <Alert severity="warning">No Factory PLC is configured yet. Create it in the PLC column first; the Conveyor cannot create a second, independent PLC.</Alert>}
+          {editing && !plc && <Alert severity="warning">{trUi("No Factory PLC is configured yet. Create it in the PLC column first; the Conveyor cannot create a second, independent PLC.")}</Alert>}
           <Paper variant="outlined" sx={{ p: 2, bgcolor: '#FAFCFF', borderRadius: '4px' }}>
-            <Typography fontWeight={800} variant="subtitle2" sx={{ mb: 1 }}>Shared PLC connection</Typography>
+            <Typography fontWeight={800} variant="subtitle2" sx={{ mb: 1 }}>{trUi("Shared PLC connection")}</Typography>
             {editing ? <Stack gap={1.5}>
-              <TextField select size="small" fullWidth label="Source" value={connection.source} disabled={busy}
+              <TextField select size="small" fullWidth label={trUi("Source")} value={connection.source} disabled={busy}
                 onChange={(e) => changeConnection('source', e.target.value)}>
-                <MenuItem value="FACTORY_PLC">Factory PLC / Modbus TCP</MenuItem>
+                <MenuItem value="FACTORY_PLC">{trUi("Factory PLC / Modbus TCP")}</MenuItem>
                 {plc?.connectionType !== DEVICE_CONNECTION_TYPE.MODBUS_TCP && existing?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR &&
-                  <MenuItem value="LEGACY_SIMULATOR">Existing ModbusPal test endpoint (legacy)</MenuItem>}
+                  <MenuItem value="LEGACY_SIMULATOR">{trUi("Existing ModbusPal test endpoint (legacy)")}</MenuItem>}
               </TextField>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
-                <TextField size="small" fullWidth required label="PLC IP / Host" value={connection.host} disabled={busy}
+                <TextField size="small" fullWidth required label={trUi("PLC IP / Host")} value={connection.host} disabled={busy}
                   onChange={(e) => changeConnection('host', e.target.value)}
-                  helperText={showSetupHelp ? 'Private/local IPv4 address' : undefined} />
-                <TextField size="small" fullWidth required type="number" label="TCP Port" value={connection.port}
+                  helperText={showSetupHelp ? trUi("Private/local IPv4 address") : undefined} />
+                <TextField size="small" fullWidth required type="number" label={trUi("TCP Port")} value={connection.port}
                   disabled={busy} inputProps={{ min: 1, max: 65535, step: 1 }}
                   onChange={(e) => changeConnection('port', e.target.value)} />
-                <TextField size="small" fullWidth required type="number" label="Unit ID" value={connection.unitId}
+                <TextField size="small" fullWidth required type="number" label={trUi("Unit ID")} value={connection.unitId}
                   disabled={busy} inputProps={{ min: 1, max: 247, step: 1 }}
                   onChange={(e) => changeConnection('unitId', e.target.value)} />
               </Box>
-              {showSetupHelp && <Typography variant="caption" color="text.secondary">
-                Conveyor and Scale can use separate Modbus Unit IDs on the same server. Saving here never changes Scale PLC settings.
-              </Typography>}
+              {showSetupHelp && <Typography variant="caption" color="text.secondary">{trUi("\n                Conveyor and Scale can use separate Modbus Unit IDs on the same server. Saving here never changes Scale PLC settings.\n              ")}</Typography>}
               {connectionChanged && showConnectionWarning &&
-                <Alert severity="warning" sx={{ py: 0.5 }}>Saving will update Conveyor only: {pendingEndpointChanges.join('; ')}. Confirm the Conveyor slave before saving.</Alert>}
+                <Alert severity="warning" sx={{ py: 0.5 }}>{trUi("Saving will update Conveyor only: ")}{pendingEndpointChanges.join('; ')}{trUi(". Confirm the Conveyor slave before saving.")}</Alert>}
             </Stack> : endpoint?.host
-              ? infoGrid([['Source', endpoint.source], ['PLC IP / Host', endpoint.host], ['TCP Port', endpoint.port], ['Unit ID', endpoint.unitId]])
-              : <Typography color="text.secondary" variant="body2">No shared PLC endpoint configured</Typography>}
-            {mismatch && showMismatchWarning && <Alert severity="warning" sx={{ mt: 1 }}>Conveyor and Scale PLC use different IP/Port values: {endpointDifferences.join('; ')}. This may be intentional. Save changes to Conveyor only; Scale PLC is not changed.</Alert>}
+              ? infoGrid([['Source', endpoint.source], [trUi("PLC IP / Host"), endpoint.host], [trUi("TCP Port"), endpoint.port], ['Unit ID', endpoint.unitId]])
+              : <Typography color="text.secondary" variant="body2">{trUi("No shared PLC endpoint configured")}</Typography>}
+            {mismatch && showMismatchWarning && <Alert severity="warning" sx={{ mt: 1 }}>{trUi("Conveyor and Scale PLC use different IP/Port values: ")}{endpointDifferences.join('; ')}{trUi(". This may be intentional. Save changes to Conveyor only; Scale PLC is not changed.")}</Alert>}
           </Paper>
           {!editing && existing ? <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px' }}>
             {infoGrid([
-              ['Device name', form.name], ['Device code', form.deviceCode], ['Packing station', form.stationCode],
-              ['Mode', form.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'ModbusPal Simulator' : 'Real PLC profile (configuration only)'],
-              ['Motor command coil', form.commandCoil], ['Motor feedback coil', form.motorFeedbackCoil],
-              ['RFID sensor coil', form.rfidSensorCoil], ['Weight sensor coil', form.weightSensorCoil],
-              ['Fault coil', form.faultCoil], ['Enabled', form.enabled === false ? 'No' : 'Yes']
+              [trUi("Device name"), form.name], [trUi("Device code"), form.deviceCode], [trUi("Packing station"), form.stationCode],
+              ['Mode', form.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? trUi("ModbusPal Simulator") : trUi("Real PLC profile (configuration only)")],
+              [trUi("Motor command coil"), form.commandCoil], [trUi("Motor feedback coil"), form.motorFeedbackCoil],
+              [trUi("RFID sensor coil"), form.rfidSensorCoil], [trUi("Weight sensor coil"), form.weightSensorCoil],
+              [trUi("Fault coil"), form.faultCoil], ['Enabled', form.enabled === false ? 'No' : 'Yes']
             ])}
           </Paper> : <>
             <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-              <TextField size="small" fullWidth label="Device Code" value={form.deviceCode} required disabled={busy || Boolean(existing)}
+              <TextField size="small" fullWidth label={trUi("Device Code")} value={form.deviceCode} required disabled={busy || Boolean(existing)}
                 onChange={(e) => setForm((prev) => ({ ...prev, deviceCode: e.target.value.toUpperCase() }))} />
-              <TextField size="small" fullWidth label="Device Name" value={form.name} required disabled={busy}
+              <TextField size="small" fullWidth label={trUi("Device Name")} value={form.name} required disabled={busy}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
-              <TextField size="small" fullWidth label="Packing Station" value={form.stationCode} required disabled={busy}
+              <TextField size="small" fullWidth label={trUi("Packing Station")} value={form.stationCode} required disabled={busy}
                 onChange={(e) => setForm((prev) => ({ ...prev, stationCode: e.target.value.toUpperCase() }))} />
             </Stack>
-            <TextField select size="small" fullWidth label="Conveyor Profile" value={form.mode} disabled={busy}
+            <TextField select size="small" fullWidth label={trUi("Conveyor Profile")} value={form.mode} disabled={busy}
               onChange={(e) => { setForm((prev) => ({ ...prev, mode: e.target.value })); setTestResult(null); }}>
-              <MenuItem value="SIMULATOR">ModbusPal Simulator (port 1502)</MenuItem>
-              <MenuItem value="REAL">Real PLC (configure only; control not enabled)</MenuItem>
+              <MenuItem value="SIMULATOR">{trUi("ModbusPal Simulator (port 1502)")}</MenuItem>
+              <MenuItem value="REAL">{trUi("Real PLC (configure only; control not enabled)")}</MenuItem>
             </TextField>
-            <Typography fontWeight={800} variant="subtitle2">Conveyor Coils (0-based)</Typography>
+            <Typography fontWeight={800} variant="subtitle2">{trUi("Conveyor Coils (0-based)")}</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>
               {coilFields.map(([key, label]) => field(key, label))}
             </Box>
             <Stack direction="row" alignItems="center" gap={1}>
               <Checkbox checked={form.enabled !== false} disabled={busy}
                 onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
-              <Typography variant="body2">Conveyor enabled</Typography>
+              <Typography variant="body2">{trUi("Conveyor enabled")}</Typography>
             </Stack>
           </>}
-          {showSetupHelp && <Alert severity="info" sx={{ py: 0.25 }}>Test reads ModbusPal coils only. It does not run the motor. Conveyor RUN/STOP stays in Carton Weighing, and web STOP is not an emergency stop.</Alert>}
+          {showSetupHelp && <Alert severity="info" sx={{ py: 0.25 }}>{trUi("Test reads ModbusPal coils only. It does not run the motor. Conveyor RUN/STOP stays in Carton Weighing, and web STOP is not an emergency stop.")}</Alert>}
           {!editing && existing?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR && !mismatch && <Accordion variant="outlined" sx={{ '&:before': { display: 'none' } }}>
-            <AccordionSummary expandIcon={<ExpandMore />}><Typography variant="subtitle2" fontWeight={700}>ModbusPal Test Lab · Admin only</Typography></AccordionSummary>
+            <AccordionSummary expandIcon={<ExpandMore />}><Typography variant="subtitle2" fontWeight={700}>{trUi("ModbusPal Test Lab · Admin only")}</Typography></AccordionSummary>
             <AccordionDetails>
               <Stack gap={1.5}>
-                <Alert severity="warning">Only use on an isolated simulator network. Backend allowlist must explicitly enable test writes; never point this lab at production PLC hardware.</Alert>
+                <Alert severity="warning">{trUi("Only use on an isolated simulator network. Backend allowlist must explicitly enable test writes; never point this lab at production PLC hardware.")}</Alert>
                 <Stack direction="row" gap={1} alignItems="center">
-                  <Chip size="small" label={!labInfo ? 'Not checked' : labInfo.enabled ? 'Lab enabled' : 'Lab disabled'} color={labInfo?.enabled ? 'success' : 'default'} />
-                  <Button size="small" variant="outlined" onClick={loadLab} disabled={labBusy}>Read simulator status</Button>
+                  <Chip size="small" label={!labInfo ? trUi("Not checked") : labInfo.enabled ? trUi("Lab enabled") : trUi("Lab disabled")} color={labInfo?.enabled ? 'success' : 'default'} />
+                  <Button size="small" variant="outlined" onClick={loadLab} disabled={labBusy}>{trUi("Read simulator status")}</Button>
                 </Stack>
                 {labStatus && infoGrid([
-                  ['RUN command', labStatus.commandOn ? 'ON' : 'OFF'],
-                  ['Motor feedback', labStatus.motorRunning ? 'RUNNING' : 'STOPPED'],
-                  ['RFID sensor', labStatus.rfidSensor ? 'ON' : 'OFF'],
-                  ['Weight sensor', labStatus.weightSensor ? 'ON' : 'OFF'],
+                  [trUi("RUN command"), labStatus.commandOn ? 'ON' : 'OFF'],
+                  [trUi("Motor feedback"), labStatus.motorRunning ? 'RUNNING' : 'STOPPED'],
+                  [trUi("RFID sensor"), labStatus.rfidSensor ? 'ON' : 'OFF'],
+                  [trUi("Weight sensor"), labStatus.weightSensor ? 'ON' : 'OFF'],
                   ['Fault', labStatus.fault ? 'ON' : 'OFF']
                 ])}
                 {labInfo?.enabled && labStatus && <>
                   <Stack direction="row" gap={1} flexWrap="wrap">
                     {[
                       ['MOTOR_FEEDBACK', 'Motor', labStatus.motorRunning],
-                      ['RFID_SENSOR', 'RFID sensor', labStatus.rfidSensor],
-                      ['WEIGHT_SENSOR', 'Weight sensor', labStatus.weightSensor],
+                      ['RFID_SENSOR', trUi("RFID sensor"), labStatus.rfidSensor],
+                      ['WEIGHT_SENSOR', trUi("Weight sensor"), labStatus.weightSensor],
                       ['FAULT', 'Fault', labStatus.fault]
                     ].map(([signal, label, value]) => <Button key={signal} size="small" variant="outlined" disabled={labBusy}
                       onClick={() => labSignal(signal, !value)}>{label}: {value ? 'ON → OFF' : 'OFF → ON'}</Button>)}
                   </Stack>
-                  <Button size="small" variant="outlined" disabled={labBusy} onClick={pulseLabSensors}>
-                    Pulse RFID → Weight sensors (simulation only)
-                  </Button>
+                  <Button size="small" variant="outlined" disabled={labBusy} onClick={pulseLabSensors}>{trUi("\n                    Pulse RFID → Weight sensors (simulation only)\n                  ")}</Button>
                   <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
-                    <TextField size="small" type="number" label="Weight (kg)" value={labWeight}
+                    <TextField size="small" type="number" label={trUi("Weight (kg)")} value={labWeight}
                       onChange={(e) => setLabWeight(e.target.value)} inputProps={{ min: 0, step: 0.001 }} />
-                    <Button size="small" variant="outlined" disabled={labBusy} onClick={() => labSetWeight(false)}>Set weight · Stable 0</Button>
-                    <Button size="small" variant="outlined" disabled={labBusy} onClick={() => labSetWeight(true)}>Stable 1</Button>
+                    <Button size="small" variant="outlined" disabled={labBusy} onClick={() => labSetWeight(false)}>{trUi("Set weight · Stable 0")}</Button>
+                    <Button size="small" variant="outlined" disabled={labBusy} onClick={() => labSetWeight(true)}>{trUi("Stable 1")}</Button>
                   </Stack>
                 </>}
                 {labError && <Alert severity="error">{labError}</Alert>}
@@ -536,10 +538,10 @@ export default function FactoryConveyorDialog({ open, factoryCode, factoryName, 
         onClick={doTest}>{busy ? 'Testing…' : 'Test'}</Button>
       <Box sx={{ flex: 1 }} />
       {existing && !editing ? <>
-        <Button variant="outlined" startIcon={<EditOutlined />} disabled={!canModify || labBusy} onClick={() => { setMode('edit'); setError(''); setSaveError(''); setNotice(''); }}>Edit</Button>
-        <Button variant="contained" disabled={busy || labBusy} onClick={close}>Close</Button>
+        <Button variant="outlined" startIcon={<EditOutlined />} disabled={!canModify || labBusy} onClick={() => { setMode('edit'); setError(''); setSaveError(''); setNotice(''); }}>{trUi("Edit")}</Button>
+        <Button variant="contained" disabled={busy || labBusy} onClick={close}>{trUi("Close")}</Button>
       </> : <>
-        <Button variant="outlined" color="inherit" disabled={busy || labBusy} onClick={cancel}>Cancel</Button>
+        <Button variant="outlined" color="inherit" disabled={busy || labBusy} onClick={cancel}>{trUi("Cancel")}</Button>
         <Button variant="contained" disabled={!canModify || labBusy || !endpoint?.host || (connection.source === 'FACTORY_PLC' && !plc)} onClick={doSave}>{busy ? 'Saving…' : 'Save'}</Button>
       </>}
     </DialogActions>

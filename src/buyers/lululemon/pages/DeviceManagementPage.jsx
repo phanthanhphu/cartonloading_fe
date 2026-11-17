@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT } from '../../../i18n/LanguageProvider';
 import { managementPageSx, managementPanelSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import { tableScrollbarSx } from 'components/TableScrollbarStyles';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
@@ -52,6 +54,8 @@ const rfidAssigned = (device, factory) => device.registered && relatedFactories(
 
 /** One Factory row → one Scale PLC, one RFID reader and one Conveyor. Each has its own status/configure action. */
 export default function DeviceManagementPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
   const { factories, loading, error: factoryError, reload: reloadFactories } = useActiveFactories({ realtime: false });
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null); // { factoryCode, kind: 'PLC' | 'RFID' }
@@ -145,16 +149,16 @@ export default function DeviceManagementPage() {
       ? new Date(observed.observedAt).toLocaleString() : '';
     const icon = kind === 'RFID' ? <SensorsOutlined fontSize="small" /> : <SettingsEthernet fontSize="small" />;
     return <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between" sx={{ minWidth: 0 }}>
-      <Tooltip arrow title={`${observed?.detail || 'No device connection check has been performed'}${at ? ` · Last observed: ${at}` : ''}`}>
+      <Tooltip arrow title={`${observed?.detail || trUi("No device connection check has been performed")}${at ? trUi(" · Last observed: {0}", at) : ''}`}>
         <Stack spacing={0.25} sx={{ minWidth: 0, overflow: 'hidden' }}>
           <Chip size="small" variant="outlined" color={display[1]} label={display[0]}
             sx={{ maxWidth: '100%', fontWeight: 600, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }} />
-          {['RUNNING', 'STOPPED'].includes(state) && <Typography variant="caption" color="text.secondary">Connected · last observed</Typography>}
+          {['RUNNING', 'STOPPED'].includes(state) && <Typography variant="caption" color="text.secondary">{trUi("Connected · last observed")}</Typography>}
         </Stack>
       </Tooltip>
       <Stack direction="row" alignItems="center" spacing={0}>
-      <Tooltip title={`Configure ${kind === 'PLC' ? 'PLC / Scale' : kind === 'RFID' ? 'RFID Reader' : 'Conveyor'} – ${factoryCode}`}>
-        <IconButton size="small" color="primary" aria-label={`Configure ${kind} for Factory ${factoryCode}`}
+      <Tooltip title={`Configure ${kind === 'PLC' ? trUi("PLC / Scale") : kind === 'RFID' ? trUi("RFID Reader") : 'Conveyor'} – ${factoryCode}`}>
+        <IconButton size="small" color="primary" aria-label={trUi("Configure {0} for Factory {1}", kind, factoryCode)}
           onClick={() => kind === 'CONVEYOR' ? setConveyorDialogFactory(factoryCode) : open(factoryCode, kind)}>
           {icon}
         </IconButton>
@@ -334,7 +338,7 @@ export default function DeviceManagementPage() {
         // ADB detection only. No inventory START/STOP and no saved configuration.
         const reader = await testManagedRfidPda(serial);
         if (!reader?.online) throw new Error('RFID reader is offline or not authorized on the backend USB/ADB host.');
-        setConnectionCheck({ result: 'connected', text: 'ADB online · detected by backend', at: new Date().toLocaleTimeString() });
+        setConnectionCheck({ result: 'connected', text: trUi("ADB online · detected by backend"), at: new Date().toLocaleTimeString() });
         setFeedback({ severity: 'success', text: `ADB detected: ${serial}. RFID inventory was not started.` });
       } else {
         const { scale } = validatePlc();
@@ -358,6 +362,8 @@ export default function DeviceManagementPage() {
   };
 
   const save = async () => {
+    if (!modal || !editing || loadingDevices || deviceLoadFailed || duplicates) return;
+    if (!await confirmAction({ kind: formMode === 'create' ? 'create' : 'update', entity: 'Device', name: `${modal.factoryCode || ''} · ${modal.kind || ''}` })) return;
     if (!modal || !editing || loadingDevices || deviceLoadFailed || duplicates) return;
     setBusy(true); setFeedback(null);
     try {
@@ -429,7 +435,7 @@ export default function DeviceManagementPage() {
     finally { setBusy(false); }
   };
 
-  if (!isAdmin()) return <Alert severity="warning">Only ADMIN can manage Factory device configurations.</Alert>;
+  if (!isAdmin()) return <Alert severity="warning">{trUi("Only ADMIN can manage Factory device configurations.")}</Alert>;
 
   const scaleInput = (key, label, { type = 'text', required = false, helperText, disabled = false } = {}) =>
     <TextField key={key} size="small" fullWidth type={type} required={required} label={label}
@@ -437,12 +443,12 @@ export default function DeviceManagementPage() {
       onChange={(e) => changeScale(key, e.target.value)} />;
   const currentReader = ownedReaders.length === 1 ? ownedReaders[0] : null;
   const statusDisplay = (() => {
-    if (!configured) return { label: 'Not configured', color: 'default' };
+    if (!configured) return { label: trUi("Not configured"), color: 'default' };
     if (connectionCheck?.result === 'failed') return { label: connectionCheck.source === 'save' ? 'Disconnected · last checked' : 'Test failed', color: 'error' };
     if (connectionCheck?.result === 'connected') return { label: connectionCheck.source === 'save' ? 'Connected · last checked' : 'Connected · just tested', color: 'success' };
-    if (modal?.kind === 'RFID') return { label: 'Configured · Test to check', color: 'primary' };
-    if (scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR) return { label: 'Simulator · no physical PLC', color: 'info' };
-    return { label: 'Configured · not tested', color: 'primary' };
+    if (modal?.kind === 'RFID') return { label: trUi("Configured · Test to check"), color: 'primary' };
+    if (scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR) return { label: trUi("Simulator · no physical PLC"), color: 'info' };
+    return { label: trUi("Configured · not tested"), color: 'primary' };
   })();
   const detail = (label, value) => <Box sx={{ minWidth: 0 }}>
     <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -455,35 +461,35 @@ export default function DeviceManagementPage() {
 
   return <Box sx={{ width: '100%', minWidth: 0, boxSizing: 'border-box', px: { xs: 0.75, md: 1 }, py: 1.5, ...managementPageSx }}>
     <Stack spacing={0.4} sx={{ mb: 2, flexShrink: 0 }}>
-      <Typography variant="h5" fontWeight={800}>Device Management</Typography>
-      <Typography variant="body2" color="text.secondary">LULULEMON · One PLC, one RFID reader and one Conveyor per Factory.</Typography>
+      <Typography variant="h5" fontWeight={800}>{trUi("Device Management")}</Typography>
+      <Typography variant="body2" color="text.secondary">{trUi("LULULEMON · One PLC, one RFID reader and one Conveyor per Factory.")}</Typography>
     </Stack>
     <Paper variant="outlined" sx={{ width: '100%', minWidth: 0, p: { xs: 1.25, md: 2 }, boxSizing: 'border-box', borderRadius: '4px', borderColor: '#DCE4EC', ...managementPanelSx }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mb: 2 }}>
         <Stack direction="row" alignItems="center" gap={1}>
-          <FactoryOutlined color="primary" /><Typography variant="h6" fontWeight={800}>Factory List</Typography>
+          <FactoryOutlined color="primary" /><Typography variant="h6" fontWeight={800}>{trUi("Factory List")}</Typography>
           <Chip size="small" variant="outlined" label={`${factories.length} active`} />
         </Stack>
         <Stack direction="row" gap={1}>
-          <TextField size="small" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search Factory"
+          <TextField size="small" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={trUi("Search Factory")}
             sx={{ minWidth: { xs: 145, sm: 240 } }}
             InputProps={{ startAdornment: <SearchOutlined color="disabled" fontSize="small" sx={{ mr: 0.5 }} /> }} />
-          <Button size="small" variant="outlined" startIcon={<Refresh />} onClick={refreshAll} disabled={loading}>Refresh</Button>
+          <Button size="small" variant="outlined" startIcon={<Refresh />} onClick={refreshAll} disabled={loading}>{trUi("Refresh")}</Button>
         </Stack>
       </Stack>
       {factoryError && <Alert severity="error" sx={{ mb: 1 }}>{factoryError}</Alert>}
       {statusLoadError && <Alert severity="warning" sx={{ mb: 1 }}>{statusLoadError}</Alert>}
       <TableContainer sx={{ width: '100%', maxWidth: '100%', overflowX: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: '4px', ...managementTableViewportSx, ...tableScrollbarSx }}>
-        <Table size="medium" stickyHeader aria-label="Factory device management" sx={{ width: '100%', minWidth: 800, tableLayout: 'fixed',
+        <Table size="medium" stickyHeader aria-label={trUi("Factory device management")} sx={{ width: '100%', minWidth: 800, tableLayout: 'fixed',
           '& .MuiTableCell-root': { px: { xs: 1, md: 1.5 }, py: 1.5 },
           '& .MuiTableCell-head': { fontWeight: 800, whiteSpace: 'nowrap', bgcolor: '#F5F8FC' } }}>
           <TableHead><TableRow>
-            <TableCell sx={{ width: '6%' }}>STT</TableCell>
-            <TableCell sx={{ width: '12%' }}>Factory Code</TableCell>
-            <TableCell sx={{ width: '22%' }}>Factory Name</TableCell>
-            <TableCell sx={{ width: '20%' }}>PLC / Scale</TableCell>
-            <TableCell sx={{ width: '20%' }}>RFID Reader</TableCell>
-            <TableCell sx={{ width: '20%' }}>Conveyor</TableCell>
+            <TableCell sx={{ width: '6%' }}>{trUi("STT")}</TableCell>
+            <TableCell sx={{ width: '12%' }}>{trUi("Factory Code")}</TableCell>
+            <TableCell sx={{ width: '22%' }}>{trUi("Factory Name")}</TableCell>
+            <TableCell sx={{ width: '20%' }}>{trUi("PLC / Scale")}</TableCell>
+            <TableCell sx={{ width: '20%' }}>{trUi("RFID Reader")}</TableCell>
+            <TableCell sx={{ width: '20%' }}>{trUi("Conveyor")}</TableCell>
           </TableRow></TableHead>
           <TableBody>
             {loading ? <TableRow><TableCell colSpan={6} align="center"><CircularProgress size={24} sx={{ my: 3 }} /></TableCell></TableRow>
@@ -497,7 +503,7 @@ export default function DeviceManagementPage() {
                   <TableCell>{renderDeviceStatus(factory.code, 'CONVEYOR')}</TableCell>
                 </TableRow>;
               })}
-            {!loading && !visibleFactories.length && <TableRow><TableCell colSpan={6} align="center">No active Factory found.</TableCell></TableRow>}
+            {!loading && !visibleFactories.length && <TableRow><TableCell colSpan={6} align="center">{trUi("No active Factory found.")}</TableCell></TableRow>}
           </TableBody>
         </Table>
       </TableContainer>
@@ -510,124 +516,109 @@ export default function DeviceManagementPage() {
             {modal?.kind === 'RFID' ? <SensorsOutlined color="primary" /> : <SettingsEthernet color="primary" />}
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" fontWeight={800}>
-                {modal?.kind === 'RFID' ? 'RFID Connection' : 'PLC Connection'}
+                {modal?.kind === 'RFID' ? trUi("RFID Connection") : trUi("PLC Connection")}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Factory: {currentFactory?.name || factoryCode} ({factoryCode})
+              <Typography variant="caption" color="text.secondary">{trUi("\n                Factory: ")}{currentFactory?.name || factoryCode} ({factoryCode})
               </Typography>
             </Box>
           </Stack>
           <Stack direction="row" alignItems="center" spacing={0.5}>
             <Button size="small" variant="text" startIcon={<HelpOutline fontSize="small" />}
-              aria-label={showSetupHelp ? 'Hide configuration help' : 'Show configuration help'}
+              aria-label={showSetupHelp ? trUi("Hide configuration help") : trUi("Show configuration help")}
               onClick={() => setShowSetupHelp((previous) => !previous)}
               sx={{ minWidth: 0, whiteSpace: 'nowrap' }}>
-              {showSetupHelp ? 'Hide help' : 'Help'}
+              {showSetupHelp ? trUi("Hide help") : 'Help'}
             </Button>
-            <Tooltip title="Device diagnostics and maintenance (separate view)">
-              <span><IconButton size="small" aria-label="Open maintenance tools" disabled={busy || loadingDevices}
+            <Tooltip title={trUi("Device diagnostics and maintenance (separate view)")}>
+              <span><IconButton size="small" aria-label={trUi("Open maintenance tools")} disabled={busy || loadingDevices}
                 onClick={() => setMaintenanceOpen(true)}><SettingsEthernet fontSize="small" /></IconButton></span>
             </Tooltip>
-            <Tooltip title="Close"><span><IconButton size="small" aria-label="Close configuration" disabled={busy} onClick={close}><Close /></IconButton></span></Tooltip>
+            <Tooltip title={trUi("Close")}><span><IconButton size="small" aria-label={trUi("Close configuration")} disabled={busy} onClick={close}><Close /></IconButton></span></Tooltip>
           </Stack>
         </Stack>
       </DialogTitle>
       <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, bgcolor: '#FFFFFF' }}>
         {loadingDevices ? <Stack alignItems="center" spacing={1} py={4}>
-          <CircularProgress /><Typography variant="body2">Loading Factory connection…</Typography>
+          <CircularProgress /><Typography variant="body2">{trUi("Loading Factory connection…")}</Typography>
         </Stack> : <Stack spacing={2} sx={{ pt: 1 }}>
-          {deviceLoadFailed && <Alert severity="error">Could not load saved configurations. Test and Save are disabled to prevent duplicate devices. Close and reopen after checking the server.</Alert>}
-          {duplicates && <Alert severity="error" action={<Button color="inherit" onClick={() => setMaintenanceOpen(true)}>Review</Button>}>
-            Multiple legacy {modal?.kind === 'RFID' ? 'RFID readers' : 'PLC or conveyor profiles'} were found for Factory {factoryCode}.
-            No configuration can be changed until the duplicates are reviewed; existing records were not deleted.
-          </Alert>}
+          {deviceLoadFailed && <Alert severity="error">{trUi("Could not load saved configurations. Test and Save are disabled to prevent duplicate devices. Close and reopen after checking the server.")}</Alert>}
+          {duplicates && <Alert severity="error" action={<Button color="inherit" onClick={() => setMaintenanceOpen(true)}>{trUi("Review")}</Button>}>{trUi("\n            Multiple legacy ")}{modal?.kind === 'RFID' ? trUi("RFID readers") : trUi("PLC or conveyor profiles")}{trUi(" were found for Factory ")}{factoryCode}{trUi(".\n            No configuration can be changed until the duplicates are reviewed; existing records were not deleted.\n          ")}</Alert>}
           {!deviceLoadFailed && !duplicates && <>
             {savedNotice && <Alert severity={connectionCheck?.source === 'save' && connectionCheck?.result === 'failed' ? 'warning' : 'success'} onClose={() => setSavedNotice('')}>{savedNotice}</Alert>}
             {formMode === 'view' && configured ? <>
               <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
-                <Typography variant="subtitle1" fontWeight={800}>Saved device information</Typography>
+                <Typography variant="subtitle1" fontWeight={800}>{trUi("Saved device information")}</Typography>
                 <Stack direction="row" alignItems="center" gap={0.75} flexWrap="wrap" justifyContent="flex-end">
-                  <Chip size="small" label="Configured" color="primary" variant="outlined" />
+                  <Chip size="small" label={trUi("Configured")} color="primary" variant="outlined" />
                   <Chip size="small" label={statusDisplay.label} color={statusDisplay.color} variant="outlined" />
                 </Stack>
               </Stack>
               {modal?.kind === 'RFID' ? <>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px', bgcolor: '#FAFCFF' }}>
                   {detailsRow([
-                    ['Device name', rfidForm.label], ['ADB serial', rfidForm.serial],
+                    [trUi("Device name"), rfidForm.label], [trUi("ADB serial"), rfidForm.serial],
                     ['Factory', factoryCode],
-                    ['Reader detection', currentReader?.online ? 'ADB online (last device scan)' : 'ADB offline / not detected']
+                    [trUi("Reader detection"), currentReader?.online ? trUi("ADB online (last device scan)") : trUi("ADB offline / not detected")]
                   ])}
                   {rfidFields.some((key) => rfidForm[key] !== '' && rfidForm[key] != null) && <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="body2" fontWeight={700} sx={{ mb: 1.5 }}>RFID START / STOP coordinates</Typography>
+                    <Typography variant="body2" fontWeight={700} sx={{ mb: 1.5 }}>{trUi("RFID START / STOP coordinates")}</Typography>
                     {detailsRow(rfidFields.map((key) => [key.toUpperCase(), rfidForm[key] === '' ? '—' : rfidForm[key]]))}
                   </Box>}
                 </Paper>
-                {showSetupHelp && <Typography variant="caption" color="text.secondary">
-                  ADB online is a backend detection result, not proof of a successful RFID inventory. Use Test to refresh detection.
-                </Typography>}
+                {showSetupHelp && <Typography variant="caption" color="text.secondary">{trUi("\n                  ADB online is a backend detection result, not proof of a successful RFID inventory. Use Test to refresh detection.\n                ")}</Typography>}
               </> : <>
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px', bgcolor: '#FAFCFF' }}>
                   {detailsRow([
-                    ['Station code', scaleForm.stationCode], ['Device name', scaleForm.name],
-                    ['Connection type', scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? 'Internal Scale Simulator' : scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? 'Delta USB Serial / Modbus ASCII' : 'Modbus TCP'],
-                    ['PLC enabled', scaleForm.enabled === false ? 'No' : 'Yes']
+                    [trUi("Station code"), scaleForm.stationCode], [trUi("Device name"), scaleForm.name],
+                    [trUi("Connection type"), scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR ? trUi("Internal Scale Simulator") : scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL ? trUi("Delta USB Serial / Modbus ASCII") : trUi("Modbus TCP")],
+                    [trUi("PLC enabled"), scaleForm.enabled === false ? 'No' : 'Yes']
                   ])}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                     {detailsRow([
-                      ['IP / Host', scaleForm.host], ['TCP Port', scaleForm.port],
-                      ['Unit ID', scaleForm.unitId], ['Weight holding register', scaleForm.registerAddress],
-                      ['Value format', scaleForm.encoding], ['kg per register unit', scaleForm.kgPerUnit],
-                      ['Stable register', scaleForm.stableRegisterAddress == null ? 'Not set' : scaleForm.stableRegisterAddress]
+                      ['IP / Host', scaleForm.host], [trUi("TCP Port"), scaleForm.port],
+                      ['Unit ID', scaleForm.unitId], [trUi("Weight holding register"), scaleForm.registerAddress],
+                      [trUi("Value format"), scaleForm.encoding], [trUi("kg per register unit"), scaleForm.kgPerUnit],
+                      [trUi("Stable register"), scaleForm.stableRegisterAddress == null ? trUi("Not set") : scaleForm.stableRegisterAddress]
                     ])}
                   </Box>}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
                     {detailsRow([
-                      ['Serial connection location', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'Factory Local Agent' : 'Backend Direct COM'], ['Serial COM Port', scaleForm.serialComPort], ['Baud Rate', scaleForm.serialBaudRate],
-                      ['Data Bits', scaleForm.serialDataBits], ['Parity', scaleForm.serialParity], ['Stop Bits', scaleForm.serialStopBits],
-                      ['Station Address', scaleForm.unitId], ['Weight D Register', `D${scaleForm.registerAddress}`],
-                      ['Stable D Register', scaleForm.stableRegisterAddress == null ? 'Not set' : `D${scaleForm.stableRegisterAddress}`],
-                      ['Value Format', scaleForm.encoding], ['kg per unit', scaleForm.kgPerUnit]
+                      [trUi("Serial connection location"), scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? trUi("Factory Local Agent") : trUi("Backend Direct COM")], [trUi("Serial COM Port"), scaleForm.serialComPort], [trUi("Baud Rate"), scaleForm.serialBaudRate],
+                      [trUi("Data Bits"), scaleForm.serialDataBits], ['Parity', scaleForm.serialParity], [trUi("Stop Bits"), scaleForm.serialStopBits],
+                      [trUi("Station Address"), scaleForm.unitId], [trUi("Weight D Register"), `D${scaleForm.registerAddress}`],
+                      [trUi("Stable D Register"), scaleForm.stableRegisterAddress == null ? trUi("Not set") : `D${scaleForm.stableRegisterAddress}`],
+                      [trUi("Value Format"), scaleForm.encoding], [trUi("kg per unit"), scaleForm.kgPerUnit]
                     ])}
                   </Box>}
                   {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL &&
                     scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} selectedAgentId={scaleForm.serialAgentId || ''} selectedPort={scaleForm.serialComPort || ''} readOnly={!editing}
                   onSelectAgent={(value) => changeScale('serialAgentId', value)} onSelectPort={(value) => changeScale('serialComPort', value)} showHelp={showSetupHelp} />}
                   {showSetupHelp && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && scaleForm.stableRegisterAddress == null &&
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                      PLC connection may be tested without a scale. Weight reading / automatic capture is NOT configured (Stable D register is empty).
-                    </Alert>}
-                  {showSetupHelp && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR && <Alert severity="info" sx={{ mt: 2 }}>
-                    This is a saved internal simulator, not a physical PLC connection. Click Edit to configure Modbus TCP or Delta USB Serial.
-                  </Alert>}
+                    <Alert severity="info" sx={{ mt: 2 }}>{trUi("\n                      PLC connection may be tested without a scale. Weight reading / automatic capture is NOT configured (Stable D register is empty).\n                    ")}</Alert>}
+                  {showSetupHelp && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.SIMULATOR && <Alert severity="info" sx={{ mt: 2 }}>{trUi("\n                    This is a saved internal simulator, not a physical PLC connection. Click Edit to configure Modbus TCP or Delta USB Serial.\n                  ")}</Alert>}
                 </Paper>
-                {showSetupHelp && <Alert severity="info" sx={{ mt: 1 }}>
-                  Conveyor coil configuration and ModbusPal Test Lab are managed from the Conveyor column in the Factory List.
-                  The existing Conveyor shares the Factory Modbus TCP endpoint only when configured for Modbus TCP; Delta Serial Scale is independent.
-                </Alert>}
-                {showSetupHelp && <Typography variant="caption" color="text.secondary">
-                  Saved settings do not mean the physical PLC is connected. Test performs a read-only check; no motor commands are sent.
-                </Typography>}
+                {showSetupHelp && <Alert severity="info" sx={{ mt: 1 }}>{trUi("\n                  Conveyor coil configuration and ModbusPal Test Lab are managed from the Conveyor column in the Factory List.\n                  The existing Conveyor shares the Factory Modbus TCP endpoint only when configured for Modbus TCP; Delta Serial Scale is independent.\n                ")}</Alert>}
+                {showSetupHelp && <Typography variant="caption" color="text.secondary">{trUi("\n                  Saved settings do not mean the physical PLC is connected. Test performs a read-only check; no motor commands are sent.\n                ")}</Typography>}
               </>}
-              {connectionCheck && <Typography variant="caption" color="text.secondary">Last test: {connectionCheck.at} · {connectionCheck.text}</Typography>}
+              {connectionCheck && <Typography variant="caption" color="text.secondary">{trUi("Last test: ")}{connectionCheck.at} · {connectionCheck.text}</Typography>}
             </> : <>
               {showSetupHelp && <Alert severity="info">
                 {formMode === 'create'
-                  ? `No ${modal?.kind === 'RFID' ? 'RFID reader' : 'PLC'} configuration exists for ${factoryCode}. Enter its connection settings and save.`
-                  : 'Editing this Factory’s existing configuration. Cancel restores the saved values.'}
+                  ? trUi("No {0} configuration exists for {1}. Enter its connection settings and save.", modal?.kind === 'RFID' ? 'RFID reader' : 'PLC', factoryCode)
+                  : trUi("Editing this Factory’s existing configuration. Cancel restores the saved values.")}
               </Alert>}
             {modal?.kind === 'RFID' ? <>
               <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                <TextField size="small" fullWidth label="ADB Serial" required value={rfidForm.serial}
+                <TextField size="small" fullWidth label={trUi("ADB Serial")} required value={rfidForm.serial}
                   disabled={busy} onChange={(e) => changeRfid('serial', e.target.value)}
                   helperText={ownedReaders.length === 1 && rfidForm.serial.trim() !== ownedReaders[0].serial
-                    ? `Replacing ${ownedReaders[0].serial} for ${factoryCode}; old scan history will be preserved.`
-                    : showSetupHelp ? 'Use PDA ADB serial or IP:port. Test checks connectivity.' : undefined} />
-                <TextField size="small" fullWidth label="Reader Name" required value={rfidForm.label}
+                    ? trUi("Replacing {0} for {1}; old scan history will be preserved.", ownedReaders[0].serial, factoryCode)
+                    : showSetupHelp ? trUi("Use PDA ADB serial or IP:port. Test checks connectivity.") : undefined} />
+                <TextField size="small" fullWidth label={trUi("Reader Name")} required value={rfidForm.label}
                   disabled={busy} onChange={(e) => changeRfid('label', e.target.value)} />
               </Stack>
-              <TextField size="small" fullWidth disabled label="Factory" value={factoryCode} />
-              <Typography variant="subtitle2" fontWeight={800}>RFID Control V2 · START / STOP coordinates (optional)</Typography>
+              <TextField size="small" fullWidth disabled label={trUi("Factory")} value={factoryCode} />
+              <Typography variant="subtitle2" fontWeight={800}>{trUi("RFID Control V2 · START / STOP coordinates (optional)")}</Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} gap={1}>
                 {rfidFields.map((field) => <TextField key={field} size="small" fullWidth type="number" label={field.toUpperCase()}
                   disabled={busy} value={rfidForm[field]} inputProps={{ min: 0, max: 10000, step: 1 }}
@@ -635,70 +626,69 @@ export default function DeviceManagementPage() {
               </Stack>
             </> : <>
               <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Typography variant="subtitle1" fontWeight={800}>1. PLC / Scale Connection</Typography>
+                <Typography variant="subtitle1" fontWeight={800}>{trUi("1. PLC / Scale Connection")}</Typography>
                 <Chip size="small" color={ownedScales.length ? 'primary' : 'default'} variant="outlined"
-                  label={ownedScales.length ? 'Configured' : 'Not configured'} />
+                  label={ownedScales.length ? 'Configured' : trUi("Not configured")} />
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                {scaleInput('stationCode', 'Station Code', { required: true, disabled: ownedScales.length > 0 })}
-                {scaleInput('name', 'Station Name', { required: true })}
+                {scaleInput('stationCode', trUi("Station Code"), { required: true, disabled: ownedScales.length > 0 })}
+                {scaleInput('name', trUi("Station Name"), { required: true })}
               </Stack>
-              <TextField size="small" fullWidth disabled label="Factory" value={factoryCode} />
-              <TextField size="small" select fullWidth label="Connection Type" value={scaleForm.connectionType} disabled={busy}
+              <TextField size="small" fullWidth disabled label={trUi("Factory")} value={factoryCode} />
+              <TextField size="small" select fullWidth label={trUi("Connection Type")} value={scaleForm.connectionType} disabled={busy}
                 onChange={(e) => changeScale('connectionType', e.target.value)}>
-                <MenuItem value="MODBUS_TCP">Modbus TCP (PLC / ModbusPal) · Existing</MenuItem>
-                <MenuItem value={DEVICE_CONNECTION_TYPE.DELTA_SERIAL}>Delta USB Serial / RS232 · Factory PC</MenuItem>
-                <MenuItem value="SIMULATOR">Internal Scale Simulator (no physical connection)</MenuItem>
+                <MenuItem value="MODBUS_TCP">{trUi("Modbus TCP (PLC / ModbusPal) · Existing")}</MenuItem>
+                <MenuItem value={DEVICE_CONNECTION_TYPE.DELTA_SERIAL}>{trUi("Delta USB Serial / RS232 · Factory PC")}</MenuItem>
+                <MenuItem value="SIMULATOR">{trUi("Internal Scale Simulator (no physical connection)")}</MenuItem>
               </TextField>
               {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.MODBUS_TCP && <>
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  {scaleInput('host', 'PLC Host IPv4', { required: true, helperText: showSetupHelp ? 'Private LAN IP reachable by the backend' : undefined })}
-                  {scaleInput('port', 'TCP Port', { type: 'number' })}
-                  {scaleInput('unitId', 'Slave / Unit ID', { type: 'number' })}
+                  {scaleInput('host', trUi("PLC Host IPv4"), { required: true, helperText: showSetupHelp ? trUi("Private LAN IP reachable by the backend") : undefined })}
+                  {scaleInput('port', trUi("TCP Port"), { type: 'number' })}
+                  {scaleInput('unitId', trUi("Slave / Unit ID"), { type: 'number' })}
                 </Stack>
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  {scaleInput('registerAddress', 'Weight Holding Register (0-based)', { type: 'number' })}
-                  <TextField size="small" select fullWidth label="Value Format" value={scaleForm.encoding} disabled={busy}
+                  {scaleInput('registerAddress', trUi("Weight Holding Register (0-based)"), { type: 'number' })}
+                  <TextField size="small" select fullWidth label={trUi("Value Format")} value={scaleForm.encoding} disabled={busy}
                     onChange={(e) => changeScale('encoding', e.target.value)}>
                     {MODBUS.ENCODINGS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
                   </TextField>
-                  {scaleInput('kgPerUnit', 'kg per Register Unit', { type: 'number' })}
+                  {scaleInput('kgPerUnit', trUi("kg per Register Unit"), { type: 'number' })}
                 </Stack>
-                {scaleInput('stableRegisterAddress', 'Stable Register (0-based, optional)', {
-                  type: 'number', helperText: showSetupHelp ? 'Stable 0 → 1 transition after RFID for auto-capture; otherwise preview only.' : undefined
+                {scaleInput('stableRegisterAddress', trUi("Stable Register (0-based, optional)"), {
+                  type: 'number', helperText: showSetupHelp ? trUi("Stable 0 → 1 transition after RFID for auto-capture; otherwise preview only.") : undefined
                 })}
               </>}
               {scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL && <>
-                <TextField size="small" select fullWidth label="Serial Connection Location"
+                <TextField size="small" select fullWidth label={trUi("Serial Connection Location")}
                   value={scaleForm.serialConnectionLocation || 'BACKEND_DIRECT'} disabled={busy}
                   onChange={(e) => changeScale('serialConnectionLocation', e.target.value)}>
-                  <MenuItem value="LOCAL_AGENT">Factory Local Agent (Linux Server + Factory Windows PC)</MenuItem>
-                  <MenuItem value="BACKEND_DIRECT">Backend Direct COM (single-PC development / legacy)</MenuItem>
+                  <MenuItem value="LOCAL_AGENT">{trUi("Factory Local Agent (Linux Server + Factory Windows PC)")}</MenuItem>
+                  <MenuItem value="BACKEND_DIRECT">{trUi("Backend Direct COM (single-PC development / legacy)")}</MenuItem>
                 </TextField>
                 {showSetupHelp && <Alert severity="info" sx={{ mt: 0.5 }}>
                   {scaleForm.serialConnectionLocation === 'LOCAL_AGENT'
-                    ? 'Delta COM1 / Modbus ASCII · cable connects to the Windows Factory PC running Local Agent. Linux Server forwards read-only jobs to that Factory. WPLSoft must release COM port.'
-                    : 'Delta COM1 / Modbus ASCII · cable connects to backend host (legacy direct mode). WPLSoft must release COM port.'}
-                  {' '}Test never writes to PLC.
-                </Alert>}
+                    ? trUi("Delta COM1 / Modbus ASCII · cable connects to the Windows Factory PC running Local Agent. Linux Server forwards read-only jobs to that Factory. WPLSoft must release COM port.")
+                    : trUi("Delta COM1 / Modbus ASCII · cable connects to backend host (legacy direct mode). WPLSoft must release COM port.")}
+                  {' '}{trUi("Test never writes to PLC.\n                ")}</Alert>}
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  {scaleInput('serialComPort', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'PLC Scale COM Port on selected PC' : 'Backend COM Port', { required: true, helperText: showSetupHelp ? (scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? 'Select a Windows PC Agent below, then detect COM ports.' : 'Example: COM8. Set CARTON_SCALE_SERIAL_ALLOWED_PORTS on backend.') : undefined })}
-                  <TextField size="small" select fullWidth label="Baud Rate" value={scaleForm.serialBaudRate || 9600} disabled={busy}
+                  {scaleInput('serialComPort', scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? trUi("PLC Scale COM Port on selected PC") : trUi("Backend COM Port"), { required: true, helperText: showSetupHelp ? (scaleForm.serialConnectionLocation === 'LOCAL_AGENT' ? trUi("Select a Windows PC Agent below, then detect COM ports.") : trUi("Example: COM8. Set CARTON_SCALE_SERIAL_ALLOWED_PORTS on backend.")) : undefined })}
+                  <TextField size="small" select fullWidth label={trUi("Baud Rate")} value={scaleForm.serialBaudRate || 9600} disabled={busy}
                     onChange={(e) => changeScale('serialBaudRate', Number(e.target.value))}>
                     {[4800, 9600, 19200, 38400, 57600, 115200].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
                   </TextField>
-                  {scaleInput('unitId', 'Station Address', { type: 'number' })}
+                  {scaleInput('unitId', trUi("Station Address"), { type: 'number' })}
                 </Stack>
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  <TextField size="small" select fullWidth label="Data Bits" value={scaleForm.serialDataBits || 7} disabled={busy}
+                  <TextField size="small" select fullWidth label={trUi("Data Bits")} value={scaleForm.serialDataBits || 7} disabled={busy}
                     onChange={(e) => changeScale('serialDataBits', Number(e.target.value))}>
                     {[7, 8].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
                   </TextField>
-                  <TextField size="small" select fullWidth label="Parity" value={scaleForm.serialParity || 'EVEN'} disabled={busy}
+                  <TextField size="small" select fullWidth label={trUi("Parity")} value={scaleForm.serialParity || 'EVEN'} disabled={busy}
                     onChange={(e) => changeScale('serialParity', e.target.value)}>
                     {['EVEN', 'ODD', 'NONE'].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
                   </TextField>
-                  <TextField size="small" select fullWidth label="Stop Bits" value={scaleForm.serialStopBits || 1} disabled={busy}
+                  <TextField size="small" select fullWidth label={trUi("Stop Bits")} value={scaleForm.serialStopBits || 1} disabled={busy}
                     onChange={(e) => changeScale('serialStopBits', Number(e.target.value))}>
                     {[1, 2].map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
                   </TextField>
@@ -706,32 +696,26 @@ export default function DeviceManagementPage() {
                 {scaleForm.serialConnectionLocation === 'LOCAL_AGENT' && <FactoryScaleAgentPanel factoryCode={factoryCode} selectedAgentId={scaleForm.serialAgentId || ''} selectedPort={scaleForm.serialComPort || ''} readOnly={!editing}
                   onSelectAgent={(value) => changeScale('serialAgentId', value)} onSelectPort={(value) => changeScale('serialComPort', value)} showHelp={showSetupHelp} />}
                 {showSetupHelp && <Alert severity="info">
-                  <strong>PLC-only test</strong> reads D0 to verify COM8 ↔ PLC communication. It does not require a scale,
-                  read kilograms, or change the PLC. Only use the weight test after connecting a weighing indicator.
-                </Alert>}
+                  <strong>{trUi("PLC-only test")}</strong>{trUi(" reads D0 to verify COM8 ↔ PLC communication. It does not require a scale,\n                  read kilograms, or change the PLC. Only use the weight test after connecting a weighing indicator.\n                ")}</Alert>}
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  {scaleInput('registerAddress', 'Weight D Register Number', { type: 'number', helperText: showSetupHelp ? 'Example: 200 means D200; NOT 4200 or 40201.' : undefined })}
-                  {scaleInput('stableRegisterAddress', 'Stable D Register Number (optional)', { type: 'number', helperText: showSetupHelp ? '0 -> 1 after RFID. Empty = preview-only, no automatic weighing.' : undefined })}
+                  {scaleInput('registerAddress', trUi("Weight D Register Number"), { type: 'number', helperText: showSetupHelp ? trUi("Example: 200 means D200; NOT 4200 or 40201.") : undefined })}
+                  {scaleInput('stableRegisterAddress', trUi("Stable D Register Number (optional)"), { type: 'number', helperText: showSetupHelp ? trUi("0 -> 1 after RFID. Empty = preview-only, no automatic weighing.") : undefined })}
                 </Stack>
                 <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-                  <TextField size="small" select fullWidth label="Value Format" value={scaleForm.encoding} disabled={busy}
+                  <TextField size="small" select fullWidth label={trUi("Value Format")} value={scaleForm.encoding} disabled={busy}
                     onChange={(e) => changeScale('encoding', e.target.value)}>
                     {MODBUS.ENCODINGS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
                   </TextField>
-                  {scaleInput('kgPerUnit', 'kg per Register Unit', { type: 'number' })}
+                  {scaleInput('kgPerUnit', trUi("kg per Register Unit"), { type: 'number' })}
                 </Stack>
                 <FormControlLabel control={<Checkbox checked={weightTestEnabled} disabled={busy}
                   onChange={(e) => setWeightTestEnabled(e.target.checked)} />}
-                  label="A weighing indicator is connected and the weight D registers are verified" />
-                {showSetupHelp && !weightTestEnabled && <Typography variant="caption" color="text.secondary">
-                  Weight reading: Not configured/tested. PLC-only Test is available without a scale.
-                </Typography>}
+                  label={trUi("A weighing indicator is connected and the weight D registers are verified")} />
+                {showSetupHelp && !weightTestEnabled && <Typography variant="caption" color="text.secondary">{trUi("\n                  Weight reading: Not configured/tested. PLC-only Test is available without a scale.\n                ")}</Typography>}
               </>}
               <FormControlLabel control={<Checkbox checked={scaleForm.enabled !== false} disabled={busy}
-                onChange={(e) => changeScale('enabled', e.target.checked)} />} label="PLC enabled" />
-              {showSetupHelp && <Alert severity="info">
-                Conveyor settings are managed via the Conveyor column of Factory List. Scale and Conveyor are separate device configurations. Modbus TCP may share an endpoint; Delta Serial Scale does not change Conveyor settings.
-              </Alert>}
+                onChange={(e) => changeScale('enabled', e.target.checked)} />} label={trUi("PLC enabled")} />
+              {showSetupHelp && <Alert severity="info">{trUi("\n                Conveyor settings are managed via the Conveyor column of Factory List. Scale and Conveyor are separate device configurations. Modbus TCP may share an endpoint; Delta Serial Scale does not change Conveyor settings.\n              ")}</Alert>}
             </>}
             </>}
             {feedback && <Alert severity={feedback.severity}>{feedback.text}</Alert>}
@@ -739,21 +723,21 @@ export default function DeviceManagementPage() {
         </Stack>}
       </DialogContent>
       <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 1.5 }}>
-        {duplicates || deviceLoadFailed ? <Button variant="outlined" color="inherit" onClick={close} disabled={busy}>Close</Button> : <>
+        {duplicates || deviceLoadFailed ? <Button variant="outlined" color="inherit" onClick={close} disabled={busy}>{trUi("Close")}</Button> : <>
           <Button variant="outlined" color="primary" startIcon={<Cable />} disabled={busy || loadingDevices}
             onClick={() => test('connection')}>
             {busy ? 'Testing…' : modal?.kind === 'PLC' && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL
-              ? 'Test PLC Connection' : 'Test'}
+              ? trUi("Test PLC Connection") : 'Test'}
           </Button>
           {modal?.kind === 'PLC' && scaleForm.connectionType === DEVICE_CONNECTION_TYPE.DELTA_SERIAL &&
             <Button variant="outlined" disabled={busy || loadingDevices || !weightTestEnabled}
-              onClick={() => test('weight')}>Test Weight Reading</Button>}
+              onClick={() => test('weight')}>{trUi("Test Weight Reading")}</Button>}
           <Box sx={{ flex: 1 }} />
           {!editing && configured ? <>
-            <Button variant="outlined" startIcon={<EditOutlined />} disabled={busy || loadingDevices} onClick={beginEdit}>Edit</Button>
-            <Button variant="contained" color="primary" disabled={busy} onClick={close}>Close</Button>
+            <Button variant="outlined" startIcon={<EditOutlined />} disabled={busy || loadingDevices} onClick={beginEdit}>{trUi("Edit")}</Button>
+            <Button variant="contained" color="primary" disabled={busy} onClick={close}>{trUi("Close")}</Button>
           </> : <>
-            <Button variant="outlined" color="inherit" disabled={busy} onClick={cancelEdit}>Cancel</Button>
+            <Button variant="outlined" color="inherit" disabled={busy} onClick={cancelEdit}>{trUi("Cancel")}</Button>
             <Button variant="contained" disabled={busy || loadingDevices} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button>
           </>}
         </>}
@@ -772,16 +756,14 @@ export default function DeviceManagementPage() {
       <DialogTitle>
         <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
           <Box>
-            <Typography variant="h6" fontWeight={800}>Device diagnostics & maintenance</Typography>
-            <Typography variant="caption" color="text.secondary">Factory {factoryCode} · legacy administration tools</Typography>
+            <Typography variant="h6" fontWeight={800}>{trUi("Device diagnostics & maintenance")}</Typography>
+            <Typography variant="caption" color="text.secondary">{trUi("Factory ")}{factoryCode}{trUi(" · legacy administration tools")}</Typography>
           </Box>
-          <IconButton aria-label="Close maintenance" onClick={() => setMaintenanceOpen(false)}><Close /></IconButton>
+          <IconButton aria-label={trUi("Close maintenance")} onClick={() => setMaintenanceOpen(false)}><Close /></IconButton>
         </Stack>
       </DialogTitle>
       <DialogContent dividers>
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Maintenance tools are separate from the unique Factory configuration. They are retained for existing device data and diagnostics.
-        </Alert>
+        <Alert severity="info" sx={{ mb: 2 }}>{trUi("\n          Maintenance tools are separate from the unique Factory configuration. They are retained for existing device data and diagnostics.\n        ")}</Alert>
         {maintenanceOpen && modal?.kind === 'RFID' && <RfidDevicesPage factoryCode={factoryCode} />}
         {maintenanceOpen && modal?.kind === 'PLC' && <>
           <ScalePlcDevicesPage factoryCode={factoryCode} />
@@ -789,7 +771,7 @@ export default function DeviceManagementPage() {
           <Box sx={{ mt: 2 }}><StationDeviceAssignmentPage factoryCode={factoryCode} /></Box>
         </>}
       </DialogContent>
-      <DialogActions><Button onClick={() => setMaintenanceOpen(false)}>Close maintenance</Button></DialogActions>
+      <DialogActions><Button onClick={() => setMaintenanceOpen(false)}>{trUi("Close maintenance")}</Button></DialogActions>
     </Dialog>
   </Box>;
 }

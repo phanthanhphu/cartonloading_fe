@@ -1,14 +1,16 @@
+import { useT } from '../../i18n/LanguageProvider';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 
 export default function LogoIcon() {
+  const trUi = useT();
   const theme = useTheme();
   const ACCENT = theme.palette.primary.main; // xanh theme
 
   return (
     <Box
-      aria-label="Youngone"
+      aria-label={trUi("Youngone")}
       sx={{
         width: 40,
         height: 40,

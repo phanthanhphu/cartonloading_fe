@@ -68,12 +68,19 @@ export const listPoShippingDayPos = (orderId, date, factory, filters = {}, page 
     params: { factory, ...Object.fromEntries(Object.entries(filters).filter(([, val]) => val !== '' && val !== undefined && val !== null)), page, size }
   })
 );
+export const getPoShippingDayQcReport = (orderId, date, factory, scanDate = '', buyer = BUYER_CODE.LULULEMON) => unwrap(
+  apiRawClient.get(`${poShippingDaysRoot(orderId, buyer)}/${encodeURIComponent(date)}/qc-report`, {
+    params: { factory, ...(scanDate ? { scanDate } : {}) }
+  })
+);
 export const removePoFromShippingDay = (orderId, date, poId, factory, buyer = BUYER_CODE.LULULEMON) => unwrap(
   apiRawClient.delete(`${poShippingDaysRoot(orderId, buyer)}/${encodeURIComponent(date)}/pos/${encodeURIComponent(poId)}`, { params: { factory } })
 );
-export const exportPoShippingDayExcel = (orderId, date, factory, buyer = BUYER_CODE.LULULEMON, columns = null) =>
+export const exportPoShippingDayExcel = (orderId, date, factory, buyer = BUYER_CODE.LULULEMON, columns = null, filters = {}, includeQcColumns = true, includeSsccAssigned = false, includeSkuItemsAssigned = false) =>
   apiRawClient.get(`${poShippingDaysRoot(orderId, buyer)}/${encodeURIComponent(date)}/export`, {
-    params: { factory, ...(Array.isArray(columns) ? { columns: columns.join(',') } : {}) }, responseType: 'blob'
+    params: { factory, includeQcColumns, includeSsccAssigned, includeSkuItemsAssigned, ...(Array.isArray(columns) ? { columns: columns.join(',') } : {}),
+      ...Object.fromEntries(Object.entries(filters).filter(([, val]) => val !== '' && val !== undefined && val !== null)) },
+    responseType: 'blob'
   });
 
 // Delete the date item and its PO memberships only; the source POs are never deleted.

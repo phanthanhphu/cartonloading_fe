@@ -1,3 +1,4 @@
+import { useT } from '../../../../../i18n/LanguageProvider';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Divider from '@mui/material/Divider';
@@ -12,6 +13,7 @@ import { listAccessibleBuyers } from 'services/buyerService';
 import { setBuyerCatalog } from 'utils/buyerAccess';
 
 export default function Navigation() {
+  const trUi = useT();
   const { pathname } = useLocation();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = Boolean(menuMaster?.isDashboardDrawerOpened);
@@ -90,7 +92,7 @@ export default function Navigation() {
           />
         );
       default:
-        return <Typography key={item.id} variant="h6" color="error" align="center">Fix - Navigation Group</Typography>;
+        return <Typography key={item.id} variant="h6" color="error" align="center">{trUi("Fix - Navigation Group")}</Typography>;
     }
   });
 

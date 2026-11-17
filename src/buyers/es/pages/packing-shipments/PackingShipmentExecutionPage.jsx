@@ -1,9 +1,11 @@
+import { useT } from '../../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../../hooks/useAutoDismissFeedback';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Alert, Button, Chip, CircularProgress, MenuItem, Paper, Stack,  TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Button, Chip, CircularProgress, MenuItem, Paper, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import { getBuyerBySlug } from 'utils/buyerAccess';
 import { getPackingShipment, getPackingCartons, scanPackingShipment, completePackingCarton } from 'buyers/es/services/shipmentService';
 import { listScaleStations, getCartonTransaction, getCurrentStationTransaction } from 'buyers/es/services/cartonLoadingService';
@@ -12,6 +14,7 @@ import { BARCODE_CARTON_STATUS, INSPECTION_RESULT, OPERATION_ROUTE, SCALE_WEIGHT
 import { APP_MESSAGES, createShipmentReadOnlyMessage } from '../../../../constants/appMessages';
 const message = (e) => e?.response?.data?.message || e.message || APP_MESSAGES.COMPLETE_OPERATION_FAILED;
 export default function PackingShipmentExecutionPage() {
+  const trUi = useT();
   const { buyerSlug, shipmentId } = useParams();
   const buyer = getBuyerBySlug(buyerSlug);
   const [plan, setPlan] = useState(null);
@@ -89,37 +92,37 @@ export default function PackingShipmentExecutionPage() {
   };
   const result = weightResult(transaction);
   return <Stack spacing={2}>
-    <Button component={Link} to={OPERATION_ROUTE.PACKING_SHIPMENTS} sx={{ alignSelf: 'flex-start' }}>← Shipment Plans</Button>
+    <Button component={Link} to={OPERATION_ROUTE.PACKING_SHIPMENTS} sx={{ alignSelf: 'flex-start' }}>{trUi("← Shipment Plans")}</Button>
     {plan?.shipmentNo ? <Chip size="small" variant="outlined" label={`Shipment ${plan.shipmentNo}`} sx={{ alignSelf: 'flex-start' }} /> : null}
-    <Typography color="text.secondary">{plan ? `${plan.plannedDate} · ${plan.destination} · ${buyer?.label}` : 'Loading shipment plan…'}</Typography>
+    <Typography color="text.secondary">{plan ? `${plan.plannedDate} · ${plan.destination} · ${buyer?.label}` : trUi("Loading shipment plan…")}</Typography>
     {(error || pollError) && <Alert severity="error">{error || pollError}</Alert>}
     {plan && plan.status !== SHIPMENT_STATUS.PLANNED && <Alert severity="info">{createShipmentReadOnlyMessage(plan.status)}</Alert>}
     {stationBlocked && <Alert severity="warning">{APP_MESSAGES.SCALE_STATION_OTHER_SHIPMENT}</Alert>}
     <Paper variant="outlined" sx={{ p: 2 }}><Stack component="form" spacing={2} onSubmit={scan}>
-      <TextField select label="PLC Scale Station" value={station} disabled={busy || pending} onChange={(e) => { setStation(e.target.value); attempt.current = null; }}>
-        <MenuItem value="">Select Scale Station</MenuItem>{stations.map((row) => <MenuItem key={row.stationCode} value={row.stationCode}>{row.stationName || row.stationCode} · {row.stationCode}</MenuItem>)}
+      <TextField select label={trUi("PLC Scale Station")} value={station} disabled={busy || pending} onChange={(e) => { setStation(e.target.value); attempt.current = null; }}>
+        <MenuItem value="">{trUi("Select Scale Station")}</MenuItem>{stations.map((row) => <MenuItem key={row.stationCode} value={row.stationCode}>{row.stationName || row.stationCode} · {row.stationCode}</MenuItem>)}
       </TextField>
-      <TextField inputRef={scanner} label="Scan Assigned Factory Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value.replace(/\s/g, ''))} disabled={!canScan} autoComplete="off" helperText={APP_MESSAGES.PACKING_SHIPMENT_SCAN_HELPER} />
-      <Button type="submit" variant="contained" disabled={!canScan || !barcode.trim()}>Scan & Wait for PLC Weight</Button>
+      <TextField inputRef={scanner} label={trUi("Scan Assigned Factory Barcode")} value={barcode} onChange={(e) => setBarcode(e.target.value.replace(/\s/g, ''))} disabled={!canScan} autoComplete="off" helperText={APP_MESSAGES.PACKING_SHIPMENT_SCAN_HELPER} />
+      <Button type="submit" variant="contained" disabled={!canScan || !barcode.trim()}>{trUi("Scan & Wait for PLC Weight")}</Button>
       {(loading || busy) && <CircularProgress size={20} />}
     </Stack></Paper>
     {transaction && <Paper variant="outlined" sx={{ p: 2 }}><Stack spacing={1} aria-live="polite">
       <Stack direction="row" spacing={1} alignItems="center"><Typography variant="h5">{transaction.factoryBarcode}</Typography><Chip label={result.label} color={result.color} /></Stack>
-      <Typography>PO: {transaction.poNumber || '—'} · Product: {transaction.articleNumber || '—'} · {transaction.color || '—'} / {transaction.size || '—'}</Typography>
-      <Typography>Packed Quantity: {transaction.assignedQuantity ?? '—'} · Expected: {transaction.expectedWeightKg ?? '—'} kg · Actual: {transaction.weightKg ?? '—'} kg</Typography>
-      {pending && <Typography>Waiting for the PLC weight. Do not scan the next carton yet.</Typography>}
+      <Typography>{trUi("PO: ")}{transaction.poNumber || '—'}{trUi(" · Product: ")}{transaction.articleNumber || '—'} · {transaction.color || '—'} / {transaction.size || '—'}</Typography>
+      <Typography>{trUi("Packed Quantity: ")}{transaction.assignedQuantity ?? '—'}{trUi(" · Expected: ")}{transaction.expectedWeightKg ?? '—'}{trUi(" kg · Actual: ")}{transaction.weightKg ?? '—'} kg</Typography>
+      {pending && <Typography>{trUi("Waiting for the PLC weight. Do not scan the next carton yet.")}</Typography>}
       {transaction.weightStatus === SCALE_WEIGHT_STATUS.NO_STANDARD && <Alert severity="warning">{APP_MESSAGES.NO_EXPECTED_WEIGHT_AVAILABLE}</Alert>}
       {result.label === INSPECTION_RESULT.FAIL && <Alert severity="error">{APP_MESSAGES.CARTON_WEIGHT_CHECK_FAILED}</Alert>}
     </Stack></Paper>}
-    <Typography variant="h5">Physical Cartons in this Shipment</Typography>
+    <Typography variant="h5">{trUi("Physical Cartons in this Shipment")}</Typography>
     <StandardTableViewport component={Paper}><SortableTable size="small" rowNumberStart={page * DEFAULT_TABLE_PAGE_SIZE}><TableHead><TableRow>
       {['Barcode', 'PO / Product', 'Color / Size', 'Quantity', 'Expected / Actual (kg)', 'Result', 'Completion'].map((label) => <TableCell key={label}>{label}</TableCell>)}
     </TableRow></TableHead><TableBody>
-      {!loading && !data.content.length && <TableRow><TableCell colSpan={7}>No physical cartons are included in this shipment.</TableCell></TableRow>}
+      {!loading && !data.content.length && <TableRow><TableCell colSpan={7}>{trUi("No physical cartons are included in this shipment.")}</TableCell></TableRow>}
       {data.content.map((row) => { const outcome = weightResult(row); return <TableRow key={row.id}>
         <TableCell>{row.factoryBarcode}</TableCell><TableCell>{row.poNumber}<br />{row.articleNumber}</TableCell><TableCell>{row.color} / {row.size}</TableCell>
         <TableCell>{row.assignedQuantity}</TableCell><TableCell>{row.expectedWeightKg ?? '—'} / {row.weightKg ?? '—'}</TableCell><TableCell><Chip size="small" label={outcome.label} color={outcome.color} /></TableCell>
-        <TableCell>{row.completedAt ? 'Completed' : row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button disabled={busy || loading || Boolean(pollError) || plan?.status !== SHIPMENT_STATUS.PLANNED} onClick={() => complete(row)}>Complete Carton</Button>}</TableCell>
+        <TableCell>{row.completedAt ? 'Completed' : row.inspectionPassed && row.status === BARCODE_CARTON_STATUS.COMPLETED && <Button disabled={busy || loading || Boolean(pollError) || plan?.status !== SHIPMENT_STATUS.PLANNED} onClick={() => complete(row)}>{trUi("Complete Carton")}</Button>}</TableCell>
       </TableRow>; })}
     </TableBody></SortableTable></StandardTableViewport>
     <TablePagination component="div" count={data.totalElements} page={page} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => setPage(next)} />

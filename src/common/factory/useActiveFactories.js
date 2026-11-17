@@ -4,11 +4,17 @@ import useOrganizationRealtime from '../realtime/useOrganizationRealtime';
 import { ORGANIZATION_REALTIME } from '../../constants/appConstants';
 
 /** Mounted components refresh on entry; no hardcoded F1..F7 or stale catalog cache. */
-export default function useActiveFactories({ realtime = true } = {}) {
+export default function useActiveFactories({ realtime = true, enabled = true } = {}) {
   const [factories, setFactories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const reload = useCallback(async () => {
+    if (!enabled) {
+      setFactories([]);
+      setLoading(false);
+      setError('');
+      return;
+    }
     setLoading(true);
     try {
       const rows = await listFactories();
@@ -18,9 +24,9 @@ export default function useActiveFactories({ realtime = true } = {}) {
       setError(e?.response?.data?.message || e.message || 'Cannot load active Factories');
       setFactories([]); // fail closed; never fall back to hardcoded factory names
     } finally { setLoading(false); }
-  }, []);
+  }, [enabled]);
   useEffect(() => { reload(); }, [reload]);
-  useOrganizationRealtime(ORGANIZATION_REALTIME.FACTORY, reload, realtime);
+  useOrganizationRealtime(ORGANIZATION_REALTIME.FACTORY, reload, realtime && enabled);
   const codes = useMemo(() => factories.map((factory) => factory.code), [factories]);
   return { factories, codes, loading, error, reload };
 }

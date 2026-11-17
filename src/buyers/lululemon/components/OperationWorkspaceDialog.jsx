@@ -1,3 +1,4 @@
+import { useT } from '../../../i18n/LanguageProvider';
 import { useEffect, useState } from 'react';
 import { Box, Dialog, DialogContent, IconButton, Stack, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { CloseRounded, FullscreenExitRounded, FullscreenRounded } from '@mui/icons-material';
@@ -18,6 +19,7 @@ export default function OperationWorkspaceDialog({
   onEntered,
   onExited
 }) {
+  const trUi = useT();
   const handheld = useMediaQuery('(max-width:768px)');
   const [maximized, setMaximized] = useState(false);
   const fullScreen = handheld || (allowMaximize && maximized);
@@ -92,11 +94,11 @@ export default function OperationWorkspaceDialog({
           >
             {actions}
             {allowMaximize && !handheld ? (
-              <Tooltip title={maximized ? 'Restore window' : 'Expand to full screen'}>
+              <Tooltip title={maximized ? trUi("Restore window") : trUi("Expand to full screen")}>
                 <IconButton
                   size="small"
                   onClick={() => setMaximized((previous) => !previous)}
-                  aria-label={maximized ? 'Restore weighing window' : 'Expand weighing window to full screen'}
+                  aria-label={maximized ? trUi("Restore weighing window") : trUi("Expand weighing window to full screen")}
                   aria-pressed={maximized}
                   sx={{ width: 34, height: 34 }}
                 >
@@ -108,8 +110,8 @@ export default function OperationWorkspaceDialog({
               size="small"
               onClick={() => onClose?.()}
               disabled={disableClose}
-              aria-label="Close operation window"
-              title={disableClose ? 'Stop the active operation before closing.' : 'Close'}
+              aria-label={trUi("Close operation window")}
+              title={disableClose ? trUi("Stop the active operation before closing.") : 'Close'}
               sx={{ width: { xs: 42, md: 34 }, height: { xs: 42, md: 34 } }}
             >
               <CloseRounded fontSize="small" />

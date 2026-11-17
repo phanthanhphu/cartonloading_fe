@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../../components/confirmation/ActionConfirmationProvider';
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import StandardTableViewport from 'components/StandardTableViewport';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useState } from 'react';
@@ -39,6 +41,9 @@ const statusSx = (value) => {
 };
 
 export default function PackingListPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const buyer = getActiveBuyer();
   const navigate = useNavigate();
   const canWrite = canManageSales();
@@ -89,6 +94,7 @@ export default function PackingListPage() {
   const changeFilter = (name, value) => setFilters((current) => ({ ...current, [name]: value }));
 
   const saveOrder = async (payload) => {
+    if (!await confirmAction({ kind: formRecord?.id ? 'update' : 'create', entity: 'Order', name: payload?.orderName || '' })) return;
     if (!canWrite || !buyer?.code) return;
     setSaving(true);
     try {
@@ -126,20 +132,20 @@ export default function PackingListPage() {
   return (
     <Box sx={{ p: { xs: 0.25, sm: 0.4, md: 0.5 } }}>
       <Paper elevation={0} sx={{ border: '1px solid #DCE4EC', borderRadius: '4px', overflow: 'hidden', bgcolor: '#fff' }}>
-        <Stack direction={{ xs: 'column', xl: 'row' }} spacing={0.8} alignItems={{ xl: 'center' }} sx={{ p: 1, borderBottom: '1px solid #DCE4EC' }}>
-          <TextField size="small" type="date" label="Start Order" value={filters.orderDate} onChange={(e) => changeFilter('orderDate', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ minWidth: { xl: 150 } }} />
-          <TextField size="small" label="Order Name" value={filters.orderName} onChange={(e) => changeFilter('orderName', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { xl: 210 } }} />
-          <TextField size="small" label="Created By" value={filters.createdBy} onChange={(e) => changeFilter('createdBy', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ minWidth: { xl: 170 } }} />
-          <TextField size="small" select label="Status" value={filters.status} onChange={(e) => changeFilter('status', e.target.value)} sx={{ minWidth: { xl: 145 } }}>
-            <MenuItem value="">All Status</MenuItem><MenuItem value={PROGRESS_STATUS.DRAFT}>Draft</MenuItem><MenuItem value={PROGRESS_STATUS.NOT_STARTED}>Not Started</MenuItem><MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>In Progress</MenuItem><MenuItem value={PROGRESS_STATUS.COMPLETED}>Completed</MenuItem>
+        <Stack direction={{ xs: 'column', xl: 'row' }} spacing={0.8} alignItems={{ xl: 'center' }} sx={{ p: 1, pt: 2.5, borderBottom: '1px solid #DCE4EC' }}>
+          <TextField size="small" type="date" label={trUi("Start Order")} value={filters.orderDate} onChange={(e) => changeFilter('orderDate', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ minWidth: { xl: 150 } }} />
+          <TextField size="small" label={trUi("Order Name")} value={filters.orderName} onChange={(e) => changeFilter('orderName', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ flex: 1, minWidth: { xl: 210 } }} />
+          <TextField size="small" label={trUi("Created By")} value={filters.createdBy} onChange={(e) => changeFilter('createdBy', e.target.value)} onKeyDown={(e) => e.key === KEYBOARD_KEY.ENTER && applySearch()} sx={{ minWidth: { xl: 170 } }} />
+          <TextField size="small" select label={trUi("Status")} value={filters.status} onChange={(e) => changeFilter('status', e.target.value)} sx={{ minWidth: { xl: 145 } }}>
+            <MenuItem value="">{trUi("All Status")}</MenuItem><MenuItem value={PROGRESS_STATUS.DRAFT}>{trUi("Draft")}</MenuItem><MenuItem value={PROGRESS_STATUS.NOT_STARTED}>{trUi("Not Started")}</MenuItem><MenuItem value={PROGRESS_STATUS.IN_PROGRESS}>{trUi("In Progress")}</MenuItem><MenuItem value={PROGRESS_STATUS.COMPLETED}>{trUi("Completed")}</MenuItem>
           </TextField>
-          <TextField size="small" select label="Completed" value={filters.completed} onChange={(e) => changeFilter('completed', e.target.value)} sx={{ minWidth: { xl: 130 } }}>
-            <MenuItem value="">All</MenuItem><MenuItem value="true">Yes</MenuItem><MenuItem value="false">No</MenuItem>
+          <TextField size="small" select label={trUi("Completed")} value={filters.completed} onChange={(e) => changeFilter('completed', e.target.value)} sx={{ minWidth: { xl: 130 } }}>
+            <MenuItem value="">{trUi("All")}</MenuItem><MenuItem value="true">{trUi("Yes")}</MenuItem><MenuItem value="false">{trUi("No")}</MenuItem>
           </TextField>
-          <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={applySearch} disabled={loading}>Search</Button>
-          <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={resetSearch} disabled={loading}>Reset</Button>
-          <Tooltip title={canWrite ? '' : 'SALES permission is required'}>
-            <span><Button disabled={!canWrite} variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => { setFormRecord(null); setFormOpen(true); }} sx={{ bgcolor: '#103B5C', whiteSpace: 'nowrap' }}>Add Order</Button></span>
+          <Button variant="contained" startIcon={<SearchOutlinedIcon />} onClick={applySearch} disabled={loading}>{trUi("Search")}</Button>
+          <Button variant="outlined" startIcon={<RestartAltOutlinedIcon />} onClick={resetSearch} disabled={loading}>{trUi("Reset")}</Button>
+          <Tooltip title={canWrite ? '' : trUi("SALES permission is required")}>
+            <span><Button disabled={!canWrite} variant="contained" startIcon={<AddOutlinedIcon />} onClick={() => { setFormRecord(null); setFormOpen(true); }} sx={{ bgcolor: '#103B5C', whiteSpace: 'nowrap' }}>{trUi("Add Order")}</Button></span>
           </Tooltip>
         </Stack>
 
@@ -147,8 +153,8 @@ export default function PackingListPage() {
           <SortableTable stickyHeader size="small" sx={{ minWidth: 900 }}>
             <TableHead><TableRow>{['No.', 'Start Order', 'End Order', 'Order Name', 'Created By', 'Order Status', 'Assign Status', 'Assign Progress', 'Weight Status', 'Actions'].map((head) => <TableCell key={head}>{head}</TableCell>)}</TableRow></TableHead>
             <TableBody>
-              {loading && <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4 }}>Loading Orders...</TableCell></TableRow>}
-              {!loading && rows.length === 0 && <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4, color: 'text.secondary' }}>No Orders found.</TableCell></TableRow>}
+              {loading && <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4 }}>{trUi("Loading Orders...")}</TableCell></TableRow>}
+              {!loading && rows.length === 0 && <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4, color: 'text.secondary' }}>{trUi("No Orders found.")}</TableCell></TableRow>}
               {!loading && rows.map((row, index) => (
                 <TableRow key={row.id} hover onDoubleClick={() => openOrder(row)} sx={{ cursor: 'default' }}>
                   <TableCell align="center" sx={{ width: 56, color: '#64748B', fontWeight: 650 }}>{page * pageSize + index + 1}</TableCell>
@@ -161,10 +167,10 @@ export default function PackingListPage() {
                   <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 750 }}>{Number(row.assignedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)} / {Number(row.plannedCartonCount || 0).toLocaleString(FORMAT_LOCALE.EN_US)}</TableCell>
                   <TableCell><Chip label={statusLabel(row.weightStatus)} sx={statusSx(row.weightStatus)} /></TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title="Open"><IconButton size="small" color="primary" onClick={() => openOrder(row)}><OpenInNewOutlinedIcon fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title={row.assignmentStatus === PROGRESS_STATUS.COMPLETED ? 'Sales Shipment Planning' : 'Assign a Factory Barcode to every physical carton before creating a Shipment Plan'}><span><IconButton size="small" color="success" disabled={!canWrite || row.assignmentStatus !== PROGRESS_STATUS.COMPLETED} onClick={() => navigate(`/sales/shipment-planning?orderId=${encodeURIComponent(row.id)}`)}><LocalShippingOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
-                    <Tooltip title={canWrite ? 'Edit' : 'SALES permission is required'}><span><IconButton size="small" disabled={!canWrite} onClick={() => { setFormRecord(row); setFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
-                    <Tooltip title={canWrite ? 'Delete' : 'SALES permission is required'}><span><IconButton size="small" disabled={!canWrite} color="error" onClick={() => setDeleteTarget(row)}><DeleteOutlineOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                    <Tooltip title={trUi("Open")}><IconButton size="small" color="primary" onClick={() => openOrder(row)}><OpenInNewOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+                    <Tooltip title={row.assignmentStatus === PROGRESS_STATUS.COMPLETED ? trUi("Sales Shipment Planning") : trUi("Assign a Factory Barcode to every physical carton before creating a Shipment Plan")}><span><IconButton size="small" color="success" disabled={!canWrite || row.assignmentStatus !== PROGRESS_STATUS.COMPLETED} onClick={() => navigate(`/sales/shipment-planning?orderId=${encodeURIComponent(row.id)}`)}><LocalShippingOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                    <Tooltip title={canWrite ? 'Edit' : trUi("SALES permission is required")}><span><IconButton size="small" disabled={!canWrite} onClick={() => { setFormRecord(row); setFormOpen(true); }}><EditOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
+                    <Tooltip title={canWrite ? 'Delete' : trUi("SALES permission is required")}><span><IconButton size="small" disabled={!canWrite} color="error" onClick={() => setDeleteTarget(row)}><DeleteOutlineOutlinedIcon fontSize="small" /></IconButton></span></Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -174,8 +180,8 @@ export default function PackingListPage() {
 
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={1} sx={{ px: 1, py: 0.75, borderTop: '1px solid #DCE4EC' }}>
           <Stack direction="row" spacing={1.2} alignItems="center">
-            <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>Showing {from}-{to} of {total}</Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>Rows</Typography>
+            <Typography sx={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 600 }}>{trUi("Showing ")}{from}-{to} of {total}</Typography>
+            <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8' }}>{trUi("Rows")}</Typography>
             <Select size="small" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }} sx={{ height: 30, minWidth: 72 }}>
               {COMMON_PAGE_SIZE_OPTIONS.map((size) => <MenuItem key={size} value={size}>{size}</MenuItem>)}
             </Select>
@@ -186,11 +192,11 @@ export default function PackingListPage() {
 
       <PackingOrderFormDialog open={formOpen} record={formRecord} saving={saving} onClose={() => { setFormOpen(false); setFormRecord(null); }} onSave={saveOrder} />
       <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Delete Order?</DialogTitle>
-        <DialogContent><Typography>Delete Order <strong>{deleteTarget?.orderName}</strong>? This also deletes all Order Items and Packing List rows inside the Order.</Typography></DialogContent>
-        <DialogActions><Button onClick={() => setDeleteTarget(null)}>Cancel</Button><Button color="error" variant="contained" onClick={removeOrder}>Delete</Button></DialogActions>
+        <DialogTitle>{trUi("Delete Order?")}</DialogTitle>
+        <DialogContent><Typography>{trUi("Delete Order ")}<strong>{deleteTarget?.orderName}</strong>{trUi("? This also deletes all Order Items and Packing List rows inside the Order.")}</Typography></DialogContent>
+        <DialogActions><Button onClick={() => setDeleteTarget(null)}>{trUi("Cancel")}</Button><Button color="error" variant="contained" onClick={removeOrder}>{trUi("Delete")}</Button></DialogActions>
       </Dialog>
-      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))}><Alert severity={notice.severity} variant="filled">{notice.message}</Alert></Snackbar>
+      <Snackbar open={notice.open} autoHideDuration={5000} onClose={() => setNotice((current) => ({ ...current, open: false }))}><Alert severity={notice.severity} variant="filled">{trSystem(notice.message)}</Alert></Snackbar>
     </Box>
   );
 }

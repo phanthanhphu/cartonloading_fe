@@ -1,3 +1,4 @@
+import { useT, useSystemMessage } from '../../../i18n/LanguageProvider';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useRef, useState } from 'react';
 import {
@@ -15,6 +16,8 @@ import PoDuplicateConflictDialog from './PoDuplicateConflictDialog';
  * hidden from the UI; no backend endpoints or existing stored data are changed.
  */
 export default function LululemonExcelActions({ orderId, buyer = BUYER_CODE.LULULEMON, disabled = false, onApplied, onMessage }) {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const input = useRef(null);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -96,35 +99,30 @@ export default function LululemonExcelActions({ orderId, buyer = BUYER_CODE.LULU
       disabled={busy || disabled || !orderId}
       onClick={() => input.current?.click()}
       sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}
-    >
-      Upload New Excel
-    </Button>
+    >{trUi("\n      Upload New Excel\n    ")}</Button>
     <input ref={input} type="file" hidden accept={EXCEL_FILE_ACCEPT} onChange={chooseFile} />
     <PoDuplicateConflictDialog open={duplicates.length > 0} duplicates={duplicates} onClose={() => setDuplicates([])} />
     <Dialog open={Boolean(preview)} onClose={() => !busy && setPreview(null)} fullWidth maxWidth="sm">
-      <DialogTitle fontWeight={800}>Import New POs — Preview</DialogTitle>
+      <DialogTitle fontWeight={800}>{trUi("Import New POs — Preview")}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{file?.name}</Typography>
         <Stack direction="row" gap={2} flexWrap="wrap">
-          <Typography color="success.main" fontWeight={800}>New PO rows: {preview?.creates ?? 0}</Typography>
+          <Typography color="success.main" fontWeight={800}>{trUi("New PO rows: ")}{preview?.creates ?? 0}</Typography>
         </Stack>
         {preview?.warnings?.map((warning, index) => (
-          <Typography key={index} variant="caption" sx={{ display: 'block', mt: 1 }}>{warning}</Typography>
+          <Typography key={index} variant="caption" sx={{ display: 'block', mt: 1 }}>{trSystem(warning)}</Typography>
         ))}
-        <Alert severity="info" sx={{ mt: 2 }}>
-          Upload your original Lululemon Excel with the 29 business columns — no ID or ACTION column is needed.
-          Every row creates a new PO. Existing PO identities across factories are blocked.
-        </Alert>
+        <Alert severity="info" sx={{ mt: 2 }}>{trUi("\n          Upload your original Lululemon Excel with the 29 business columns — no ID or ACTION column is needed.\n          Every row creates a new PO. Existing PO identities across factories are blocked.\n        ")}</Alert>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => { setFile(null); setPreview(null); }} disabled={busy}>Cancel</Button>
+        <Button onClick={() => { setFile(null); setPreview(null); }} disabled={busy}>{trUi("Cancel")}</Button>
         <Button variant="contained" onClick={apply} disabled={busy || !(preview?.creates > 0)}>
-          {busy ? 'Applying...' : 'Confirm Import'}
+          {busy ? 'Applying...' : trUi("Confirm Import")}
         </Button>
       </DialogActions>
     </Dialog>
     {error && <Box sx={{ width: '100%', mt: 0.5 }}>
-      <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+      <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert>
     </Box>}
   </>;
 }

@@ -1,34 +1,10 @@
+import { useT, useSystemMessage } from '../../../../i18n/LanguageProvider';
 import StandardTableViewport from 'components/StandardTableViewport';
 import { BARCODE_CARTON_STATUS, DEFAULT_TABLE_ROWS_PER_PAGE, LOOKUP_PAGE_SIZE, DEFAULT_PALLET_CODE, FORMAT_LOCALE, KEYBOARD_KEY } from '../../../../constants/appConstants';
 import SortableTable from 'components/SortableTable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Divider,
-  Grid,
-  InputAdornment,
-  LinearProgress,
-  MenuItem,
-  Paper,
-  Snackbar,
-  Stack,
-  
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography
-} from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, InputAdornment, LinearProgress, MenuItem, Paper, Snackbar, Stack, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
@@ -143,6 +119,8 @@ function DetailRow({ label, value, valueColor = 'text.primary' }) {
 }
 
 export default function ZebraScanPage() {
+  const trUi = useT();
+  const trSystem = useSystemMessage();
   const buyer = getActiveBuyer();
   const scannerInputRef = useRef(null);
   const manualInputRef = useRef(null);
@@ -360,7 +338,7 @@ export default function ZebraScanPage() {
           await loadOrderState();
         }
       } catch (error) {
-        console.error('Unable to poll carton loading transaction', error);
+        console.error(trUi("Unable to poll carton loading transaction"), error);
       }
     }, 1000);
     return () => window.clearInterval(timer);
@@ -431,24 +409,20 @@ export default function ZebraScanPage() {
             <Box>
               <Stack direction="row" spacing={1} alignItems="center" mb={0.4}>
                 <QrCodeScannerOutlinedIcon sx={{ color: '#145EA8', fontSize: 32 }} />
-                <Typography sx={{ fontSize: { xs: '1.45rem', md: '1.8rem' }, fontWeight: 950, color: '#103B5C' }}>
-                  Carton Loading – Zebra Scan & PLC Weight
-                </Typography>
+                <Typography sx={{ fontSize: { xs: '1.45rem', md: '1.8rem' }, fontWeight: 950, color: '#103B5C' }}>{trUi("\n                  Carton Loading – Zebra Scan & PLC Weight\n                ")}</Typography>
               </Stack>
-              <Typography color="text.secondary">
-                Desktop web station for {buyer.label}. Scan by Zebra USB or enter a QA Code manually; the next carton is assigned automatically.
-              </Typography>
+              <Typography color="text.secondary">{trUi("\n                Desktop web station for ")}{buyer.label}{trUi(". Scan by Zebra USB or enter a QA Code manually; the next carton is assigned automatically.\n              ")}</Typography>
             </Box>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip icon={<UsbOutlinedIcon />} label="Desktop Web" color="primary" variant="outlined" />
+              <Chip icon={<UsbOutlinedIcon />} label={trUi("Desktop Web")} color="primary" variant="outlined" />
               <Chip
                 icon={<QrCodeScannerOutlinedIcon />}
-                label={ready ? `${inputMode === 'manual' ? 'Manual Input' : 'Zebra'} Ready` : waiting ? 'Input Locked' : 'Setup Required'}
+                label={ready ? `${inputMode === 'manual' ? trUi("Manual Input") : 'Zebra'} Ready` : waiting ? trUi("Input Locked") : trUi("Setup Required")}
                 color={ready ? 'success' : waiting ? 'warning' : 'default'}
               />
               <Chip
                 icon={<ScaleOutlinedIcon />}
-                label={selectedStation?.online ? 'PLC Online' : 'PLC Offline'}
+                label={selectedStation?.online ? trUi("PLC Online") : trUi("PLC Offline")}
                 color={selectedStation?.online ? 'success' : 'default'}
                 variant="outlined"
               />
@@ -462,8 +436,8 @@ export default function ZebraScanPage() {
               <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '4px' }}>
                 <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
                   <TuneOutlinedIcon color="primary" />
-                  <Typography variant="h5" fontWeight={950}>Workstation setup</Typography>
-                  <Typography variant="body2" color="text.secondary">Select once before starting the loading process.</Typography>
+                  <Typography variant="h5" fontWeight={950}>{trUi("Workstation setup")}</Typography>
+                  <Typography variant="body2" color="text.secondary">{trUi("Select once before starting the loading process.")}</Typography>
                 </Stack>
                 <Grid container spacing={1.5}>
                   <Grid item xs={12} lg={6}>
@@ -471,7 +445,7 @@ export default function ZebraScanPage() {
                       select
                       fullWidth
                       size="small"
-                      label="Order / WSP"
+                      label={trUi("Order / WSP")}
                       value={orderId}
                       onChange={(event) => {
                         setOrderId(event.target.value);
@@ -487,7 +461,7 @@ export default function ZebraScanPage() {
                       select
                       fullWidth
                       size="small"
-                      label="Scale Station"
+                      label={trUi("Scale Station")}
                       value={stationCode}
                       onChange={(event) => {
                         setStationCode(event.target.value);
@@ -502,7 +476,7 @@ export default function ZebraScanPage() {
                     <TextField
                       fullWidth
                       size="small"
-                      label="Pallet / Location"
+                      label={trUi("Pallet / Location")}
                       value={palletCode}
                       onChange={(event) => setPalletCode(event.target.value)}
                       onBlur={focusActiveInput}
@@ -524,21 +498,21 @@ export default function ZebraScanPage() {
                 <Paper variant="outlined" sx={{ p: 1.5, borderRadius: '4px' }}>
                   <Grid container spacing={1.25}>
                     <Grid item xs={12} sm={6} lg={3}>
-                      <StatCard label="Planned cartons" value={progress.plannedCartons} icon={<Inventory2OutlinedIcon />} />
+                      <StatCard label={trUi("Planned cartons")} value={progress.plannedCartons} icon={<Inventory2OutlinedIcon />} />
                     </Grid>
                     <Grid item xs={12} sm={6} lg={3}>
                       <StatCard
-                        label="Completed cartons"
+                        label={trUi("Completed cartons")}
                         value={(progress.completedCartons || 0) + (progress.warningCartons || 0)}
                         icon={<CheckCircleOutlineOutlinedIcon />}
                         color="success.main"
                       />
                     </Grid>
                     <Grid item xs={12} sm={6} lg={3}>
-                      <StatCard label="Remaining cartons" value={progress.remainingCartons} icon={<RefreshOutlinedIcon />} color="warning.main" />
+                      <StatCard label={trUi("Remaining cartons")} value={progress.remainingCartons} icon={<RefreshOutlinedIcon />} color="warning.main" />
                     </Grid>
                     <Grid item xs={12} sm={6} lg={3}>
-                      <StatCard label="Order progress" value={percent.toFixed(1)} suffix="%" icon={<HistoryOutlinedIcon />} color="info.main" />
+                      <StatCard label={trUi("Order progress")} value={percent.toFixed(1)} suffix="%" icon={<HistoryOutlinedIcon />} color="info.main" />
                     </Grid>
                   </Grid>
                   <LinearProgress variant="determinate" value={percent} sx={{ mt: 1.25, height: 9, borderRadius: '4px' }} />
@@ -566,10 +540,8 @@ export default function ZebraScanPage() {
                     mb={2}
                   >
                     <Box>
-                      <Typography variant="h4" fontWeight={950}>QA Code input</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Choose Zebra USB for automatic scanning or Manual Input when the barcode cannot be scanned.
-                      </Typography>
+                      <Typography variant="h4" fontWeight={950}>{trUi("QA Code input")}</Typography>
+                      <Typography variant="body2" color="text.secondary">{trUi("\n                        Choose Zebra USB for automatic scanning or Manual Input when the barcode cannot be scanned.\n                      ")}</Typography>
                     </Box>
                     <ToggleButtonGroup
                       exclusive
@@ -583,11 +555,9 @@ export default function ZebraScanPage() {
                       disabled={waiting || busy || completed}
                     >
                       <ToggleButton value="zebra" sx={{ px: 2 }}>
-                        <UsbOutlinedIcon sx={{ mr: 0.75 }} /> Zebra USB
-                      </ToggleButton>
+                        <UsbOutlinedIcon sx={{ mr: 0.75 }} />{trUi(" Zebra USB\n                      ")}</ToggleButton>
                       <ToggleButton value="manual" sx={{ px: 2 }}>
-                        <KeyboardOutlinedIcon sx={{ mr: 0.75 }} /> Manual Input
-                      </ToggleButton>
+                        <KeyboardOutlinedIcon sx={{ mr: 0.75 }} />{trUi(" Manual Input\n                      ")}</ToggleButton>
                     </ToggleButtonGroup>
                   </Stack>
 
@@ -595,14 +565,12 @@ export default function ZebraScanPage() {
 
                   {!waiting && !completed && inputMode === 'zebra' && (
                     <Box>
-                      <Alert severity="info" sx={{ mb: 1.5 }}>
-                        Zebra must be configured as <strong>USB HID Keyboard</strong> with an <strong>Enter suffix</strong>. Scan the QA Code directly; no camera is used.
-                      </Alert>
+                      <Alert severity="info" sx={{ mb: 1.5 }}>{trUi("\n                        Zebra must be configured as ")}<strong>{trUi("USB HID Keyboard")}</strong>{trUi(" with an ")}<strong>{trUi("Enter suffix")}</strong>{trUi(". Scan the QA Code directly; no camera is used.\n                      ")}</Alert>
                       <TextField
                         inputRef={scannerInputRef}
                         autoFocus
                         fullWidth
-                        label="Zebra USB scan input"
+                        label={trUi("Zebra USB scan input")}
                         value={barcodeInput}
                         onChange={(event) => setBarcodeInput(event.target.value)}
                         onKeyDown={(event) => {
@@ -611,7 +579,7 @@ export default function ZebraScanPage() {
                           submitBarcode(event.currentTarget.value, 'zebra');
                         }}
                         disabled={!orderId || !stationCode || busy}
-                        placeholder="Scan QA Code with Zebra and press Enter automatically"
+                        placeholder={trUi("Scan QA Code with Zebra and press Enter automatically")}
                         inputProps={{ autoComplete: 'off', spellCheck: false }}
                         InputProps={{
                           startAdornment: (
@@ -627,15 +595,13 @@ export default function ZebraScanPage() {
 
                   {!waiting && !completed && inputMode === 'manual' && (
                     <Box>
-                      <Alert severity="warning" sx={{ mb: 1.5 }}>
-                        Manual Input is provided for damaged or unreadable labels. Enter the complete QA Code exactly as printed on the carton.
-                      </Alert>
+                      <Alert severity="warning" sx={{ mb: 1.5 }}>{trUi("\n                        Manual Input is provided for damaged or unreadable labels. Enter the complete QA Code exactly as printed on the carton.\n                      ")}</Alert>
                       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} alignItems="flex-start">
                         <TextField
                           inputRef={manualInputRef}
                           autoFocus
                           fullWidth
-                          label="Enter QA Code manually"
+                          label={trUi("Enter QA Code manually")}
                           value={manualBarcodeInput}
                           onChange={(event) => setManualBarcodeInput(event.target.value)}
                           onKeyDown={(event) => {
@@ -644,7 +610,7 @@ export default function ZebraScanPage() {
                             submitBarcode(event.currentTarget.value, 'manual');
                           }}
                           disabled={!orderId || !stationCode || busy}
-                          placeholder="Example: 000007794158"
+                          placeholder={trUi("Example: 000007794158")}
                           inputProps={{ autoComplete: 'off', spellCheck: false }}
                           InputProps={{
                             startAdornment: (
@@ -662,9 +628,7 @@ export default function ZebraScanPage() {
                           onClick={() => submitBarcode(manualBarcodeInput, 'manual')}
                           disabled={!ready || !manualBarcodeInput.trim()}
                           sx={{ minWidth: 190, height: 56, whiteSpace: 'nowrap' }}
-                        >
-                          Submit QA Code
-                        </Button>
+                        >{trUi("\n                          Submit QA Code\n                        ")}</Button>
                       </Stack>
                     </Box>
                   )}
@@ -675,13 +639,11 @@ export default function ZebraScanPage() {
                     <Stack spacing={1.5} alignItems="center" textAlign="center" py={2}>
                       <ScaleOutlinedIcon color="warning" sx={{ fontSize: 64 }} />
                       <Box>
-                        <Typography variant="h3" fontWeight={950}>Waiting for PLC weight</Typography>
-                        <Typography variant="h5" fontWeight={900}>Carton No. {transaction.cartonSequence} · Job {transaction.jobId}</Typography>
-                        <Typography color="text.secondary">Article {transaction.articleNumber || '—'} · Station {transaction.stationCode}</Typography>
+                        <Typography variant="h3" fontWeight={950}>{trUi("Waiting for PLC weight")}</Typography>
+                        <Typography variant="h5" fontWeight={900}>{trUi("Carton No. ")}{transaction.cartonSequence}{trUi(" · Job ")}{transaction.jobId}</Typography>
+                        <Typography color="text.secondary">{trUi("Article ")}{transaction.articleNumber || '—'}{trUi(" · Station ")}{transaction.stationCode}</Typography>
                       </Box>
-                      <Alert severity="warning" sx={{ width: '100%' }}>
-                        Place this carton on the scale. Zebra scanning and manual input are locked until PLC returns a stable weight.
-                      </Alert>
+                      <Alert severity="warning" sx={{ width: '100%' }}>{trUi("\n                        Place this carton on the scale. Zebra scanning and manual input are locked until PLC returns a stable weight.\n                      ")}</Alert>
                       <LinearProgress sx={{ width: '100%', height: 10, borderRadius: '4px' }} />
                     </Stack>
                   )}
@@ -700,11 +662,9 @@ export default function ZebraScanPage() {
                       >
                         {formatWeight(transaction?.weightKg)}
                       </Typography>
-                      <Typography>Carton No. {transaction?.cartonSequence} · Job {transaction?.jobId}</Typography>
+                      <Typography>{trUi("Carton No. ")}{transaction?.cartonSequence}{trUi(" · Job ")}{transaction?.jobId}</Typography>
                       {transaction?.warningMessage && <Alert severity="warning" sx={{ width: '100%' }}>{transaction.warningMessage}</Alert>}
-                      <Typography variant="caption" color="text.secondary">
-                        The workstation will return to the selected QA Code input mode automatically.
-                      </Typography>
+                      <Typography variant="caption" color="text.secondary">{trUi("\n                        The workstation will return to the selected QA Code input mode automatically.\n                      ")}</Typography>
                     </Stack>
                   )}
                 </CardContent>
@@ -715,28 +675,28 @@ export default function ZebraScanPage() {
           <Grid item xs={12} xl={3}>
             <Stack spacing={2} height="100%">
               <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px' }}>
-                <Typography variant="h5" fontWeight={950} mb={0.5}>Workstation status</Typography>
-                <Typography variant="body2" color="text.secondary" mb={1.25}>Current desktop web station information.</Typography>
+                <Typography variant="h5" fontWeight={950} mb={0.5}>{trUi("Workstation status")}</Typography>
+                <Typography variant="body2" color="text.secondary" mb={1.25}>{trUi("Current desktop web station information.")}</Typography>
                 <Divider />
-                <DetailRow label="Buyer" value={buyer.label} />
+                <DetailRow label={trUi("Buyer")} value={buyer.label} />
                 <Divider />
-                <DetailRow label="Order" value={selectedOrder?.orderName} />
+                <DetailRow label={trUi("Order")} value={selectedOrder?.orderName} />
                 <Divider />
-                <DetailRow label="Scale station" value={stationCode} />
+                <DetailRow label={trUi("Scale station")} value={stationCode} />
                 <Divider />
                 <DetailRow
-                  label="PLC connection"
+                  label={trUi("PLC connection")}
                   value={selectedStation?.online ? 'Online' : 'Offline'}
                   valueColor={selectedStation?.online ? 'success.main' : 'error.main'}
                 />
                 <Divider />
-                <DetailRow label="Input mode" value={inputMode === 'manual' ? 'Manual Input' : 'Zebra USB'} />
+                <DetailRow label={trUi("Input mode")} value={inputMode === 'manual' ? 'Manual Input' : 'Zebra USB'} />
                 <Divider />
-                <DetailRow label="Pallet / Location" value={palletCode || 'Not specified'} />
+                <DetailRow label={trUi("Pallet / Location")} value={palletCode || 'Not specified'} />
               </Paper>
 
               <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px', flexGrow: 1 }}>
-                <Typography variant="h5" fontWeight={950} mb={1}>Current job</Typography>
+                <Typography variant="h5" fontWeight={950} mb={1}>{trUi("Current job")}</Typography>
                 {transaction ? (
                   <Stack spacing={1}>
                     <Chip
@@ -744,25 +704,25 @@ export default function ZebraScanPage() {
                       color={statusColor(transaction.status)}
                       sx={{ alignSelf: 'flex-start', fontWeight: 850 }}
                     />
-                    <DetailRow label="Job ID" value={transaction.jobId} />
+                    <DetailRow label={trUi("Job ID")} value={transaction.jobId} />
                     <Divider />
-                    <DetailRow label="Carton No." value={transaction.cartonSequence} />
+                    <DetailRow label={trUi("Carton No.")} value={transaction.cartonSequence} />
                     <Divider />
-                    <DetailRow label="Article" value={transaction.articleNumber} />
+                    <DetailRow label={trUi("Article")} value={transaction.articleNumber} />
                     <Divider />
-                    <DetailRow label="QA Code" value={transaction.barcode} />
+                    <DetailRow label={trUi("QA Code")} value={transaction.barcode} />
                     <Divider />
-                    <DetailRow label="Weight" value={formatWeight(transaction.weightKg)} />
+                    <DetailRow label={trUi("Weight")} value={formatWeight(transaction.weightKg)} />
                   </Stack>
                 ) : (
                   <Alert severity={ready ? 'success' : 'info'}>
-                    {ready ? 'The workstation is ready to receive the next QA Code.' : 'Complete the workstation setup to start.'}
+                    {ready ? trUi("The workstation is ready to receive the next QA Code.") : trUi("Complete the workstation setup to start.")}
                   </Alert>
                 )}
               </Paper>
 
               <Paper variant="outlined" sx={{ p: 2, borderRadius: '4px' }}>
-                <Typography variant="h5" fontWeight={950} mb={1}>Automatic workflow</Typography>
+                <Typography variant="h5" fontWeight={950} mb={1}>{trUi("Automatic workflow")}</Typography>
                 <Stack spacing={1}>
                   {[
                     '1. Receive QA Code',
@@ -784,14 +744,14 @@ export default function ZebraScanPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1} px={2} py={1.5}>
             <Stack direction="row" spacing={1} alignItems="center">
               <HistoryOutlinedIcon color="primary" />
-              <Typography variant="h5" fontWeight={950}>Recent scanned cartons</Typography>
+              <Typography variant="h5" fontWeight={950}>{trUi("Recent scanned cartons")}</Typography>
             </Stack>
-            <Typography variant="body2" color="text.secondary">Latest records for the selected order</Typography>
+            <Typography variant="body2" color="text.secondary">{trUi("Latest records for the selected order")}</Typography>
           </Stack>
           <Divider />
           {recent.length === 0 ? (
             <Box p={2}>
-              <Typography color="text.secondary">No scanned cartons yet.</Typography>
+              <Typography color="text.secondary">{trUi("No scanned cartons yet.")}</Typography>
             </Box>
           ) : (
             <>
@@ -799,13 +759,13 @@ export default function ZebraScanPage() {
               <SortableTable disableRowNumber size="small">
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    <TableCell sx={{ fontWeight: 900 }}>Carton No.</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>Article</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>QA Code</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>Station</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }} align="right">Weight</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>Scanned at</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>{trUi("Carton No.")}</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>{trUi("Article")}</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>{trUi("QA Code")}</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>{trUi("Station")}</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>{trUi("Status")}</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }} align="right">{trUi("Weight")}</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>{trUi("Scanned at")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -843,7 +803,7 @@ export default function ZebraScanPage() {
           onClose={() => setNotice((value) => ({ ...value, open: false }))}
           sx={{ width: '100%' }}
         >
-          {notice.message}
+          {trSystem(notice.message)}
         </Alert>
       </Snackbar>
     </Box>

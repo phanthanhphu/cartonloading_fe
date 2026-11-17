@@ -1,3 +1,5 @@
+import { useConfirmAction } from '../../../components/confirmation/ActionConfirmationProvider';
+import { useT } from '../../../i18n/LanguageProvider';
 import { managementPageSx, managementPanelSx, managementTableViewportSx } from 'components/ManagementViewportStyles';
 import LululemonExcelActions from '../components/LululemonExcelActions';
 import PoDuplicateConflictDialog from '../components/PoDuplicateConflictDialog';
@@ -6,11 +8,8 @@ import SortableTable from 'components/SortableTable';
 import LululemonTableViewport from '../components/LululemonTableViewport';
 import PoScanProgressCell from '../components/PoScanProgressCell';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert, Box, Button, Checkbox, CircularProgress, Divider, LinearProgress, ListItemText, Menu, MenuItem,
-  Paper, Stack,  TableBody, TableCell, TableHead, TablePagination,
-  TableRow, Typography
-} from '@mui/material';
+import { Alert, Box, Button, Checkbox, CircularProgress, Divider, LinearProgress, ListItemText, Menu, MenuItem, Paper, Stack, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import TablePagination from 'components/LocalizedTablePagination';
 import { Refresh, UploadFile, ViewColumn } from '@mui/icons-material';
 import { CompactStat, CompactToolbar } from 'components/CompactPageHeader';
 import { CompactPageHeader } from '../components/LululemonPageHeader';
@@ -160,6 +159,8 @@ const loadSavedColumns = () => {
 };
 
 export default function PoManagementPage() {
+  const confirmAction = useConfirmAction();
+  const trUi = useT();
   const [orderId, setOrderId] = useState('');
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({ factoryCode: '', poNumber: '', style: '', sku: '', exFtyDate: '', status: '' });
@@ -293,6 +294,7 @@ export default function PoManagementPage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || !orderId) return;
+    if (!await confirmAction({ kind: 'update', entity: 'Import', name: file.name })) return;
     setDuplicatePos([]); setLoading(true); setImporting(true); setImportProgress(0);
     try {
       const result = await importSharedAllBp(orderId, file, BUYER_CODE.LULULEMON, (progressEvent) => {
@@ -323,7 +325,7 @@ export default function PoManagementPage() {
   const renderColumnCell = (row, column) => {
     if (column.status) return <StatusChip status={row.status} />;
     if (column.key === 'sys:sku') {
-      return row.sku || <Typography color="warning.main" variant="body2">Not assigned</Typography>;
+      return row.sku || <Typography color="warning.main" variant="body2">{trUi("Not assigned")}</Typography>;
     }
     if (column.key.startsWith('src:')) {
       if (['QTY', 'ODD_RATIO', 'CTNS', 'REMAINDER'].includes(column.canonical) && row.completedQty !== undefined && row.completedQty !== null) {
@@ -340,9 +342,9 @@ export default function PoManagementPage() {
     <Stack spacing={0.9} className="lululemon-compact-v16" sx={{ ...managementPageSx, px: { xs: 0.25, md: 0.5 } }}>
       <CompactPageHeader
         dense
-        title={`${BUYER_LABEL[BUYER_CODE.LULULEMON]} · PO Master Data`}
+        title={trUi("{0} · PO Master Data", BUYER_LABEL[BUYER_CODE.LULULEMON])}
         actions={(<>
-          <Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading || !orderId}>Refresh</Button>
+          <Button size="small" startIcon={<Refresh />} onClick={load} disabled={loading || !orderId}>{trUi("Refresh")}</Button>
           {sales && (
             <>
               <LululemonExcelActions orderId={orderId} onApplied={load} onMessage={setMessage} />
@@ -358,16 +360,15 @@ export default function PoManagementPage() {
 
       <CompactToolbar>
         <CompactStat label="PO" value={totals.po} />
-        <CompactStat label="Cartons" value={totals.cartons} />
-        <CompactStat label="Planned Items" value={totals.qty} />
+        <CompactStat label={trUi("Cartons")} value={totals.cartons} />
+        <CompactStat label={trUi("Planned Items")} value={totals.qty} />
         <Box sx={{ flex: 1 }} />
         <Button
           size="small"
           variant="outlined"
           startIcon={<ViewColumn />}
           onClick={(event) => setColumnMenuAnchor(event.currentTarget)}
-        >
-          Columns {visibleColumns.length}/{allColumns.length}
+        >{trUi("\n          Columns ")}{visibleColumns.length}/{allColumns.length}
         </Button>
         <Menu
           anchorEl={columnMenuAnchor}
@@ -375,17 +376,13 @@ export default function PoManagementPage() {
           onClose={() => setColumnMenuAnchor(null)}
           PaperProps={{ sx: { maxHeight: 520, minWidth: 300 } }}
         >
-          <MenuItem onClick={() => setVisibleColumnKeys(PO_DEFAULT_COLUMN_KEYS.filter((key) => allColumns.some((column) => column.key === key)))}>
-            Default columns
-          </MenuItem>
-          <MenuItem onClick={() => setVisibleColumnKeys(allColumns.map((column) => column.key))}>
-            Show all {allColumns.length} columns
-          </MenuItem>
+          <MenuItem onClick={() => setVisibleColumnKeys(PO_DEFAULT_COLUMN_KEYS.filter((key) => allColumns.some((column) => column.key === key)))}>{trUi("\n            Default columns\n          ")}</MenuItem>
+          <MenuItem onClick={() => setVisibleColumnKeys(allColumns.map((column) => column.key))}>{trUi("\n            Show all ")}{allColumns.length}{trUi(" columns\n          ")}</MenuItem>
           <Divider />
           {allColumns.map((column) => (
             <MenuItem key={column.key} dense onClick={() => toggleColumn(column.key)}>
               <Checkbox size="small" checked={visibleColumns.some((item) => item.key === column.key)} />
-              <ListItemText primary={column.label} secondary={column.group} />
+              <ListItemText primary={column.group === 'ALL_BP' ? column.label : trUi(column.label)} secondary={trUi(column.group)} />
             </MenuItem>
           ))}
         </Menu>
@@ -395,12 +392,12 @@ export default function PoManagementPage() {
         <Box sx={{ px: 1, py: 0.9, borderBottom: '1px solid', borderColor: 'divider', bgcolor: '#FBFCFE' }}>
       <TableFilterBar
         fields={[
-          { key: 'factoryCode', label: 'Factory' },
-          { key: 'poNumber', label: 'PO No.' },
-          { key: 'style', label: 'Style' },
+          { key: 'factoryCode', label: trUi("Factory") },
+          { key: 'poNumber', label: trUi("PO No.") },
+          { key: 'style', label: trUi("Style") },
           { key: 'sku', label: 'SKU' },
-          { key: 'exFtyDate', label: 'Ex-Factory', type: 'date' },
-          { key: 'status', label: 'Status', options: PURCHASE_ORDER_STATUS_OPTIONS }
+          { key: 'exFtyDate', label: trUi("Ex-Factory"), type: 'date' },
+          { key: 'status', label: trUi("Status"), options: PURCHASE_ORDER_STATUS_OPTIONS }
         ]}
         values={filters}
         onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
@@ -415,7 +412,7 @@ export default function PoManagementPage() {
             <TableRow>
               {visibleColumns.map((column) => (
                 <TableCell key={column.key} sx={{ fontWeight: 800, minWidth: column.minWidth || 110, whiteSpace: 'nowrap' }}>
-                  {column.label}
+                  {column.group === 'ALL_BP' ? column.label : trUi(column.label)}
                 </TableCell>
               ))}
             </TableRow>
@@ -433,10 +430,10 @@ export default function PoManagementPage() {
               </TableRow>
             ))}
             {!loading && orderId && !filteredRows.length && (
-              <TableRow><TableCell colSpan={tableColSpan} align="center" sx={{ py: 5 }}>No PO found in this Order.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={tableColSpan} align="center" sx={{ py: 5 }}>{trUi("No PO found in this Order.")}</TableCell></TableRow>
             )}
             {!orderId && (
-              <TableRow><TableCell colSpan={tableColSpan} align="center" sx={{ py: 5 }}>Select an Order first.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={tableColSpan} align="center" sx={{ py: 5 }}>{trUi("Select an Order first.")}</TableCell></TableRow>
             )}
           </TableBody>
         </SortableTable>
