@@ -576,8 +576,24 @@ export default function OrderWorkspacePage() {
         sortValue: (row) => Number(row.inspectionProgress?.weightPassedCartons ?? 0),
         render: (row) => <PoInspectionProgressCell row={row} metric="weight" /> }
     ];
-    // Keep the optional metrics at the original inspection column's position,
-    // immediately before STT when selected in Customize Columns.
+    // Carton Final is a distinct PO outcome, not a PASS-only progress KPI.
+    // It is ready when every planned carton has BOTH persisted RFID and Weight results.
+    const poFinalColumn = {
+      key: 'progress:poFinal', label: trUi('Carton Final'), group: 'System', minWidth: 172,
+      sortValue: (row) => row.inspectionProgress?.finalResult || 'PENDING',
+      render: (row) => {
+        const p = row.inspectionProgress;
+        if (!p) return '—';
+        const result = p.finalResult || 'PENDING';
+        const caption = result === 'PENDING'
+          ? `PENDING · ${p.processedCartons ?? 0}/${p.plannedCartons ?? 0}`
+          : `FINAL ${result}${p.ended ? ' · ENDED' : ''}`;
+        return <Typography component="span" sx={{ fontSize: 12, fontWeight: 800,
+          color: result === 'PASS' ? 'success.main' : result === 'FAILED' ? 'error.main' : 'text.secondary',
+          whiteSpace: 'nowrap' }}>{caption}</Typography>;
+      }
+    };
+    // Keep optional PASS-only progress metrics at their original position.
     const columns = [...inspectionColumns, stt];
 
     // Place Factory next to PO/Master PO, then put operational fields at the end.
@@ -586,7 +602,7 @@ export default function OrderWorkspacePage() {
       if (column.canonical === 'MASTER_PO') columns.push(otherSystem[0]);
     });
     if (!columns.some((column) => column.key === 'sys:factory')) columns.splice(1, 0, otherSystem[0]);
-    columns.push(...otherSystem.slice(1));
+    columns.push(...otherSystem.slice(1), poFinalColumn);
     return columns;
   }, [sourceColumns]);
 
@@ -604,7 +620,7 @@ export default function OrderWorkspacePage() {
       // One-time compatibility migration for users who already saved column preferences
       // before Carton Ratio / Remainder Qty were added. Keep their choices, but surface
       // the two new required carton calculation columns automatically.
-      ['src:ODD_RATIO', 'src:REMAINDER'].forEach((key) => {
+      ['src:ODD_RATIO', 'src:REMAINDER', 'progress:poFinal'].forEach((key) => {
         if (!availableColumnKeys.has(key) || next.includes(key)) return;
         const anchor = key === 'src:ODD_RATIO' ? next.indexOf('src:PCS_CTN') : next.indexOf('src:CTNS');
         next.splice(anchor >= 0 ? anchor + 1 : next.length, 0, key);
@@ -612,6 +628,15 @@ export default function OrderWorkspacePage() {
 
       if (current.length === next.length && current.every((key, index) => key === next[index])) return current;
       return next;
+    });
+  }, [buyerCode, availableColumnSignature, availableColumnKeys]);
+
+  // Keep the new PO Final result visible in existing saved Unscheduled PO layouts too.
+  useEffect(() => {
+    if (!isSsccWorkflowBuyer(buyer) || !availableColumnKeys.has('progress:poFinal')) return;
+    setUnscheduledColumnKeys((current) => {
+      if (!Array.isArray(current)) return PO_DEFAULT_COLUMN_KEYS.filter((key) => availableColumnKeys.has(key));
+      return current.includes('progress:poFinal') ? current : [...current, 'progress:poFinal'];
     });
   }, [buyerCode, availableColumnSignature, availableColumnKeys]);
 

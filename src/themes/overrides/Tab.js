@@ -5,6 +5,7 @@ export default function Tab(theme) {
     MuiTab: {
       styleOverrides: {
         root: {
+          fontSize: '0.8125rem',
           minHeight: 46,
           color: theme.palette.text.primary,
           borderRadius: '4px',

@@ -39,7 +39,7 @@
 .MuiTable-root .MuiTableHead-root .MuiTableCell-root {
   background-color: var(--app-table-head-bg);
   color: var(--app-table-head-text);
-  font-weight: 800;
+  font-weight: 700;
 }
 /* The PO Picking main table already computes the stripe color from the PO
  * group index, not the DOM row index (expanded source rows affect the latter).

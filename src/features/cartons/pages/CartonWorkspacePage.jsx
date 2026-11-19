@@ -294,6 +294,11 @@ export default function CartonWorkspacePage() {
             buyerCode={buyer.code} orderId={orderId} poId={po.id} poKey={poKey}
             po={po} factoryCode={selectedFactory}
             onCartonSaved={() => load(paginationRef.current.page, paginationRef.current.size)}
+            onPoEnded={(result) => {
+              setScanOpen(false);
+              setNotice(`PO ${result.poNumber}: END saved · FINAL ${result.finalResult} · ${result.passed}/${result.total} PASS, ${result.failed} FAILED.`);
+              load(paginationRef.current.page, paginationRef.current.size);
+            }}
           />}
         </OperationWorkspaceDialog></ThemeProvider>}
         {isSsccCartonWorkflow && <Dialog open={Boolean(reassignCarton)} onClose={closeReassign} maxWidth="sm" fullWidth

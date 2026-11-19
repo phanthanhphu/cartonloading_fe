@@ -7,7 +7,7 @@ import { tableScrollbarSx } from 'components/TableScrollbarStyles';
 import StatusChip from 'components/StatusChip';
 
 export default function ManagementTable({ title, columns = [], rows = [], loading = false, count = 0, page = 0, rowsPerPage = 25,
-  onPageChange, onRowsPerPageChange, onRowClick, filterBar, selectedId, getRowId = (row) => row?.id, emptyText = 'No data', autoHeight = false, fillAvailableHeight = false }) {
+  onPageChange, onRowsPerPageChange, onRowClick, filterBar, selectedId, getRowId = (row) => row?.id, emptyText = 'No data', autoHeight = false, fillAvailableHeight = false, hidePagination = false }) {
   const trUi = useT();
   const safeCount = Math.max(0, Number(count || 0));
   const safeRowsPerPage = Math.max(1, Number(rowsPerPage || 10));
@@ -58,9 +58,11 @@ export default function ManagementTable({ title, columns = [], rows = [], loadin
           </TableBody>
         </SortableTable>
       </TableContainer>
-      <TablePagination component="div" count={safeCount} page={safePage} rowsPerPage={safeRowsPerPage}
-        onPageChange={(_, next) => onPageChange?.(next)} onRowsPerPageChange={(e) => onRowsPerPageChange?.(Number(e.target.value))}
-        rowsPerPageOptions={[10, 25, 50, 100]} sx={{ flexShrink: 0 }} />
+      {!hidePagination && (
+        <TablePagination component="div" count={safeCount} page={safePage} rowsPerPage={safeRowsPerPage}
+          onPageChange={(_, next) => onPageChange?.(next)} onRowsPerPageChange={(e) => onRowsPerPageChange?.(Number(e.target.value))}
+          rowsPerPageOptions={[10, 25, 50, 100]} sx={{ flexShrink: 0 }} />
+      )}
     </Paper>
   );
 }

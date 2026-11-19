@@ -2,15 +2,15 @@ import { useConfirmAction } from '../../components/confirmation/ActionConfirmati
 import { useT, useSystemMessage } from '../../i18n/LanguageProvider';
 import { managementPageSx, managementStackSx } from 'components/ManagementViewportStyles';
 import useAutoDismissFeedback from '../../hooks/useAutoDismissFeedback';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
-import { Add, Delete, Edit } from '@mui/icons-material';
+import { Add, Block, CheckCircleOutline, Delete, Edit } from '@mui/icons-material';
 import ManagementTable from 'components/ManagementTable';
 import TableFilterBar from 'components/TableFilterBar';
 import { createDepartment, deleteDepartment, listDepartments, updateDepartment } from 'services/adminService';
 import { DEFAULT_TABLE_PAGE_SIZE, ORGANIZATION_MANAGEMENT_TAB } from '../../constants/appConstants';
 import { isFactoryCode } from '../../common/factory/factoryCodes';
-import { createFactory, deleteFactory, listFactories, updateFactory } from '../../services/factoryService';
+import { createFactory, deleteFactory, listFactories, updateFactory, updateFactoryStatus } from '../../services/factoryService';
 import useActiveFactories from '../../common/factory/useActiveFactories';
 import useOrganizationRealtime from '../../common/realtime/useOrganizationRealtime';
 import { ORGANIZATION_REALTIME } from '../../constants/appConstants';
@@ -28,43 +28,88 @@ export default function DepartmentManagement() {
   useAutoDismissFeedback(error, setError, '', 'error');
   const [factoryDialog, setFactoryDialog] = useState(null);
   const [factories, setFactories] = useState([]);
+  const [factoryBusy, setFactoryBusy] = useState(false);
+  const [departmentBusy, setDepartmentBusy] = useState(false);
+  // Refs lock operations synchronously, including while a confirmation dialog is open.
+  const factoryMutationRef = useRef(false);
+  const departmentMutationRef = useRef(false);
+  const departmentLoadSequence = useRef(0);
+  const factoryLoadSequence = useRef(0);
   const { codes: activeFactoryCodes, reload: reloadActive } = useActiveFactories();
   const loadFactories = async () => {
-    try { setFactories(await listFactories({ includeInactive: true })); }
-    catch (e) { setError(e?.response?.data?.message || e.message); }
+    const sequence = ++factoryLoadSequence.current;
+    try {
+      const rows = await listFactories({ includeInactive: true });
+      if (sequence === factoryLoadSequence.current) setFactories(rows);
+    } catch (e) {
+      if (sequence === factoryLoadSequence.current) setError(e?.response?.data?.message || e.message);
+    }
   };
   useEffect(() => { loadFactories(); }, []);
   useOrganizationRealtime(ORGANIZATION_REALTIME.FACTORY, loadFactories);
   const saveFactory = async (body) => {
-    if (!await confirmAction({ kind: factoryDialog?.id ? 'update' : 'create', entity: 'Factory', name: body?.name || body?.code || '' })) return;
+    if (factoryMutationRef.current) return;
+    factoryMutationRef.current = true;
     try {
+      if (!await confirmAction({ kind: factoryDialog?.id ? 'update' : 'create', entity: 'Factory', name: body?.name || body?.code || '' })) return;
+      setFactoryBusy(true);
       if (factoryDialog?.id) await updateFactory(factoryDialog.id, body);
       else await createFactory(body);
       setFactoryDialog(null);
+      setError('');
       await Promise.all([loadFactories(), reloadActive()]);
     } catch (e) { setError(e?.response?.data?.message || e.message); }
+    finally { factoryMutationRef.current = false; setFactoryBusy(false); }
+  };
+
+  const toggleFactoryStatus = async (row) => {
+    if (!row?.id || factoryMutationRef.current) return;
+    factoryMutationRef.current = true;
+    try {
+      const nextActive = !row.active;
+      if (!await confirmAction({
+        kind: 'update',
+        entity: 'Factory',
+        name: `${row.code} - ${row.name || ''}`.trim(),
+        warning: nextActive
+          ? 'This Factory will become available for new selections.'
+          : 'Inactivation hides this Factory from new selections. Historical records are preserved.'
+      })) return;
+      setFactoryBusy(true);
+      // Only PATCH active. Never send a stale Factory name with a status change.
+      await updateFactoryStatus(row.id, nextActive);
+      setError('');
+      await Promise.all([loadFactories(), reloadActive()]);
+    } catch (e) { setError(e?.response?.data?.message || e.message); }
+    finally { factoryMutationRef.current = false; setFactoryBusy(false); }
   };
 
   const removeFactory = async (row) => {
-    if (!row?.id || !await confirmAction({
-      kind: 'delete', entity: 'Factory', name: `${row.code} - ${row.name || ''}`.trim(),
-      warning: 'Factories in use cannot be deleted. Deactivate the Factory instead.'
-    })) return;
+    if (!row?.id || factoryMutationRef.current) return;
+    factoryMutationRef.current = true;
     try {
+      if (!await confirmAction({
+        kind: 'delete', entity: 'Factory', name: `${row.code} - ${row.name || ''}`.trim(),
+        warning: 'Factories in use cannot be deleted. Deactivate the Factory instead.'
+      })) return;
+      setFactoryBusy(true);
       await deleteFactory(row.id);
       setError('');
       await Promise.all([loadFactories(), reloadActive()]);
-    } catch (e) {
-      setError(e?.response?.data?.message || e.message);
-    }
+    } catch (e) { setError(e?.response?.data?.message || e.message); }
+    finally { factoryMutationRef.current = false; setFactoryBusy(false); }
   };
 
   const load = async (page = state.page, size = state.size) => {
+    const sequence = ++departmentLoadSequence.current;
     setState((s) => ({ ...s, loading: true }));
     try {
       const r = await listDepartments({ ...filters, page, size });
+      // Ignore an old response when a newer filter/page/socket reload has started.
+      if (sequence !== departmentLoadSequence.current) return;
       setState({ rows: r.content || [], count: r.totalElements || 0, page, size, loading: false });
     } catch (e) {
+      if (sequence !== departmentLoadSequence.current) return;
       setError(e?.response?.data?.message || e.message);
       setState((s) => ({ ...s, loading: false }));
     }
@@ -74,24 +119,31 @@ export default function DepartmentManagement() {
   useOrganizationRealtime(ORGANIZATION_REALTIME.DEPARTMENT, () => load(state.page, state.size));
 
   const save = async (body) => {
-    if (!await confirmAction({ kind: dialog?.id ? 'update' : 'create', entity: 'Department', name: body?.departmentName || '' })) return;
+    if (departmentMutationRef.current) return;
+    departmentMutationRef.current = true;
     try {
-      dialog?.id ? await updateDepartment(dialog.id, body) : await createDepartment(body);
+      if (!await confirmAction({ kind: dialog?.id ? 'update' : 'create', entity: 'Department', name: body?.departmentName || '' })) return;
+      setDepartmentBusy(true);
+      if (dialog?.id) await updateDepartment(dialog.id, body);
+      else await createDepartment(body);
       setDialog(null);
-      load(0, state.size);
-    } catch (e) {
-      setError(e?.response?.data?.message || e.message);
-    }
+      setError('');
+      await load(0, state.size);
+    } catch (e) { setError(e?.response?.data?.message || e.message); }
+    finally { departmentMutationRef.current = false; setDepartmentBusy(false); }
   };
 
   const remove = async (row) => {
-    if (!row || !await confirmAction({ kind: 'delete', entity: 'Department', name: [row.factory, row.division, row.departmentName].filter(Boolean).join(' / ') })) return;
+    if (!row?.id || departmentMutationRef.current) return;
+    departmentMutationRef.current = true;
     try {
+      if (!await confirmAction({ kind: 'delete', entity: 'Department', name: [row.factory, row.division, row.departmentName].filter(Boolean).join(' / ') })) return;
+      setDepartmentBusy(true);
       await deleteDepartment(row.id);
-      load(state.page, state.size);
-    } catch (e) {
-      setError(e?.response?.data?.message || e.message);
-    }
+      setError('');
+      await load(state.page, state.size);
+    } catch (e) { setError(e?.response?.data?.message || e.message); }
+    finally { departmentMutationRef.current = false; setDepartmentBusy(false); }
   };
 
   const columns = [
@@ -105,8 +157,8 @@ export default function DepartmentManagement() {
       minWidth: 96,
       render: (r) => (
         <Stack direction="row" spacing={0.25} alignItems="center" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title={trUi("Edit Department")}><IconButton size="small" onClick={() => setDialog(r)}><Edit fontSize="small" /></IconButton></Tooltip>
-          <Tooltip title={trUi("Delete Department")}><IconButton size="small" color="error" onClick={() => remove(r)}><Delete fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title={trUi("Edit Department")}><span><IconButton size="small" disabled={departmentBusy} aria-label={`${trUi("Edit Department")} ${r.departmentName}`} onClick={() => setDialog(r)}><Edit fontSize="small" /></IconButton></span></Tooltip>
+          <Tooltip title={trUi("Delete Department")}><span><IconButton size="small" color="error" disabled={departmentBusy} aria-label={`${trUi("Delete Department")} ${r.departmentName}`} onClick={() => remove(r)}><Delete fontSize="small" /></IconButton></span></Tooltip>
         </Stack>
       )
     }
@@ -154,24 +206,45 @@ export default function DepartmentManagement() {
             </Typography>
           </Box>
           {activeTab === ORGANIZATION_MANAGEMENT_TAB.FACTORIES ? (
-            <Button variant="contained" color="primary" startIcon={<Add />} onClick={() => setFactoryDialog({})}>{trUi("Add Factory")}</Button>
+            <Button variant="contained" color="primary" startIcon={<Add />} disabled={factoryBusy} onClick={() => setFactoryDialog({})}>{trUi("Add Factory")}</Button>
           ) : (
-            <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})} disabled={activeFactoryCodes.length === 0}>{trUi("Add Department")}</Button>
+            <Button variant="contained" startIcon={<Add />} onClick={() => setDialog({})} disabled={departmentBusy || activeFactoryCodes.length === 0}>{trUi("Add Department")}</Button>
           )}
         </Stack>
         {error ? <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert> : null}
         {activeTab === ORGANIZATION_MANAGEMENT_TAB.FACTORIES ? (
-          <ManagementTable fillAvailableHeight autoHeight rows={factories} count={factories.length} page={0} size={Math.max(factories.length, 1)}
+          <ManagementTable fillAvailableHeight autoHeight hidePagination rows={factories} count={factories.length} page={0} size={Math.max(factories.length, 1)}
             rowsPerPage={Math.max(factories.length, 1)} columns={[
               { key: 'code', label: trUi("Factory Code") },
               { key: 'name', label: trUi("Factory Name") },
               { key: 'active', label: trUi("Status"), render: (f) => trUi(f.active ? "Active" : "Inactive") },
-              { key: 'actions', label: trUi("Actions"), minWidth: 180, render: (f) => (
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Button size="small" onClick={() => setFactoryDialog(f)}>{trUi("Edit / Activate")}</Button>
+              { key: 'actions', label: trUi("Actions"), minWidth: 132, render: (f) => (
+                <Stack direction="row" alignItems="center" spacing={0.25} onClick={(e) => e.stopPropagation()}>
+                  <Tooltip title={trUi("Edit Factory")}>
+                    <span>
+                      <IconButton size="small" color="primary" disabled={factoryBusy} aria-label={`${trUi("Edit Factory")} ${f.code}`}
+                        onClick={() => setFactoryDialog(f)}>
+                        <Edit fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={trUi(f.active ? "Deactivate Factory" : "Activate Factory")}>
+                    <span>
+                      <IconButton size="small" color={f.active ? "warning" : "success"}
+                        disabled={factoryBusy}
+                        aria-label={`${trUi(f.active ? "Deactivate Factory" : "Activate Factory")} ${f.code}`}
+                        onClick={() => toggleFactoryStatus(f)}>
+                        {f.active ? <Block fontSize="small" /> : <CheckCircleOutline fontSize="small" />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                   <Tooltip title={trUi("Delete Factory")}>
-                    <IconButton size="small" color="error" aria-label={`${trUi("Delete Factory")} ${f.code}`}
-                      onClick={() => removeFactory(f)}><Delete fontSize="small" /></IconButton>
+                    <span>
+                      <IconButton size="small" color="error" disabled={factoryBusy} aria-label={`${trUi("Delete Factory")} ${f.code}`}
+                        onClick={() => removeFactory(f)}>
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                 </Stack>
               ) }
@@ -197,40 +270,42 @@ export default function DepartmentManagement() {
               />} {...state} rowsPerPage={state.size} onPageChange={(p) => load(p, state.size)} onRowsPerPageChange={(size) => load(0, size)} columns={columns} />
           </>
         )}
-        {factoryDialog ? <FactoryDialog row={factoryDialog} onClose={() => setFactoryDialog(null)} onSave={saveFactory} /> : null}
-        {dialog ? <DepartmentDialog row={dialog} factoryCodes={activeFactoryCodes} onClose={() => setDialog(null)} onSave={save} /> : null}
+        {factoryDialog ? <FactoryDialog row={factoryDialog} busy={factoryBusy} onClose={() => { if (!factoryBusy) setFactoryDialog(null); }} onSave={saveFactory} /> : null}
+        {dialog ? <DepartmentDialog row={dialog} factoryCodes={activeFactoryCodes} busy={departmentBusy} onClose={() => { if (!departmentBusy) setDialog(null); }} onSave={save} /> : null}
       </Stack>
     </Box>
   );
 }
 
-function DepartmentDialog({ row, factoryCodes, onClose, onSave }) {
+function DepartmentDialog({ row, factoryCodes, busy = false, onClose, onSave }) {
   const trUi = useT();
   const trSystem = useSystemMessage();
   const [factory, setFactory] = useState(row.factory || factoryCodes[0] || '');
   const [division, setDivision] = useState(row.division || '');
   const [departmentName, setName] = useState(row.departmentName || '');
+  const historicalFactoryCode = row.id && row.factory && !factoryCodes.includes(row.factory) ? row.factory : null;
+  const availableFactoryCodes = historicalFactoryCode ? [historicalFactoryCode, ...factoryCodes] : factoryCodes;
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{row.id ? 'Edit' : 'Add'}{trUi(" Department")}</DialogTitle>
+      <DialogTitle>{trUi(row.id ? "Edit Department" : "Add Department")}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           <TextField select label={trUi("Factory")} value={factory} onChange={(e) => setFactory(e.target.value)}>
-            {factoryCodes.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+            {availableFactoryCodes.map((v) => <MenuItem key={v} value={v}>{v}{historicalFactoryCode === v ? ` (${trUi("Inactive")})` : ''}</MenuItem>)}
           </TextField>
           <TextField label={trUi("Division")} value={division} onChange={(e) => setDivision(e.target.value)} />
           <TextField label={trUi("Department Name")} value={departmentName} onChange={(e) => setName(e.target.value)} />
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{trUi("Cancel")}</Button>
-        <Button variant="contained" onClick={() => onSave({ factory, division, departmentName })} disabled={!factory || !division.trim() || !departmentName.trim()}>{trUi("Save")}</Button>
+        <Button onClick={onClose} disabled={busy}>{trUi("Cancel")}</Button>
+        <Button variant="contained" onClick={() => onSave({ factory, division, departmentName })} disabled={busy || !factory || !division.trim() || !departmentName.trim()}>{trUi("Save")}</Button>
       </DialogActions>
     </Dialog>
   );
 }
 
-function FactoryDialog({ row, onClose, onSave }) {
+function FactoryDialog({ row, busy = false, onClose, onSave }) {
   const trUi = useT();
   const trSystem = useSystemMessage();
   const [code, setCode] = useState(row.code || '');
@@ -241,11 +316,15 @@ function FactoryDialog({ row, onClose, onSave }) {
     <DialogContent><Stack spacing={1.5} sx={{ mt: 1 }}>
       <TextField label={trUi("Factory Code (F1, F2, ..., Fn)")} value={code} disabled={Boolean(row.id)} onChange={(e) => setCode(e.target.value.toUpperCase())} />
       <TextField label={trUi("Factory Name")} value={name} onChange={(e) => setName(e.target.value)} />
-      <FormControlLabel control={<Checkbox checked={active} onChange={(e) => setActive(e.target.checked)} />} label={trUi("ACTIVE — show in operation menus")} />
-      <Alert severity="info">{trUi("Inactivation hides this Factory from new selections. Historical records are preserved.")}</Alert>
+      {!row.id && (
+        <>
+          <FormControlLabel control={<Checkbox checked={active} onChange={(e) => setActive(e.target.checked)} />} label={trUi("ACTIVE — show in operation menus")} />
+          <Alert severity="info">{trUi("Inactivation hides this Factory from new selections. Historical records are preserved.")}</Alert>
+        </>
+      )}
     </Stack></DialogContent>
-    <DialogActions><Button onClick={onClose}>{trUi("Cancel")}</Button>
-      <Button variant="contained" disabled={!isFactoryCode(code) || !name.trim()} onClick={() => onSave({ code, name, active })}>{trUi("Save")}</Button>
+    <DialogActions><Button onClick={onClose} disabled={busy}>{trUi("Cancel")}</Button>
+      <Button variant="contained" disabled={busy || !isFactoryCode(code) || !name.trim()} onClick={() => onSave({ code, name, active: row.id ? null : active })}>{trUi("Save")}</Button>
     </DialogActions>
   </Dialog>;
 }

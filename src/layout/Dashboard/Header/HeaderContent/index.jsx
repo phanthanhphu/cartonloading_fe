@@ -93,7 +93,7 @@ export default function HeaderContent() {
           title={trUi(page.title)}
           sx={{
             color: '#183658',
-            fontSize: { xs: '0.9rem', sm: '0.98rem' },
+            fontSize: { xs: '0.875rem', sm: '0.9rem' },
             lineHeight: 1.2,
             fontWeight: 750,
             overflow: 'hidden',

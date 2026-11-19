@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, Button, Chip, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
 import { CheckCircleOutline, QrCodeScanner, Refresh, ScaleOutlined, SensorsOutlined } from '@mui/icons-material';
 import CartonRfidPanel from '../components/CartonRfidPanel';
-import { getProcessingSummary, identifyProcessingCarton, saveProcessingManualWeight } from '../services/cartonProcessing';
+import { getProcessingSummary, endProcessingPo, identifyProcessingCarton, saveProcessingManualWeight } from '../services/cartonProcessing';
 import { listMyScalePlcDevices } from '../services/scalePlcDevices';
 import { getFinalCartonStatus } from '../utils/finalCartonStatus';
 import { BUYER_CODE, FINAL_INSPECTION_RESULT, RFID_CHECK_RESULT, WEIGHING_RESULT, KEYBOARD_KEY } from '../../../constants/appConstants';
@@ -104,7 +104,21 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
     } catch (e) { setError(messageOf(e)); }
     finally { setBusy(false); }
   };
-  const markNext = () => {
+  const markNext = async () => {
+    if (busy) return;
+    if (summary?.end) {
+      setBusy(true); setError('');
+      try {
+        // Explicit PO END, not merely closing a carton detail window.
+        await endProcessingPo(orderId, poId);
+      } catch (error) {
+        setError(messageOf(error));
+        await refreshSummary().catch(() => {});
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
     setActive(null); setSaved(null); setRfid(null); setScan({ sscc: '', sku: '' });
     setActualWeightKg(''); setError(''); setNote('');
     onCartonSaved?.(); onClose?.();
@@ -184,7 +198,7 @@ export default function CartonProcessingPage({ orderId = '', poId = '', poNumber
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
           <Box><Typography fontWeight={900}>{trUi("FINAL ")}{finalStatus === FINAL_INSPECTION_RESULT.PASS ? 'PASS' : trUi("FAILED / HOLD")}</Typography>
             <Typography variant="caption" color="text.secondary">{trUi("Processed ")}{summary?.processed ?? '—'}/{summary?.total ?? '—'}{trUi(" · Remaining ")}{summary?.remaining ?? '—'}{trUi(" · RFID and Weight must both PASS.")}</Typography></Box>
-          <Button variant="contained" startIcon={<CheckCircleOutline/>} onClick={markNext}>{summary?.end ? trUi("END · Back to Carton List") : trUi("Next Carton · Back to List")}</Button>
+          <Button variant="contained" startIcon={<CheckCircleOutline/>} onClick={markNext} disabled={busy}>{busy ? 'Saving…' : summary?.end ? trUi("END · Back to Carton List") : trUi("Next Carton · Back to List")}</Button>
         </Stack>
       </Paper>}
     </Stack>}

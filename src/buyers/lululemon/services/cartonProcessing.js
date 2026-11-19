@@ -7,6 +7,10 @@ const root = `/api/buyers/${encodeURIComponent(BUYER_CODE.LULULEMON)}/${BUYER_AP
 export const getProcessingSummary = (factoryCode, orderId, poId) => unwrap(apiRawClient.get(`${root}/summary`, {
   params: { factoryCode: factoryCode || undefined, orderId: orderId || undefined, poId: poId || undefined }
 }));
+// Explicit END on the server (checks all planned cartons and records audited PO outcome).
+export const endProcessingPo = (orderId, poId) => unwrap(apiRawClient.post(`${root}/end`, null, {
+  params: { orderId, poId }
+}));
 // Read-only check against ALL assigned cartons; never allocate a carton or change SSCC state.
 export const checkProcessingSscc = (params) => unwrap(apiRawClient.get(`${root}/sscc/check`, { params }));
 export const identifyProcessingCarton = (body) => unwrap(apiRawClient.post(`${root}/identify`, body));

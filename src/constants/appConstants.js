@@ -567,12 +567,13 @@ export const PO_SYSTEM_COLUMNS = Object.freeze([
   { key: 'sys:factory', label: 'Factory', group: 'System', minWidth: 100, value: (row) => row.factoryCode || '—' },
   { key: 'sys:sku', label: 'SKU', group: 'System', minWidth: 145, value: (row) => row.sku || '' },
   { key: 'sys:exFtyDate', label: 'Ex-fty Date', group: 'System', minWidth: 115, value: (row) => row.exFtyDate || '—' },
-  { key: 'sys:status', label: 'Status', group: 'System', minWidth: 130, status: true }
+  { key: 'sys:status', label: 'Status', group: 'System', minWidth: 130, status: true },
+  { key: 'sys:cartonFinal', label: 'Carton Final', group: 'System', minWidth: 155 }
 ]);
 
 export const PO_DEFAULT_COLUMN_KEYS = Object.freeze([
   'sys:factory', 'src:PO', 'src:STYLE', 'src:DESTINATION', 'src:QTY', 'src:PCS_CTN', 'src:ODD_RATIO', 'src:CTNS', 'src:REMAINDER',
-  'src:SHIP_MODE', 'sys:sku', 'sys:exFtyDate', 'sys:status'
+  'src:SHIP_MODE', 'sys:sku', 'sys:exFtyDate', 'sys:status', 'sys:cartonFinal'
 ]);
 
 export const PACKING_ORDER_FIELDS = Object.freeze([

@@ -8,8 +8,9 @@ import {
 } from '@mui/material';
 import { CheckCircleOutline, ErrorOutline, LinkOff, QrCodeScannerOutlined, Sensors, RestartAltRounded, ScaleOutlined, ReplayRounded, VisibilityOutlined, VisibilityOffOutlined, ViewColumnOutlined, FilterListOutlined } from '@mui/icons-material';
 import CartonRfidPanel from './CartonRfidPanel';
+import { getCartonUatStatus, simulateCartonUatWeight } from '../services/cartonUatTest';
 import ConveyorSimControl from './ConveyorSimControl';
-import { checkProcessingSscc, identifyProcessingCarton, getProcessingSummary, armProcessingAutoWeight, saveProcessingAutoWeight, reopenProcessingManualWeight, unassignProcessingIdentity, recallFailedProcessingCarton } from '../services/cartonProcessing';
+import { checkProcessingSscc, identifyProcessingCarton, getProcessingSummary, endProcessingPo, armProcessingAutoWeight, saveProcessingAutoWeight, reopenProcessingManualWeight, unassignProcessingIdentity, recallFailedProcessingCarton } from '../services/cartonProcessing';
 import { listMyScalePlcDevices, readScalePlcWeight, sendSimulatorWeight } from '../services/scalePlcDevices';
 import { startCartonRfidSession, reopenCartonRfidSession, getCartonRfidSession } from '../services/weighing';
 import { getUniqueEpcRows, getUniqueInvalidEpcRows, getWrongSkuDisplayCount } from '../utils/trueVueEpc';
@@ -69,6 +70,7 @@ function RfidInspectionEvidence({ row, orderId, poId }) {
     {session && <>
       <Stack direction="row" gap={0.5} useFlexGap flexWrap="wrap" alignItems="center">
         <Chip size="small" color={statusColor(session.status)} label={`RFID ${session.status || 'PENDING'}`} />
+        {session.uatSimulated && <Chip size="small" color="warning" label="UAT SIMULATED" />}
         <Chip size="small" variant="outlined" label={trUi("Matched {0}/{1}", matched, expected)} />
         {matched < expected && <Chip size="small" color="error" variant="outlined" label={trUi("Missing {0}", expected - matched)} />}
         {matched > expected && <Chip size="small" color="error" variant="outlined" label={trUi("Excess {0}", matched - expected)} />}
@@ -153,7 +155,7 @@ const pickerCellValue = (column, carton, po, factoryCode) => {
   }
 };
 
-export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON, orderId, po, poKey, factoryCode, onCartonSaved, dialogReady = true }) {
+export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON, orderId, po, poKey, factoryCode, onCartonSaved, onPoEnded, dialogReady = true }) {
   const trUi = useT();
   const trSystem = useSystemMessage();
   const [sscc, setSscc] = useState('');
@@ -179,6 +181,15 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   const [scaleArmed, setScaleArmed] = useState(false);
   const [simulatorTestKg, setSimulatorTestKg] = useState('');
   const [sendingTestKg, setSendingTestKg] = useState(false);
+  const [uatAvailable, setUatAvailable] = useState(false);
+  // UI visibility is independent from test API availability: disabled UAT still
+  // shows (disabled) test buttons; live-DB simulation explicitly hides them.
+  const [uatControlsVisible, setUatControlsVisible] = useState(false);
+  const [uatStatusReason, setUatStatusReason] = useState('');
+  const [uatLiveDatabase, setUatLiveDatabase] = useState(false);
+  const [uatMode, setUatMode] = useState(false);
+  const [uatWeightKg, setUatWeightKg] = useState('');
+  const [uatSubmittingWeight, setUatSubmittingWeight] = useState(false);
   const [devices, setDevices] = useState([]);
   const [stationCode, setStationCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -189,6 +200,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   useAutoDismissFeedback(notice, setNotice, '', 'info');
   const [resultDetailsOpen, setResultDetailsOpen] = useState({});
   const [showEnd, setShowEnd] = useState(false);
+  const [endingPo, setEndingPo] = useState(false);
   const [confirmUnassign, setConfirmUnassign] = useState(false);
   const [unassignReason, setUnassignReason] = useState('');
   const [resetPanel, setResetPanel] = useState(''); // 'assign', 'rfid', 'weight'
@@ -202,6 +214,35 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
   const skuRef = useRef(null);
   const cartonQueryRef = useRef(null);
   const poId = po?.id || '';
+  useEffect(() => {
+    if (!admin) return undefined;
+    let cancelled = false;
+    // When both flags are enabled for a live DB, hide simulation controls.
+    // When UAT is disabled (including a 404 because the UAT controller is not
+    // registered), keep the controls visible but disabled for Admin users.
+    getCartonUatStatus().then((result) => {
+      if (cancelled) return;
+      const liveDatabase = Boolean(result?.liveDatabase);
+      const apiEnabled = result?.enabled === true;
+      const hideSimulatedControls = apiEnabled && (liveDatabase || result?.uiTestControlsVisible === false);
+      const testControlsAvailable = apiEnabled && !hideSimulatedControls;
+      setUatControlsVisible(!hideSimulatedControls);
+      setUatAvailable(testControlsAvailable);
+      setUatMode(testControlsAvailable);
+      setUatLiveDatabase(liveDatabase);
+      setUatStatusReason(testControlsAvailable ? '' : (result?.reason || 'UAT testing is disabled on Backend.'));
+    }).catch((error) => {
+      if (cancelled) return;
+      setUatControlsVisible(true);
+      setUatAvailable(false); setUatMode(false);
+      setUatStatusReason(error?.response?.status === 404
+        ? 'UAT is disabled or its API is not deployed. Simulation buttons cannot be used.'
+        : 'UAT status unavailable. Check Admin permissions and Backend UAT configuration.');
+    });
+    return () => { cancelled = true; };
+  }, [admin]);
+  const activeStation = uatMode && uatAvailable ? 'UAT-SCALE' : stationCode;
+
 
   const reload = useCallback(async () => {
     if (!poId || !factoryCode) return;
@@ -478,7 +519,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       return;
     }
     if (!sku.trim()) { setError(trUi("Scan the SKU on the carton label.")); skuRef.current?.focus(); return; }
-    if (!stationCode.trim()) { setError(trUi("Select the assigned Scale station first.")); return; }
+    if (!activeStation.trim()) { setError(trUi("Select the assigned Scale station first.")); return; }
     // A NEW SSCC always requires an explicit Carton No. selection; no FIFO
     // fallback, including the case where there is only one unassigned carton.
     const row = existingCarton || (cartonId ? unassigned.find((c) => c.id === cartonId) : null);
@@ -497,7 +538,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         orderId, poId, cartonId: row.id });
       if (identified?.carton?.id !== row.id) throw new Error('Server returned a different Carton; operation stopped.');
       setActive(identified); setRfid(null); setSavedWeight(null); setScaleReading(null);
-      lastScaleEvent.current = null; setScaleArmed(false); setSimulatorTestKg('');
+      lastScaleEvent.current = null; setScaleArmed(false); setSimulatorTestKg(''); setUatWeightKg('');
       setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); setResetReason('');
       setRfidMountKey((key) => key + 1);
       setNotice(trUi("Carton {0}: SSCC/SKU confirmed. Scan RFID first, then Scale auto-captures a NEW reading.", identified.carton.cartonNo));
@@ -551,11 +592,36 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     finally { setSendingTestKg(false); }
   };
 
+  // Explicit UAT station: saves real backend-derived Weight PASS/FAILED for an entered kg.
+  // The server rejects a choice that conflicts with the allowed weight range.
+  const submitUatWeight = async (selectedStatus) => {
+    if (!uatAvailable || !uatMode || !admin || !activeCarton?.sscc18 || !done(rfidResult)
+      || weightResult || uatSubmittingWeight) return;
+    const value = String(uatWeightKg).trim();
+    if (!/^\d+(?:\.\d{1,3})?$/.test(value) || !(Number(value) > 0) || Number(value) > 10000) {
+      setError(trUi('Enter 0-10000 kg with up to 3 decimals for UAT.'));
+      return;
+    }
+    if (!window.confirm(trUi('Confirm simulated Weight {0} at {1} kg? This will save to Carton and History.', selectedStatus, Number(value).toFixed(3)))) return;
+    setUatSubmittingWeight(true); setError('');
+    try {
+      const saved = await simulateCartonUatWeight({ sscc: activeCarton.sscc18,
+        actualWeightKg: Number(value), result: selectedStatus, acknowledgeLiveWrite: true });
+      setSavedWeight(saved);
+      setActive((previous) => previous ? { ...previous, carton: saved.carton } : previous);
+      setNotice(trUi('UAT Weight {0} recorded at {1} kg · RFID {2} · FINAL {3}.',
+        saved.carton.weightStatus, Number(value).toFixed(3), rfidResult,
+        rfidResult === 'PASS' && saved.carton.weightStatus === 'PASS' ? 'PASS' : 'FAILED'));
+      await reload(); onCartonSaved?.();
+    } catch (e) { setError(errText(e)); }
+    finally { setUatSubmittingWeight(false); }
+  };
+
   // The scale value comes ONLY from the assigned device, never from the carton input.
   // Polling receives simulated events. A server-side single-use claim protects the
   // event from duplicate submissions and verifies the correct Factory + completed RFID (PASS or FAILED).
   useEffect(() => {
-    if (!activeCarton?.sscc18 || !done(rfidResult) || weightResult || !stationCode) return undefined;
+    if (uatMode || !activeCarton?.sscc18 || !done(rfidResult) || weightResult || !stationCode) return undefined;
     let cancelled = false;
     let working = false;
     let lastArmedAt = 0;
@@ -616,7 +682,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     poll();
     const timer = window.setInterval(poll, 1500);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [activeCarton?.sscc18, activeCarton?.cartonNo, rfidResult, weightResult, stationCode, devices, reload, onCartonSaved]);
+  }, [activeCarton?.sscc18, activeCarton?.cartonNo, rfidResult, weightResult, stationCode, devices, uatMode, reload, onCartonSaved]);
 
   // Reset semantics: never erase server history. Unsaved weight is local-only.
   // Completed RFID can be reopened only by Admin; failed RFID may be rescanned
@@ -636,7 +702,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         await reopenCartonRfidSession(orderId, poId, activeCarton.sscc18, resetReason.trim());
       }
       const fresh = await startCartonRfidSession(orderId, poId,
-        { sscc: activeCarton.sscc18, stationCode });
+        { sscc: activeCarton.sscc18, stationCode: activeStation });
       setRfid(fresh);
       setRfidMountKey((key) => key + 1);
       setActive((previous) => previous ? { ...previous, carton: { ...previous.carton,
@@ -663,9 +729,28 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     finally { setBusy(false); }
   };
 
+  const finishPo = async () => {
+    if (endingPo || busy || !poId || !orderId) return;
+    setEndingPo(true); setError(''); setShowEnd(false);
+    try {
+      // Never trust a cached summary: the backend re-reads ALL cartons, including
+      // unassigned or newly reopened cartons, before saving END.
+      const ended = await endProcessingPo(orderId, poId);
+      await reload();
+      onCartonSaved?.();
+      setShowEnd(true);
+      setNotice(`PO ${ended.poNumber || po?.poNumber || ''}: END recorded · FINAL ${ended.finalResult} · PASS ${ended.passed}, FAILED ${ended.failed}.`);
+      // Close the scanning popup and refresh its owning PO list.
+      onPoEnded?.(ended);
+    } catch (e) {
+      setError(errText(e));
+      try { await reload(); } catch { /* Preserve the original END error. */ }
+    } finally { setEndingPo(false); }
+  };
+
   const nextCarton = () => {
     setSscc(''); setSku(''); setCartonId(''); setCartonQuery(''); setActive(null); setRfid(null);
-    setSavedWeight(null); setScaleReading(null); lastScaleEvent.current = null; setError(''); setNotice('');
+    setSavedWeight(null); setScaleReading(null); lastScaleEvent.current = null; setError(''); setNotice(''); setUatWeightKg('');
     setConfirmUnassign(false); setUnassignReason(''); setResetPanel(''); setResetReason('');
     reload().catch((e) => setError(errText(e)));
     onCartonSaved?.();
@@ -698,7 +783,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
       setPickerDismissedFor(''); setActive(reopened); setRfid(null);
       setSavedWeight(null); setShowEnd(false);
       setResetPanel(''); setResetReason(''); setConfirmUnassign(false);
-      setUnassignReason(''); setRfidMountKey((key) => key + 1);
+      setUnassignReason(''); setUatWeightKg(''); setRfidMountKey((key) => key + 1);
       setNotice(trUi("Carton {0} recalled. Start a NEW RFID scan, then send Scale weight. Previous results remain in History.", reopened.carton.cartonNo));
       setRecallTarget(null); setRecallReason('');
       await reload(); onCartonSaved?.();
@@ -831,7 +916,8 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
     {/* One compact device bar; carton workflow and separate PASS / FAILED tables below stay unchanged. */}
     <ConveyorSimControl factoryCode={factoryCode} notice={notice}
       endAction={summary?.end && !active
-        ? <Button size="small" variant="contained" onClick={() => setShowEnd(true)}>{trUi("END")}</Button>
+        ? <Button size="small" variant="contained" onClick={finishPo} disabled={endingPo || busy}>
+          {endingPo ? 'Ending…' : trUi("END")}</Button>
         : null} />
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ py: 0, minHeight: 30,
       '& .MuiAlert-message': { py: 0.35, maxHeight: 46, overflowY: 'auto' },
@@ -875,7 +961,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             disabled={Boolean(active) || busy || !ssccVerified || ssccListOutOfDate || (needCartonChoice && !chosenCarton)} size="small"
             InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeScannerOutlined color="primary" /></InputAdornment>,
               sx: { fontSize: 16, fontWeight: 800, letterSpacing: 0.35 } }} sx={{ flex: 1, '& .MuiOutlinedInput-root': { minHeight: { xs: 48, md: 40 } } }} />
-          <Button variant="contained" size="small" onClick={identify} disabled={busy || loading || Boolean(active) || !ssccVerified || ssccListOutOfDate || !sku.trim() || !stationCode.trim() || (needCartonChoice && !chosenCarton)}
+          <Button variant="contained" size="small" onClick={identify} disabled={busy || loading || Boolean(active) || !ssccVerified || ssccListOutOfDate || !sku.trim() || !activeStation.trim() || (needCartonChoice && !chosenCarton)}
             sx={{ minWidth: 146, whiteSpace: 'nowrap' }}>{busy ? 'Saving…' : trUi("Assign / Identify")}</Button>
         </Stack>
         {ssccListOutOfDate && <Alert severity="warning" sx={{ mt: 0.5, py: 0 }}>{trUi("\n          SSCC assignment differs from the loaded Carton list. Refresh Cartons and rescan before continuing.\n        ")}</Alert>}
@@ -886,7 +972,7 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         </Stack>}
         {chosenCarton && !active && <Typography variant="caption" color="success.main" sx={{ mt: 0.2, display: 'block' }}>{trUi("\n          Carton ")}{chosenCarton.cartonNo} · {chosenCarton.plannedQty} pcs
         </Typography>}
-        {!stationCode && <Alert severity="warning" sx={{ mt: 0.6, py: 0 }}>{trUi("\n          No Scale assigned for Factory ")}{factoryCode}.
+        {!activeStation && <Alert severity="warning" sx={{ mt: 0.6, py: 0 }}>{trUi("\n          No Scale assigned for Factory ")}{factoryCode}.
         </Alert>}
         {active && <Stack spacing={0.45} sx={{ mt: 0.25 }}>
           <Box sx={{ pt: 0.4, mt: 0.25, borderTop: '1px solid #E7EDF5' }}>
@@ -902,9 +988,9 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
                   disabled={busy || !active}
                   onClick={() => { setConfirmUnassign(false); setResetPanel('weight'); setResetReason(''); }}>{trUi("\n                  Reopen Weight\n                ")}</Button>}
               </Stack>
-              <Button size="small" variant="contained" disabled={!savedWeight && !summary?.end}
-                onClick={() => { if (summary?.end) setShowEnd(true); else nextCarton(); }}>
-                {summary?.end ? 'END' : trUi("Next Carton")}
+              <Button size="small" variant="contained" disabled={endingPo || busy || (!weightResult && !savedWeight && !summary?.end)}
+                onClick={() => { if (summary?.end) finishPo(); else nextCarton(); }}>
+                {endingPo ? 'Ending…' : summary?.end ? 'END' : trUi("Next Carton")}
               </Button>
             </Stack>
           </Box>
@@ -947,6 +1033,22 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
         </Stack>}
       </Box>
     </Paper>
+    {admin && uatControlsVisible && <Alert severity={uatAvailable ? 'warning' : 'info'} icon={false} sx={{ py: 0.3, px: 1, fontSize: 12 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+        <Box>
+          <Typography variant="caption" fontWeight={800}>
+            {trUi('RFID / Weight test controls')}: {uatAvailable
+              ? (uatLiveDatabase ? trUi('LIVE DATABASE — simulated records modify real Carton and History') : trUi('Isolated UAT database'))
+              : trUi('UAT unavailable — buttons below are disabled')}
+          </Typography>
+          {!uatAvailable && <Typography variant="caption" sx={{ display: 'block' }}>{uatStatusReason || trUi('Checking UAT Backend…')}</Typography>}
+        </Box>
+        {uatAvailable && <Button size="small" variant={uatMode ? 'contained' : 'outlined'} color="warning"
+          disabled={Boolean(active)} onClick={() => setUatMode((value) => !value)}>
+          {uatMode ? trUi('UAT controls ON') : trUi('Enable UAT controls')}
+        </Button>}
+      </Stack>
+    </Alert>}
     {/* RFID/Weight are aligned desktop panels; their operational controls must never sit behind an inner scrollbar. */}
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1fr) minmax(0,1fr)' },
       gap: { xs: 0.8, md: 0.7 }, alignItems: 'stretch',
@@ -964,7 +1066,12 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
             sx={{ flexShrink: 0, height: 23 }}/>
         </Stack>
         {active ? <CartonRfidPanel key={`${activeCarton.id}-${rfidMountKey}`} deferStart compact orderId={orderId} poId={poId} carton={activeCarton}
-          stationCode={stationCode} factoryCode={factoryCode} onSessionChange={handleRfidSessionChange} />
+          stationCode={activeStation} factoryCode={factoryCode} onSessionChange={handleRfidSessionChange}
+          uatEnabled={uatAvailable && uatMode && admin && !weightResult}
+          uatVisible={admin && uatControlsVisible}
+          uatDisabledReason={!uatAvailable ? uatStatusReason : !uatMode
+            ? trUi('Enable UAT controls above') : weightResult
+              ? trUi('Weight already saved; recall or reopen before RFID test') : ''} />
           : <Box sx={{ py: 1.1, px: 0.8, textAlign: 'center', borderRadius: '2px', border: '1px dashed', borderColor: 'divider', bgcolor: 'background.paper' }}>
             <QrCodeScannerOutlined color="disabled" sx={{ fontSize: 23, mb: 0.2 }}/>
             <Typography variant="body2" fontWeight={850} color="text.secondary">{trUi("Waiting for carton")}</Typography>
@@ -1010,8 +1117,8 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
           </Box>
           {!weightResult && <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, justifyContent: 'center' }}>
             <Typography variant="caption" fontWeight={850} color="text.secondary">{trUi("SCALE")}</Typography>
-            <Chip size="small" color={scaleReading?.status === 'OFFLINE' ? 'error' : stationCode ? 'info' : 'default'}
-              label={!stationCode ? trUi("NOT ASSIGNED") : scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? trUi("SIMULATED / CONNECTED") : scaleReading?.status || trUi("WAITING FOR SCALE")} />
+            <Chip size="small" color={uatMode ? 'warning' : scaleReading?.status === 'OFFLINE' ? 'error' : stationCode ? 'info' : 'default'}
+              label={uatMode ? trUi('UAT-SCALE (virtual)') : !stationCode ? trUi("NOT ASSIGNED") : scaleReading?.mode === DEVICE_CONNECTION_TYPE.SIMULATOR ? trUi("SIMULATED / CONNECTED") : scaleReading?.status || trUi("WAITING FOR SCALE")} />
             {scaleReading?.status === 'OFFLINE' &&
               <Typography variant="caption" color="error.main" sx={{ lineHeight: 1.3 }}>
                 {scaleReading?.error || trUi("Scale disconnected")}
@@ -1021,7 +1128,35 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
               </Typography>}
           </Box>}
         </Box>
-        {admin && active && done(rfidResult) && !weightResult && isAssignedSimulator &&
+        {active && admin && uatControlsVisible && (
+          <Box sx={{ p: 0.8, border: '1px dashed', borderColor: 'warning.main', bgcolor: '#FFFBEB', borderRadius: 1 }}>
+            <Typography variant="caption" fontWeight={850} color="warning.dark">{trUi('UAT Weight — simulated, no physical scale')}</Typography>
+            <Stack direction="row" gap={0.65} alignItems="center" flexWrap="wrap" sx={{ mt: 0.5 }}>
+              <TextField size="small" label={trUi('Test weight (kg)')} type="number" value={uatWeightKg}
+                onChange={(e) => setUatWeightKg(e.target.value)}
+                disabled={!admin || !uatAvailable || !uatMode || !done(rfidResult) || Boolean(weightResult) || uatSubmittingWeight}
+                inputProps={{ min: 0.001, max: 10000, step: 0.001 }}
+                sx={{ width: 145, '& .MuiInputBase-root': { height: 34 } }} />
+              <Button size="small" variant="contained" color="success" startIcon={<CheckCircleOutline />}
+                disabled={!admin || !uatAvailable || !uatMode || !done(rfidResult) || Boolean(weightResult) || uatSubmittingWeight || !uatWeightKg.trim()}
+                onClick={() => submitUatWeight('PASS')}>PASS</Button>
+              <Button size="small" variant="contained" color="error" startIcon={<ErrorOutline />}
+                disabled={!admin || !uatAvailable || !uatMode || !done(rfidResult) || Boolean(weightResult) || uatSubmittingWeight || !uatWeightKg.trim()}
+                onClick={() => submitUatWeight('FAILED')}>FAILED</Button>
+              {uatSubmittingWeight && <CircularProgress size={17} />}
+            </Stack>
+            {!admin || !uatAvailable || !uatMode ? <Typography variant="caption" display="block" color="text.secondary">
+              {!admin ? trUi('Only an Admin can use UAT test controls.') : (uatStatusReason || trUi('Enable UAT controls above'))}
+            </Typography> : !done(rfidResult) ? <Typography variant="caption" display="block" color="text.secondary">
+              {trUi('Finish RFID PASS or FAILED to enable Weight test.')}
+            </Typography> : weightResult ? <Typography variant="caption" display="block" color="text.secondary">
+              {trUi('Weight already saved; use the existing Reopen/Recall flow to test again.')}
+            </Typography> : <Typography variant="caption" display="block" color="text.secondary">
+              {trUi('Click PASS or FAILED to save this weight; Backend verifies the allowed range.')}
+            </Typography>}
+          </Box>
+        )}
+        {!uatMode && admin && active && done(rfidResult) && !weightResult && isAssignedSimulator &&
           <Stack direction="row" gap={0.7} alignItems="center" sx={{ flexWrap: 'wrap' }}>
             <TextField size="small" type="number" label={trUi("Test weight (kg)")} value={simulatorTestKg}
               onChange={(event) => setSimulatorTestKg(event.target.value)} disabled={!scaleArmed || sendingTestKg}
@@ -1035,7 +1170,16 @@ export default function PoRfidWeightWorkspace({ buyerCode = BUYER_CODE.LULULEMON
           </Stack>}
       </Box>
     </Box>
-    {showEnd && summary?.end && <Alert severity="success">{trUi("END · All ")}{summary.total}{trUi(" cartons processed. FINAL PASS: ")}{summary.passed}{trUi(" · FINAL FAILED: ")}{summary.failed}{trUi(". Review FAILED cartons before closing the PO.")}</Alert>}
+    {summary?.end && <Alert severity={summary.finalResult === 'FAILED' ? 'warning' : 'success'} sx={{ py: 0, mt: 0.35 }}>
+      {summary.ended || showEnd ? 'PO END recorded' : 'All planned cartons processed · Ready to END'}
+      {' · FINAL '}{summary.finalResult}{' · PASS '}{summary.passed}{' · FAILED '}{summary.failed}
+    </Alert>}
+    {summary && !summary.end && (summary.processed > 0 || summary.total === 0) && <Alert severity="info" sx={{ py: 0, mt: 0.35 }}>
+      {`END not ready · ${summary.processed}/${Math.max(Number(po?.cartonCount || 0), summary.total)} planned cartons processed. `}
+      {Number(po?.cartonCount || 0) > summary.total
+        ? 'Some planned cartons have not been generated. Refresh or generate the missing cartons.'
+        : 'All cartons need finished RFID and Weight results before END.'}
+    </Alert>}
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0,1fr) minmax(0,1fr)' },
       gap: { xs: 0.8, md: 0.7 }, alignItems: 'stretch', flex: { md: '1 1 0' }, minHeight: { md: 135 }, overflow: 'hidden' }}>
       {resultTable(trUi("FINAL PASS"), passRows, false)}

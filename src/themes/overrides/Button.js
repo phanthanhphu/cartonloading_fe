@@ -84,6 +84,7 @@ export default function Button(theme) {
       },
       styleOverrides: {
         root: {
+          fontSize: '0.8125rem',
           fontWeight: 650,
           '&::after': {
             content: '""',

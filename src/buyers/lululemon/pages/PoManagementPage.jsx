@@ -256,7 +256,7 @@ export default function PoManagementPage() {
 
       // Existing browsers may have saved the old column set in localStorage. Add the
       // newly-required carton calculation columns without resetting the other choices.
-      ['src:ODD_RATIO', 'src:REMAINDER'].forEach((key) => {
+      ['src:ODD_RATIO', 'src:REMAINDER', 'sys:cartonFinal'].forEach((key) => {
         if (!available.has(key) || next.includes(key)) return;
         const anchor = key === 'src:ODD_RATIO' ? next.indexOf('src:PCS_CTN') : next.indexOf('src:CTNS');
         next.splice(anchor >= 0 ? anchor + 1 : next.length, 0, key);
@@ -324,6 +324,17 @@ export default function PoManagementPage() {
 
   const renderColumnCell = (row, column) => {
     if (column.status) return <StatusChip status={row.status} />;
+    if (column.key === 'sys:cartonFinal') {
+      const progress = row.inspectionProgress;
+      if (!progress) return '—';
+      const result = progress.finalResult || 'PENDING';
+      const label = result === 'PENDING'
+        ? `PENDING · ${progress.processedCartons ?? 0}/${progress.plannedCartons ?? 0}`
+        : `FINAL ${result}${progress.ended ? ' · ENDED' : ''}`;
+      return <Typography component="span" sx={{ color: result === 'PASS' ? 'success.main' : result === 'FAILED' ? 'error.main' : 'text.secondary', fontWeight: 750, fontSize: 12 }}>
+        {label}
+      </Typography>;
+    }
     if (column.key === 'sys:sku') {
       return row.sku || <Typography color="warning.main" variant="body2">{trUi("Not assigned")}</Typography>;
     }

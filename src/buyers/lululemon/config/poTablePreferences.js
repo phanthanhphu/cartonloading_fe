@@ -6,9 +6,10 @@ import {
   WORKSPACE_DEFAULT_COLUMN_KEYS
 } from '../../../constants/appConstants';
 
-export const PO_DEFAULT_COLUMN_KEYS = Object.freeze(
-  WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => key !== 'sys:factory' && key !== 'sys:sku')
-);
+export const PO_DEFAULT_COLUMN_KEYS = Object.freeze([
+  ...WORKSPACE_DEFAULT_COLUMN_KEYS.filter((key) => key !== 'sys:factory' && key !== 'sys:sku'),
+  'progress:poFinal'
+]);
 export const PO_DEFAULT_HIDDEN_KEYS = new Set(['sys:factory', 'sys:sku']);
 export const UNSCHEDULED_COLUMN_STORAGE_KEY = `${DEFAULT_WORKSPACE_COLUMN_STORAGE_KEY}.unscheduled`;
 export const SCHEDULE_COLUMN_STORAGE_KEY = 'lululemon.shippingScheduleDays.columns.v1';

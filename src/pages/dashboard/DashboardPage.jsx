@@ -70,8 +70,8 @@ export default function DashboardPage() {
   if (showLululemon) {
     // LULULEMON's executive Dashboard shows only the three report charts.
     // ADMIN has no automatic report bypass; Option 1 / Option 2 control access.
-    return <Box sx={{ p: { xs: 1, md: 1.5 }, boxSizing: 'border-box',
-      height: { xs: 'auto', md: 'calc(100dvh - 88px)' }, minHeight: 0, overflowY: { xs: 'visible', md: 'hidden' } }}>
+    return <Box sx={{ p: { xs: 0.75, md: 1 }, boxSizing: 'border-box',
+      height: 'auto', maxHeight: { md: 'calc(100dvh - 88px)' }, minHeight: 0, overflowY: 'auto' }}>
       {canViewManagementReports() ? <ManagementAnalytics /> :
         <Alert severity="info">{trUi("Reports access is not assigned.")}</Alert>}
     </Box>;

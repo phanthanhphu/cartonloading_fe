@@ -37,7 +37,7 @@ import {
   listManagedOrders,
   updateManagedOrder
 } from 'services/managementService';
-import { BUYER_CODE, DEFAULT_TABLE_ROWS_PER_PAGE } from '../../../../constants/appConstants';
+import { BUYER_CODE, DEFAULT_TABLE_ROWS_PER_PAGE, buyerOrderStorageKey } from '../../../../constants/appConstants';
 import { useSelectedFactory } from 'utils/factorySelection';
 import { getLululemonTestCleanupStatus, previewLululemonTestOrder, purgeLululemonTestOrder } from '../../../lululemon/services/testCleanup';
 
@@ -151,12 +151,22 @@ export default function BuyerOrdersPage() {
     }
   };
 
+  // A deleted Order must not remain as the selected Order in other buyer pages.
+  const clearDeletedOrderSelection = (orderId) => {
+    if (!isLululemon || !orderId) return;
+    try {
+      const key = buyerOrderStorageKey(BUYER_CODE.LULULEMON);
+      if (localStorage.getItem(key) === orderId) localStorage.removeItem(key);
+    } catch { /* optional browser storage */ }
+  };
+
   const purgeTestData = async () => {
     const required = `DELETE ${purgeOrder?.orderName}`;
     if (!isLululemonAdmin || !purgeEnabled || !purgeOrder || !purgePreview || purging || purgeConfirm !== required) return;
     setPurging(true);
     try {
       await purgeLululemonTestOrder(purgeOrder.id, purgeConfirm);
+      clearDeletedOrderSelection(purgeOrder.id);
       setPurgeOrder(null);
       setPurgePreview(null);
       setPurgeConfirm('');
@@ -187,6 +197,7 @@ export default function BuyerOrdersPage() {
     if (!row || !await confirmAction({ kind: 'delete', entity: 'Order', name: row.orderName })) return;
     try {
       await deleteManagedOrder(buyerCode, row.id);
+      clearDeletedOrderSelection(row.id);
       await load(paginationRef.current.page, paginationRef.current.size);
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || APP_MESSAGES.DELETE_ORDER_FAILED);
@@ -212,7 +223,7 @@ export default function BuyerOrdersPage() {
           <Tooltip title={trUi("Open Order Workspace")}><IconButton size="small" color="primary" onClick={() => openOrder(row)}><FolderOpenOutlined fontSize="small" /></IconButton></Tooltip>
           {writable ? <Tooltip title={trUi("Edit Order")}><IconButton size="small" onClick={() => { setSaveError(''); setDialog({ record: row }); }}><EditOutlined fontSize="small" /></IconButton></Tooltip> : null}
           {writable && !(isLululemonAdmin && purgeEnabled) ? <Tooltip title={trUi("Delete empty Order")}><IconButton size="small" color="error" onClick={() => remove(row)}><DeleteOutline fontSize="small" /></IconButton></Tooltip> : null}
-          {isLululemonAdmin && purgeEnabled ? <Tooltip title={trUi("Delete Order and ALL related data (TEST ONLY)")}><IconButton size="small" color="error" onClick={() => openPurge(row)}><DeleteForeverOutlined fontSize="small" /></IconButton></Tooltip> : null}
+          {isLululemonAdmin && purgeEnabled ? <Tooltip title={trUi("Delete Order, all POs and related Reports data (TEST ONLY)")}><IconButton size="small" color="error" onClick={() => openPurge(row)}><DeleteForeverOutlined fontSize="small" /></IconButton></Tooltip> : null}
         </Stack>
       )
     }
@@ -272,7 +283,7 @@ export default function BuyerOrdersPage() {
           <DialogTitle color="error.main">{trUi("Remove Order + All Data · TEST ONLY")}</DialogTitle>
           <DialogContent>
             <Stack spacing={1.5} sx={{ mt: 1 }}>
-              <Alert severity="error">{trUi("This permanently deletes the Order and its PO Picking, Carton, Item, Shipping, Weight, RFID and QC records. Audit logs and shared device configuration are preserved. This cannot be undone.")}</Alert>
+              <Alert severity="error">{trUi("This permanently deletes the Order, ALL of its POs, Cartons, Items, RFID/Weight/QC records, Shipping Schedules, submitted Shipping Days and all related data used by Reports. Other Orders, audit logs and shared device configuration are preserved. This cannot be undone.")}</Alert>
               <DialogContentText>{trUi("Buyer: ")}<b>{buyerCode}</b>{trUi(" · Order: ")}<b>{purgeOrder?.orderName}</b></DialogContentText>
               {purgePreview ? <>
                 <Typography variant="subtitle2">{trUi("Records matched: ")}{Object.values(purgePreview.counts || {}).reduce((total, n) => total + Number(n || 0), 1)}</Typography>

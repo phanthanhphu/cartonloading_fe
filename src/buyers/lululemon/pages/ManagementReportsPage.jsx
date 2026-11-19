@@ -10,10 +10,9 @@ import {
 } from '@mui/icons-material';
 import { getManagementReport, getManagementPoDetail, exportManagementReport, exportManagementPo, getManagementCartonHistory, getManagementDashboardOptions } from '../services/managementReports';
 import { canExportManagementReports } from 'utils/accessControl';
+import { getDefaultManagementReportFilters } from '../services/managementReportDefaults';
 
-const today = new Date();
-const dateStr = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const INITIAL = { from: dateStr(new Date(today.getFullYear(), today.getMonth(), 1)), to: dateStr(today), factory: '', shippingDate: '', orderId: '', status: '' };
+const INITIAL = getDefaultManagementReportFilters();
 // Allow chart clicks on Dashboard to open a pre-filtered report.
 const initialFromLocation = (search) => {
   const query = new URLSearchParams(search || '');
@@ -31,6 +30,8 @@ const initialFromLocation = (search) => {
     const value = query.get(key);
     if (value && value.length <= 128) candidate[key] = value;
   }
+  const dateBasis = query.get('dateBasis');
+  if (['ALL', 'IMPORTED', 'SHIPPING'].includes(dateBasis)) candidate.dateBasis = dateBasis;
   const status = query.get('status');
   if (['COMPLETED', 'IN_PROGRESS', 'ISSUES'].includes(status)) candidate.status = status;
   return candidate;
@@ -106,7 +107,7 @@ function PoDetailsDialog({ row, filters, onClose }) {
       const response = await exportManagementPo(row.poId, { ...filters, shippingDate: row.shippingDate });
       const href = URL.createObjectURL(response.data);
       const anchor = document.createElement('a'); anchor.href = href;
-      anchor.download = `PO_${String(row.poNumber || row.poId).replace(/[^A-Za-z0-9_-]/g, '_')}_Carton_Details_${row.shippingDate}.xlsx`;
+      anchor.download = `PO_${String(row.poNumber || row.poId).replace(/[^A-Za-z0-9_-]/g, '_')}_Carton_Details_${row.shippingDate || 'UNSCHEDULED'}.xlsx`;
       document.body.appendChild(anchor); anchor.click(); anchor.remove();
       setTimeout(() => URL.revokeObjectURL(href), 1000);
     } catch (e) { setError(await exportErrorText(e)); }
@@ -153,7 +154,7 @@ function PoDetailsDialog({ row, filters, onClose }) {
       <Paper square elevation={0} sx={{ px: { xs: 1.5, sm: 2.5 }, py: 2, borderBottom: '1px solid #dbe5eb', flexShrink: 0 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} gap={1}>
           <Box sx={{ minWidth: 0 }}><Typography id="management-po-dialog-title" fontSize={19} fontWeight={900} color="#183a53">{trUi("PO Details · ")}{row.poNumber || row.poId}</Typography>
-            <Typography variant="caption" color="text.secondary">{row.orderName} · {row.factoryCode}{trUi(" · Shipping ")}{displayDate(row.shippingDate)}{trUi(" · Read only")}</Typography></Box>
+            <Typography variant="caption" color="text.secondary">{row.orderName} · {row.factoryCode} · {row.shippingDate ? `${trUi('Shipping')} ${displayDate(row.shippingDate)}` : trUi('Not Scheduled')}{trUi(" · Read only")}</Typography></Box>
           <Stack direction="row" gap={1} alignItems="center" flexShrink={0}>
             {canExport() && <Button onClick={exportPo} disabled={exportingPo} startIcon={<DownloadOutlined/>} size="small" variant="outlined">{trUi("Export Carton Details")}</Button>}
             <Button onClick={onClose} startIcon={<Close />} size="small" color="inherit">{trUi("Close")}</Button>
@@ -241,7 +242,7 @@ export default function ManagementReportsPage() {
 
   const update = (key, value) => setDraft((previous) => ({
     ...previous, [key]: value,
-    ...(['factory', 'from', 'to'].includes(key) ? { orderId: '', shippingDate: '' } : {}),
+    ...(['factory', 'from', 'to', 'dateBasis'].includes(key) ? { orderId: '', shippingDate: '' } : {}),
     ...(key === 'orderId' ? { shippingDate: '' } : {})
   }));
 
@@ -261,12 +262,12 @@ export default function ManagementReportsPage() {
     if (!valid) { setOptions({ factories: [], shippingDates: [], orders: [] }); return undefined; }
     let alive = true;
     const timer = setTimeout(() => {
-      getManagementDashboardOptions({ from: draft.from, to: draft.to, factory: draft.factory, orderId: draft.orderId })
+      getManagementDashboardOptions({ from: draft.from, to: draft.to, factory: draft.factory, dateBasis: draft.dateBasis })
         .then((value) => { if (alive) setOptions(value || { factories: [], shippingDates: [], orders: [] }); })
         .catch(() => { if (alive) setOptions({ factories: [], shippingDates: [], orders: [] }); });
     }, 200);
     return () => { alive = false; clearTimeout(timer); };
-  }, [valid, draft.from, draft.to, draft.factory, draft.orderId]);
+  }, [valid, draft.from, draft.to, draft.factory, draft.dateBasis]);
 
   const apply = (event) => {
     event?.preventDefault();
@@ -299,7 +300,7 @@ export default function ManagementReportsPage() {
   const totals = report?.totals || {};
   const rows = report?.pos || [];
   const filtersSummary = useMemo(() => [
-    `${displayDate(applied.from)} – ${displayDate(applied.to)}`,
+    applied.dateBasis === 'ALL' ? 'All Import Dates' : `${applied.dateBasis === 'IMPORTED' ? 'Imported' : 'Shipping'} ${displayDate(applied.from)} – ${displayDate(applied.to)}`,
     applied.factory || 'All Factories',
     applied.orderId ? (options.orders || []).find(o => o.orderId === applied.orderId)?.orderName || applied.orderId : 'All Orders',
     applied.shippingDate ? displayDate(applied.shippingDate) : 'All Shipping'
@@ -324,7 +325,7 @@ export default function ManagementReportsPage() {
     setDraft(next); setApplied(next); setPage(0); setSelectedPo(null); setGroupBy('po');
   };
   const viewShippingPos = (item) => {
-    const next = { ...applied, factory: item.factoryCode, shippingDate: item.shippingDate, orderId: item.orderId || '' };
+    const next = { ...applied, dateBasis: 'SHIPPING', factory: item.factoryCode, shippingDate: item.shippingDate, orderId: item.orderId || '' };
     setDraft(next); setApplied(next); setPage(0); setSelectedPo(null); setGroupBy('po');
   };
 
@@ -348,9 +349,17 @@ export default function ManagementReportsPage() {
         <ManageSearchOutlined color="primary" fontSize="small" />
         <Typography fontWeight={850} color="#183a53">{trUi("Report Filters")}</Typography>
       </Stack>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr)', sm: 'repeat(2,minmax(0,1fr))', md: 'repeat(3,minmax(0,1fr))', lg: 'repeat(6,minmax(0,1fr))' }, columnGap: 1.25, rowGap: 2.5, alignItems: 'start' }}>
-        <TextField fullWidth size="small" type="date" label={trUi("Date From")} value={draft.from} onChange={(event) => update('from', event.target.value)} InputLabelProps={{ shrink: true }} required error={!valid}/>
-        <TextField fullWidth size="small" type="date" label={trUi("Date To")} value={draft.to} onChange={(event) => update('to', event.target.value)} InputLabelProps={{ shrink: true }} required error={!valid}/>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0,1fr)', sm: 'repeat(2,minmax(0,1fr))', md: 'repeat(3,minmax(0,1fr))', xl: 'repeat(7,minmax(0,1fr))' }, columnGap: 1.25, rowGap: 2.5, alignItems: 'start' }}>
+        <FormControl fullWidth size="small">
+          <InputLabel>{trUi('Date Basis')}</InputLabel>
+          <Select value={draft.dateBasis || 'ALL'} label={trUi('Date Basis')} onChange={(event) => update('dateBasis', event.target.value)}>
+            <MenuItem value="ALL">{trUi('All Import Dates')}</MenuItem>
+            <MenuItem value="IMPORTED">{trUi('Imported Date')}</MenuItem>
+            <MenuItem value="SHIPPING">{trUi('Shipping Date')}</MenuItem>
+          </Select>
+        </FormControl>
+        <TextField fullWidth size="small" type="date" label={trUi("Date From")} value={draft.from} onChange={(event) => update('from', event.target.value)} InputLabelProps={{ shrink: true }} required error={!valid} disabled={draft.dateBasis === 'ALL'}/>
+        <TextField fullWidth size="small" type="date" label={trUi("Date To")} value={draft.to} onChange={(event) => update('to', event.target.value)} InputLabelProps={{ shrink: true }} required error={!valid} disabled={draft.dateBasis === 'ALL'}/>
         {combo('Factory', 'factory', trUi("All Factories"))}
         {combo('Order', 'orderId', trUi("All Orders"))}
         {combo('Shipping', 'shippingDate', trUi("All Shipping Dates"))}
@@ -363,7 +372,10 @@ export default function ManagementReportsPage() {
         </FormControl>
       </Box>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} gap={1} mt={1.25}>
-        {!valid ? <Typography variant="caption" color="error">{trUi("Invalid date range.")}</Typography> : <Box />}
+        {!valid ? <Typography variant="caption" color="error">{trUi("Invalid date range.")}</Typography> :
+          <Typography variant="caption" color="text.secondary">{trUi(draft.dateBasis === 'ALL'
+            ? 'All imported POs are included, even without a Shipping Schedule.'
+            : draft.dateBasis === 'IMPORTED' ? 'Filter by PO import date.' : 'Filter by Shipping Schedule date.')}</Typography>}
         <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ flexShrink: 0 }}>
           <Button type="button" variant="text" color="inherit" onClick={reset}>{trUi("Reset")}</Button>
           <Button type="submit" variant="contained" disabled={!valid || busy} startIcon={<SearchOutlined/>} sx={{ px: 2.25 }}>{trUi("Apply Filters")}</Button>
@@ -372,12 +384,19 @@ export default function ManagementReportsPage() {
     </Paper>
 
     {error && <Alert severity="error" onClose={() => setError('')}>{trSystem(error)}</Alert>}
+    {!busy && report && (report?.totalRows || 0) === 0 &&
+      <Alert severity="info" sx={{ py: 0.5 }}>
+        {trUi(applied.dateBasis === 'SHIPPING'
+          ? 'No Shipping Schedule matches the selected dates and filters.'
+          : applied.dateBasis === 'IMPORTED' ? 'No POs were imported in the selected dates and filters.'
+          : 'No imported POs match this Factory / Order / Status selection. Check report access and imported Orders.')}
+      </Alert>}
 
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,minmax(0,1fr))', sm: 'repeat(3,minmax(0,1fr))', xl: 'repeat(6,minmax(0,1fr))' }, gap: 1 }}>
       <Kpi label={trUi("Orders")} value={totals.orders} icon={SummarizeOutlined}/>
       <Kpi label={trUi("Factories")} value={totals.factories} icon={FactoryOutlined}/>
       <Kpi label={trUi("Shipping Days")} value={totals.shippingDays} icon={CalendarMonthOutlined}/>
-      <Kpi label={trUi("PO Assignments")} value={totals.poAssignments} icon={ManageSearchOutlined} note={`${format(totals.uniquePos)} unique PO`}/>
+      <Kpi label={trUi("Total POs")} value={totals.uniquePos} icon={ManageSearchOutlined} note={`${format(totals.scheduledPos)} scheduled · ${format(totals.unscheduledPos)} unscheduled`}/>
       <Kpi label={trUi("Planned Cartons")} value={totals.plannedCartons} icon={Inventory2Outlined}/>
       <Kpi label={trUi("Final PASS")} value={totals.finalPass} icon={TaskAltOutlined} note={`${ratio(totals.finalPass, totals.plannedCartons)}% planned`}/>
     </Box>
@@ -401,7 +420,7 @@ export default function ManagementReportsPage() {
     <Paper variant="outlined" sx={{ ...cardSx, overflow: 'hidden' }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} gap={1.25} px={2} py={1.75}>
         <Box>
-          <Typography color="#183a53" fontWeight={850}>{trUi("Shipping & Order Report")}</Typography>
+          <Typography color="#183a53" fontWeight={850}>{trUi("Order & Shipping Report")}</Typography>
           <Typography variant="caption" color="text.secondary">{filtersSummary}</Typography>
         </Box>
         <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 210 } }}>
@@ -440,7 +459,7 @@ export default function ManagementReportsPage() {
           <TableHead><TableRow>{['Shipping Date','Factory','Order','Shipping Status','POs','Planned CTN','Final PASS','Final FAILED','Pending','Actions'].map(label => <TableCell key={label} sx={headerCellSx}>{trUi(label)}</TableCell>)}</TableRow></TableHead>
           <TableBody>
             {(report?.shippingDays || []).map((item, index) => <TableRow hover key={`${item.shippingDate}/${item.factoryCode}/${item.orderId || index}`}>
-              <TableCell sx={tableCellSx}>{displayDate(item.shippingDate)}</TableCell>
+              <TableCell sx={tableCellSx}>{item.shippingDate ? displayDate(item.shippingDate) : trUi('Not Scheduled')}</TableCell>
               <TableCell sx={tableCellSx}>{item.factoryCode}</TableCell>
               <TableCell sx={tableCellSx}>{item.orderName}</TableCell>
               <TableCell sx={tableCellSx}><Status value={item.shippingStatus}/></TableCell>
@@ -462,7 +481,7 @@ export default function ManagementReportsPage() {
             <TableHead><TableRow>{['Shipping Date','Factory','Order','PO','Master PO','Planned CTN','Final PASS','FAILED','Pending','Status','Actions'].map(label => <TableCell key={label} sx={headerCellSx}>{trUi(label)}</TableCell>)}</TableRow></TableHead>
             <TableBody>
               {rows.map(item => <TableRow key={`${item.shippingDate}/${item.factoryCode}/${item.poId}`} hover>
-                <TableCell sx={tableCellSx}>{displayDate(item.shippingDate)}</TableCell>
+                <TableCell sx={tableCellSx}>{item.shippingDate ? displayDate(item.shippingDate) : trUi('Not Scheduled')}</TableCell>
                 <TableCell sx={tableCellSx}>{item.factoryCode}</TableCell>
                 <TableCell sx={tableCellSx}>{item.orderName}</TableCell>
                 <TableCell sx={tableCellSx}><Button size="small" sx={{ fontWeight: 800, whiteSpace: 'nowrap' }} onClick={() => setSelectedPo(item)}>{item.poNumber || item.poId}</Button></TableCell>

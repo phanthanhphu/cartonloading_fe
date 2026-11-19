@@ -37,6 +37,7 @@ export default function OutlinedInput(theme) {
           borderColor: theme.palette.secondary[400]
         },
         root: {
+          fontSize: '0.8125rem',
           '& svg': {
             color: theme.palette.secondary.main
           },

@@ -6,7 +6,7 @@ export default function TableCell() {
           borderBottom: '1px solid #D6E0EA',
           borderRight: '1px solid #D6E0EA',
           padding: '8px 10px',
-          fontSize: '0.78rem',
+          fontSize: '0.75rem',
           lineHeight: 1.4,
           color: '#30485F'
         },

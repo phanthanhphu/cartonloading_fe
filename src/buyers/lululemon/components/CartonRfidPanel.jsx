@@ -3,7 +3,8 @@ import { KEYBOARD_KEY } from '../../../constants/appConstants';
 import useAutoDismissFeedback from '../../../hooks/useAutoDismissFeedback';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Button, Chip, Collapse, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
-import { ExpandLess, ExpandMore, QrCodeScannerOutlined, Refresh, Sensors } from '@mui/icons-material';
+import { CheckCircleOutline, ErrorOutline, ExpandLess, ExpandMore, QrCodeScannerOutlined, Refresh, Sensors } from '@mui/icons-material';
+import { simulateCartonUatRfid } from '../services/cartonUatTest';
 import {
   getCartonRfidSession,
   startCartonRfidSession,
@@ -41,7 +42,7 @@ const statCircleSx = (mode) => ({
  * Compact Lululemon RFID carton test: a single EPC entry on Enter, or optional batch paste.
  * Reader Bridge later POSTs the same /reads API; the backend is the authority on dedupe / PASS.
  */
-export default function CartonRfidPanel({ orderId, poId, carton, stationCode, factoryCode, onSessionChange, admin = false, deferStart = false, compact = false }) {
+export default function CartonRfidPanel({ orderId, poId, carton, stationCode, factoryCode, onSessionChange, admin = false, deferStart = false, compact = false, uatEnabled = false, uatVisible = false, uatDisabledReason = '' }) {
   const trUi = useT();
   const trSystem = useSystemMessage();
   const [session, setSession] = useState(null);
@@ -238,6 +239,19 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
     finally { setBusy(false); }
   };
 
+  const submitUatRfid = async (selectedStatus) => {
+    if (!uatEnabled || busy || deviceCapturing || session?.status === 'PASS') return;
+    if (!window.confirm(trUi('Confirm simulated RFID {0}? This will save EPCs and Carton/History.', selectedStatus))) return;
+    setBusy(true); setError(''); setNote('');
+    try {
+      const result = await simulateCartonUatRfid({ orderId, poId, sscc, stationCode: stationCode || 'UAT-SCALE',
+        result: selectedStatus, acknowledgeLiveWrite: true });
+      publish(result);
+      setNote(`UAT RFID ${result.status} recorded. No physical RFID device was used.`);
+    } catch (e) { setError(messageOf(e)); }
+    finally { setBusy(false); }
+  };
+
   const groups = useMemo(() => {
     const map = new Map();
     for (const row of rows) {
@@ -297,6 +311,23 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
         </Stack>
       </Box>
 
+      {uatVisible && (
+        <Box sx={{ mt: 0.65, p: 0.8, border: '1px dashed', borderColor: 'warning.main', borderRadius: 1, bgcolor: '#FFFBEB' }}>
+          <Typography variant="caption" fontWeight={850} color="warning.dark">{trUi('UAT RFID — simulated, not a physical scan')}</Typography>
+          <Stack direction="row" gap={0.6} flexWrap="wrap" alignItems="center" sx={{ mt: 0.45 }}>
+            <Button size="small" variant="contained" color="success" startIcon={<CheckCircleOutline />}
+              disabled={!uatEnabled || busy || deviceCapturing || session?.status === 'PASS'}
+              onClick={() => submitUatRfid('PASS')}>PASS</Button>
+            <Button size="small" variant="contained" color="error" startIcon={<ErrorOutline />}
+              disabled={!uatEnabled || busy || deviceCapturing || session?.status === 'PASS'}
+              onClick={() => submitUatRfid('FAILED')}>FAILED</Button>
+            {busy && <Typography variant="caption">{trUi('Saving…')}</Typography>}
+          </Stack>
+          {!uatEnabled ? <Typography variant="caption" display="block" color="text.secondary">{uatDisabledReason || trUi('Enable UAT controls above')}</Typography>
+            : session?.status === 'PASS' ? <Typography variant="caption" display="block" color="text.secondary">{trUi('RFID PASS already saved; reset/recall to test again.')}</Typography>
+            : <Typography variant="caption" display="block" color="text.secondary">{trUi('Click PASS to generate all expected EPCs, or FAILED to finish with missing EPCs.')}</Typography>}
+        </Box>
+      )}
       {(!session?.id || session?.status === 'REOPENED') && deferStart && <Button fullWidth size="small" variant="contained" color="primary"
         sx={{ my: 0.65 }} disabled={busy || !stationCode} onClick={restart}>{trUi("Start RFID Scan")}</Button>}
       {session?.id && session?.status !== 'REOPENED' && <RfidPdaManager orderId={orderId} poId={poId} sscc={sscc}
@@ -345,6 +376,7 @@ export default function CartonRfidPanel({ orderId, poId, carton, stationCode, fa
         </Box>
       ) : null}
 
+      {session?.uatSimulated && <Chip size="small" color="warning" label="UAT SIMULATED · NO PHYSICAL RFID" sx={{ mt: 0.5 }} />}
       {session?.status === 'FAILED' && (
         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 0.8 }}>
           <Button size="small" startIcon={<Refresh />} variant="outlined" onClick={restart} disabled={busy}>{trUi("Rescan Carton")}</Button>

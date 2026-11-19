@@ -25,12 +25,12 @@ export default function Typography(fontFamily) {
     },
     h4: {
       fontWeight: 600,
-      fontSize: '1.25rem',
+      fontSize: '1.1875rem',
       lineHeight: 1.4
     },
     h5: {
       fontWeight: 600,
-      fontSize: '1rem',
+      fontSize: '0.9375rem',
       lineHeight: 1.5
     },
     h6: {
@@ -44,7 +44,7 @@ export default function Typography(fontFamily) {
       lineHeight: 1.66
     },
     body1: {
-      fontSize: '0.875rem',
+      fontSize: '0.8125rem',
       lineHeight: 1.57
     },
     body2: {
@@ -52,7 +52,7 @@ export default function Typography(fontFamily) {
       lineHeight: 1.66
     },
     subtitle1: {
-      fontSize: '0.875rem',
+      fontSize: '0.8125rem',
       fontWeight: 600,
       lineHeight: 1.57
     },
@@ -65,6 +65,7 @@ export default function Typography(fontFamily) {
       lineHeight: 1.66
     },
     button: {
+      fontSize: '0.8125rem',
       textTransform: 'capitalize'
     }
   };
